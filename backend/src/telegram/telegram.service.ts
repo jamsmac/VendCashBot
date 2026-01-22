@@ -21,13 +21,15 @@ interface SessionData {
     | 'searching_machine'
     | 'creating_machine_code'
     | 'creating_machine_name'
-    | 'setting_welcome_image';
+    | 'setting_welcome_image'
+    | 'editing_text';
   inviteCode?: string;
   selectedMachineId?: string;
   collectionTime?: Date;
   pendingCollectionId?: string;
   searchQuery?: string;
   newMachineCode?: string;
+  editingTextKey?: string;
 }
 
 type MyContext = Context & SessionFlavor<SessionData> & { user?: User };
@@ -508,6 +510,53 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
               .text('❌ Отмена', 'main_menu'),
           },
         );
+        return;
+      }
+
+      // Admin: Editing text
+      if (ctx.session.step === 'editing_text' && ctx.session.editingTextKey && ctx.user?.role === UserRole.ADMIN) {
+        const newText = ctx.message.text.trim();
+
+        if (newText.length > 500) {
+          await ctx.reply(
+            '❌ Текст слишком длинный\n\n' +
+            'Максимум 500 символов',
+            {
+              reply_markup: new InlineKeyboard().text('✖️ Отмена', 'settings_texts'),
+            },
+          );
+          return;
+        }
+
+        try {
+          await this.settingsService.set(ctx.session.editingTextKey, newText);
+
+          const textKey = ctx.session.editingTextKey;
+          ctx.session.step = 'idle';
+          ctx.session.editingTextKey = undefined;
+
+          const textNames: Record<string, string> = {
+            welcome_title: 'Заголовок',
+            welcome_text: 'Описание',
+          };
+
+          await ctx.reply(
+            `╭─────────────────────╮\n` +
+            `│  ✅  *СОХРАНЕНО*\n` +
+            `╰─────────────────────╯\n\n` +
+            `📝  ${textNames[textKey] || textKey}\n\n` +
+            `Новое значение:\n` +
+            `_${newText.length > 100 ? newText.slice(0, 100) + '...' : newText}_`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: new InlineKeyboard()
+                .text('👁 Превью', 'preview_welcome')
+                .text('📝 К текстам', 'settings_texts'),
+            },
+          );
+        } catch (error: any) {
+          await ctx.reply(`❌ Ошибка: ${error.message}`);
+        }
         return;
       }
 
@@ -1557,6 +1606,31 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
       await ctx.answerCallbackQuery();
 
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  ⚙️  *НАСТРОЙКИ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `Управление ботом:`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard()
+            .text('🖼 Картинка', 'settings_image')
+            .text('📝 Тексты', 'settings_texts')
+            .row()
+            .text('👁 Превью', 'preview_welcome')
+            .text('🏠 Меню', 'main_menu'),
+        },
+      );
+    });
+
+    // Admin: Image settings
+    this.bot.callbackQuery('settings_image', async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) {
+        await ctx.answerCallbackQuery('Недостаточно прав');
+        return;
+      }
+      await ctx.answerCallbackQuery();
+
       const currentImage = await this.settingsService.getWelcomeImage();
       const imageStatus = currentImage
         ? currentImage.startsWith('tg:')
@@ -1566,22 +1640,153 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  ⚙️  *НАСТРОЙКИ*\n` +
+        `│  🖼  *КАРТИНКА*\n` +
         `╰─────────────────────╯\n\n` +
-        `🖼  *Приветствие*\n` +
         `Статус: ${imageStatus}\n\n` +
-        `Показывается новым\n` +
-        `пользователям`,
+        `Показывается при входе\n` +
+        `без приглашения`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
             .text('📷 Изменить', 'change_welcome_image')
-            .text('👁 Превью', 'preview_welcome')
-            .row()
             .text('🗑 Сброс', 'reset_welcome_image')
-            .text('🏠 Меню', 'main_menu'),
+            .row()
+            .text('◀️ Назад', 'bot_settings'),
         },
       );
+    });
+
+    // Admin: Texts settings menu
+    this.bot.callbackQuery('settings_texts', async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) {
+        await ctx.answerCallbackQuery('Недостаточно прав');
+        return;
+      }
+      await ctx.answerCallbackQuery();
+
+      const welcomeTitle = await this.settingsService.getWelcomeTitle();
+      const welcomeText = await this.settingsService.getWelcomeText();
+
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  📝  *ТЕКСТЫ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `Редактирование текстов бота:\n\n` +
+        `🏷  Заголовок: ${welcomeTitle ? '✅' : '⚪️'}\n` +
+        `📄  Описание: ${welcomeText ? '✅' : '⚪️'}`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard()
+            .text('🏷 Заголовок', 'edit_text_welcome_title')
+            .text('📄 Описание', 'edit_text_welcome_text')
+            .row()
+            .text('🔄 Сбросить всё', 'reset_all_texts')
+            .row()
+            .text('◀️ Назад', 'bot_settings'),
+        },
+      );
+    });
+
+    // Admin: Edit text handler
+    this.bot.callbackQuery(/^edit_text_(.+)$/, async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) {
+        await ctx.answerCallbackQuery('Недостаточно прав');
+        return;
+      }
+      await ctx.answerCallbackQuery();
+
+      const textKey = ctx.match[1];
+      ctx.session.step = 'editing_text';
+      ctx.session.editingTextKey = textKey;
+
+      const textNames: Record<string, string> = {
+        welcome_title: 'Заголовок приветствия',
+        welcome_text: 'Текст приветствия',
+      };
+
+      const currentValue = await this.settingsService.get(textKey);
+      const preview = currentValue
+        ? currentValue.length > 100
+          ? currentValue.slice(0, 100) + '...'
+          : currentValue
+        : '_не задан_';
+
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  ✏️  *РЕДАКТОР*\n` +
+        `╰─────────────────────╯\n\n` +
+        `📝  *${textNames[textKey] || textKey}*\n\n` +
+        `Текущее значение:\n${preview}\n\n` +
+        `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+        `Введите новый текст:`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard()
+            .text('🗑 Очистить', `clear_text_${textKey}`)
+            .row()
+            .text('✖️ Отмена', 'settings_texts'),
+        },
+      );
+    });
+
+    // Admin: Clear text
+    this.bot.callbackQuery(/^clear_text_(.+)$/, async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) {
+        await ctx.answerCallbackQuery('Недостаточно прав');
+        return;
+      }
+
+      const textKey = ctx.match[1];
+
+      try {
+        await this.settingsService.delete(textKey);
+        await ctx.answerCallbackQuery('Очищено');
+
+        ctx.session.step = 'idle';
+        ctx.session.editingTextKey = undefined;
+
+        await ctx.editMessageText(
+          `╭─────────────────────╮\n` +
+          `│  ✅  *ОЧИЩЕНО*\n` +
+          `╰─────────────────────╯\n\n` +
+          `Текст сброшен на значение\n` +
+          `по умолчанию`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: new InlineKeyboard().text('◀️ К текстам', 'settings_texts'),
+          },
+        );
+      } catch (error: any) {
+        await ctx.answerCallbackQuery(`Ошибка: ${error.message}`);
+      }
+    });
+
+    // Admin: Reset all texts
+    this.bot.callbackQuery('reset_all_texts', async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) {
+        await ctx.answerCallbackQuery('Недостаточно прав');
+        return;
+      }
+
+      try {
+        await this.settingsService.delete(SETTING_KEYS.WELCOME_TITLE);
+        await this.settingsService.delete(SETTING_KEYS.WELCOME_TEXT);
+        await ctx.answerCallbackQuery('Все тексты сброшены');
+
+        await ctx.editMessageText(
+          `╭─────────────────────╮\n` +
+          `│  ✅  *СБРОШЕНО*\n` +
+          `╰─────────────────────╯\n\n` +
+          `Все тексты сброшены\n` +
+          `на значения по умолчанию`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: new InlineKeyboard().text('◀️ К текстам', 'settings_texts'),
+          },
+        );
+      } catch (error: any) {
+        await ctx.answerCallbackQuery(`Ошибка: ${error.message}`);
+      }
     });
 
     // Admin: Change welcome image
@@ -1795,12 +2000,16 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       this.configService.get<string>('telegram.welcomeImage') ||
       'https://i.imgur.com/JQvVqXh.png';
 
+    // Dynamic texts from DB settings
+    const welcomeTitle = (await this.settingsService.getWelcomeTitle()) || 'VendCash';
+    const welcomeText = (await this.settingsService.getWelcomeText()) ||
+      'Система учёта инкассации\nвендинговых автоматов';
+
     const caption =
       `╭─────────────────────╮\n` +
-      `│  🏧  *VendCash*\n` +
+      `│  🏧  *${welcomeTitle}*\n` +
       `╰─────────────────────╯\n\n` +
-      `Система учёта инкассации\n` +
-      `вендинговых автоматов\n\n` +
+      `${welcomeText}\n\n` +
       `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
       `🔐 Для доступа необходимо\n` +
       `получить приглашение`;
