@@ -1,0 +1,61 @@
+version: '3.8'
+
+# Development configuration - hot reload enabled
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: vendcash-db-dev
+    environment:
+      POSTGRES_USER: vendcash
+      POSTGRES_PASSWORD: vendcash123
+      POSTGRES_DB: vendcash
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: vendcash-backend-dev
+    depends_on:
+      - postgres
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: vendcash
+      DB_PASSWORD: vendcash123
+      DB_DATABASE: vendcash
+      JWT_SECRET: dev-secret-key-change-in-production
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      ADMIN_TELEGRAM_ID: ${ADMIN_TELEGRAM_ID}
+      FRONTEND_URL: http://localhost:5173
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    command: npm run start:dev
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: vendcash-frontend-dev
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:3000
+      VITE_TELEGRAM_BOT_USERNAME: ${VITE_TELEGRAM_BOT_USERNAME}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    command: npm run dev -- --host
+
+volumes:
+  postgres_data_dev:

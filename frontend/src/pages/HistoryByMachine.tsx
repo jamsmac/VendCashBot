@@ -1,0 +1,197 @@
+import { useState } from 'react'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
+import { machinesApi, Machine } from '../api/machines'
+import { collectionsApi } from '../api/collections'
+import { Plus, Trash2 } from 'lucide-react'
+import toast from 'react-hot-toast'
+
+interface HistoryRow {
+  id: string
+  date: string
+  time: string
+  amount: string
+}
+
+export default function HistoryByMachine() {
+  const navigate = useNavigate()
+  const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null)
+  const [rows, setRows] = useState<HistoryRow[]>([
+    { id: crypto.randomUUID(), date: '', time: '12:00', amount: '' },
+  ])
+
+  const { data: machines } = useQuery({
+    queryKey: ['machines'],
+    queryFn: () => machinesApi.getAll(),
+  })
+
+  const mutation = useMutation({
+    mutationFn: (data: any) => collectionsApi.bulkCreate(data),
+    onSuccess: (result) => {
+      toast.success(`Создано ${result.created} записей`)
+      if (result.failed > 0) {
+        toast.error(`Ошибок: ${result.failed}`)
+      }
+      navigate('/collections')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка сохранения')
+    },
+  })
+
+  const addRow = () => {
+    const lastRow = rows[rows.length - 1]
+    setRows([
+      ...rows,
+      {
+        id: crypto.randomUUID(),
+        date: lastRow?.date || '',
+        time: '12:00',
+        amount: '',
+      },
+    ])
+  }
+
+  const removeRow = (id: string) => {
+    if (rows.length > 1) {
+      setRows(rows.filter((r) => r.id !== id))
+    }
+  }
+
+  const updateRow = (id: string, field: keyof HistoryRow, value: string) => {
+    setRows(rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
+  }
+
+  const handleSubmit = () => {
+    if (!selectedMachine) {
+      toast.error('Выберите автомат')
+      return
+    }
+
+    const validRows = rows.filter((r) => r.date && r.amount)
+    if (validRows.length === 0) {
+      toast.error('Заполните хотя бы одну строку')
+      return
+    }
+
+    const collections = validRows.map((r) => ({
+      machineId: selectedMachine.id,
+      collectedAt: `${r.date}T${r.time || '12:00'}:00`,
+      amount: parseFloat(r.amount),
+    }))
+
+    mutation.mutate({ collections, source: 'manual_history' })
+  }
+
+  const totalAmount = rows.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0)
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Ввод истории: по машине</h1>
+
+      <div className="card p-4">
+        <label className="block text-sm font-medium mb-2">🏧 Автомат</label>
+        <select
+          className="input"
+          value={selectedMachine?.id || ''}
+          onChange={(e) => {
+            const machine = machines?.find((m) => m.id === e.target.value)
+            setSelectedMachine(machine || null)
+          }}
+        >
+          <option value="">Выберите автомат</option>
+          {machines?.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.code} - {m.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {selectedMachine && (
+        <div className="card overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Дата</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Время</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Сумма</th>
+                <th className="px-4 py-3 w-16"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td className="px-4 py-2">
+                    <input
+                      type="date"
+                      className="input"
+                      value={row.date}
+                      onChange={(e) => updateRow(row.id, 'date', e.target.value)}
+                      max={new Date().toISOString().split('T')[0]}
+                    />
+                  </td>
+                  <td className="px-4 py-2">
+                    <input
+                      type="time"
+                      className="input"
+                      value={row.time}
+                      onChange={(e) => updateRow(row.id, 'time', e.target.value)}
+                    />
+                  </td>
+                  <td className="px-4 py-2">
+                    <input
+                      type="number"
+                      className="input"
+                      placeholder="Сумма"
+                      value={row.amount}
+                      onChange={(e) => updateRow(row.id, 'amount', e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && row.amount) {
+                          addRow()
+                        }
+                      }}
+                    />
+                  </td>
+                  <td className="px-4 py-2">
+                    <button
+                      onClick={() => removeRow(row.id)}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                      disabled={rows.length === 1}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="p-4 border-t border-gray-100 flex items-center justify-between">
+            <button onClick={addRow} className="btn btn-secondary flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              Добавить строку
+            </button>
+            <div className="text-sm text-gray-500">
+              Итого: {rows.filter((r) => r.date && r.amount).length} записей,{' '}
+              {totalAmount.toLocaleString('ru-RU')} сум
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-4">
+        <button onClick={() => navigate(-1)} className="btn btn-secondary">
+          Отмена
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={mutation.isPending || !selectedMachine}
+          className="btn btn-primary"
+        >
+          {mutation.isPending ? 'Сохранение...' : '💾 Сохранить всё'}
+        </button>
+      </div>
+    </div>
+  )
+}
