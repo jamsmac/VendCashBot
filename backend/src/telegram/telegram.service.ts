@@ -70,12 +70,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
     this.setupHandlers();
 
-    try {
-      await this.bot.start();
-      this.logger.log('Telegram bot started successfully');
-    } catch (error) {
+    // Start bot in background (don't await - it blocks until bot stops)
+    this.bot.start({
+      drop_pending_updates: true,
+      onStart: () => {
+        this.logger.log('Telegram bot started successfully');
+      },
+    }).catch((error) => {
       this.logger.error('Failed to start Telegram bot:', error);
-    }
+    });
   }
 
   async onModuleDestroy() {

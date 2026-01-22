@@ -22,16 +22,8 @@ FROM nginx:alpine AS production
 # Copy built assets
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Create non-root user
-RUN adduser -D -g '' nginxuser && \
-    chown -R nginxuser:nginxuser /usr/share/nginx/html && \
-    chown -R nginxuser:nginxuser /var/cache/nginx && \
-    chown -R nginxuser:nginxuser /var/log/nginx && \
-    touch /var/run/nginx.pid && \
-    chown -R nginxuser:nginxuser /var/run/nginx.pid
+# Copy nginx config template (nginx will auto-substitute $PORT)
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 
 EXPOSE 80
 
