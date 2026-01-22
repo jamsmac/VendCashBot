@@ -34,6 +34,13 @@ type MyContext = Context & SessionFlavor<SessionData> & { user?: User };
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isValidUUID = (str: string): boolean => UUID_REGEX.test(str);
 
+// Escape Markdown special characters in user-provided text
+// For Telegram's Markdown mode (not MarkdownV2), only escape: _ * ` [
+const escapeMarkdown = (text: string | undefined | null): string => {
+  if (!text) return '';
+  return text.replace(/([_*`\[])/g, '\\$1');
+};
+
 @Injectable()
 export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TelegramService.name);
@@ -135,7 +142,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           ctx.user.role === UserRole.MANAGER ? '📊 Менеджер' : '👑 Админ';
 
         await ctx.reply(
-          `👋 *${ctx.user.name}*\n${roleName}\n\n` +
+          `👋 *${escapeMarkdown(ctx.user.name)}*\n${roleName}\n\n` +
           `Выберите действие:`,
           {
             parse_mode: 'Markdown',
@@ -320,7 +327,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         ctx.session.newMachineCode = code;
         ctx.session.step = 'creating_machine_name';
 
-        await ctx.reply(`✅ Код: *${code}*\n\nТеперь введите название автомата:`, {
+        await ctx.reply(`✅ Код: *${escapeMarkdown(code)}*\n\nТеперь введите название автомата:`, {
           parse_mode: 'Markdown',
         });
         return;
@@ -349,8 +356,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
           await ctx.reply(
             `✅ *Автомат создан!*\n\n` +
-              `📟 Код: ${machine.code}\n` +
-              `📝 Название: ${machine.name}\n\n` +
+              `📟 Код: ${escapeMarkdown(machine.code)}\n` +
+              `📝 Название: ${escapeMarkdown(machine.name)}\n\n` +
               `⏳ Статус: *Ожидает подтверждения*\n\n` +
               `Администратор получит уведомление и проверит данные.`,
             {
@@ -536,7 +543,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
 
       await ctx.editMessageText(
-        `🏧 *${machine.name}*\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
+        `🏧 *${escapeMarkdown(machine.name)}*\n📟 ${escapeMarkdown(machine.code)}\n📍 ${escapeMarkdown(machine.location) || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
@@ -570,9 +577,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         await ctx.answerCallbackQuery('Автомат подтверждён!');
         await ctx.editMessageText(
           `✅ *Автомат подтверждён*\n\n` +
-            `📟 Код: \`${machine.code}\`\n` +
-            `📝 Название: ${machine.name}\n` +
-            `👤 Подтвердил: ${ctx.user.name}`,
+            `📟 Код: \`${escapeMarkdown(machine.code)}\`\n` +
+            `📝 Название: ${escapeMarkdown(machine.name)}\n` +
+            `👤 Подтвердил: ${escapeMarkdown(ctx.user.name)}`,
           { parse_mode: 'Markdown' },
         );
 
@@ -606,8 +613,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         await ctx.answerCallbackQuery('Автомат отклонён');
         await ctx.editMessageText(
           `❌ *Автомат отклонён*\n\n` +
-            `📟 Код: \`${machine.code}\`\n` +
-            `📝 Название: ${machine.name}`,
+            `📟 Код: \`${escapeMarkdown(machine.code)}\`\n` +
+            `📝 Название: ${escapeMarkdown(machine.name)}`,
           { parse_mode: 'Markdown' },
         );
 
@@ -695,7 +702,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
 
       await ctx.editMessageText(
-        `🏧 *${machine.name}*\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
+        `🏧 *${escapeMarkdown(machine.name)}*\n📟 ${escapeMarkdown(machine.code)}\n📍 ${escapeMarkdown(machine.location) || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
@@ -728,7 +735,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
 
       await ctx.editMessageText(
-        `🏧 *${machine.name}*\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
+        `🏧 *${escapeMarkdown(machine.name)}*\n📟 ${escapeMarkdown(machine.code)}\n📍 ${escapeMarkdown(machine.location) || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
@@ -768,7 +775,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         ctx.session.collectionTime = undefined;
 
         await ctx.editMessageText(
-          `✅ *Сбор зарегистрирован!*\n\n🏧 ${machine?.name}\n🔢 #${collection.id.slice(0, 8)}`,
+          `✅ *Сбор зарегистрирован!*\n\n🏧 ${escapeMarkdown(machine?.name)}\n🔢 #${collection.id.slice(0, 8)}`,
           {
             parse_mode: 'Markdown',
             reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu'),
@@ -850,7 +857,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const time = this.formatDateTime(collection.collectedAt);
 
       await ctx.editMessageText(
-        `💰 *Введите сумму (сум):*\n\n🏧 ${collection.machine.name}\n⏰ ${time}\n👷 ${collection.operator.name}`,
+        `💰 *Введите сумму (сум):*\n\n🏧 ${escapeMarkdown(collection.machine.name)}\n⏰ ${time}\n👷 ${escapeMarkdown(collection.operator.name)}`,
         { parse_mode: 'Markdown' },
       );
     });
@@ -947,14 +954,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
 
       const creatorInfo = machine.createdBy
-        ? `👤 Создал: ${machine.createdBy.name} (@${machine.createdBy.telegramUsername || 'нет'})`
+        ? `👤 Создал: ${escapeMarkdown(machine.createdBy.name)} (@${escapeMarkdown(machine.createdBy.telegramUsername) || 'нет'})`
         : '👤 Создал: неизвестно';
 
       await ctx.editMessageText(
         `🔍 *Автомат на модерации*\n\n` +
-          `📟 Код: \`${machine.code}\`\n` +
-          `📝 Название: ${machine.name}\n` +
-          `📍 Локация: ${machine.location || '—'}\n` +
+          `📟 Код: \`${escapeMarkdown(machine.code)}\`\n` +
+          `📝 Название: ${escapeMarkdown(machine.name)}\n` +
+          `📍 Локация: ${escapeMarkdown(machine.location) || '—'}\n` +
           `${creatorInfo}\n` +
           `📅 Создан: ${this.formatDateTime(machine.createdAt)}`,
         {
@@ -1023,7 +1030,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `⚙️ *Настройки*\n\n` +
-        `👤 ${ctx.user.name}\n` +
+        `👤 ${escapeMarkdown(ctx.user.name)}\n` +
         `🎭 ${ctx.user.role === UserRole.OPERATOR ? 'Оператор' : ctx.user.role === UserRole.MANAGER ? 'Менеджер' : 'Администратор'}\n\n` +
         `⚠️ Деактивация аккаунта необратима.\n` +
         `Для восстановления потребуется\n` +
@@ -1218,9 +1225,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
     const message =
       `🆕 *Новый автомат ожидает подтверждения*\n\n` +
-      `📟 Код: \`${machine.code}\`\n` +
-      `📝 Название: ${machine.name}\n` +
-      `👤 Создал: ${creator.name} (@${creator.telegramUsername || 'нет'})\n` +
+      `📟 Код: \`${escapeMarkdown(machine.code)}\`\n` +
+      `📝 Название: ${escapeMarkdown(machine.name)}\n` +
+      `👤 Создал: ${escapeMarkdown(creator.name)} (@${escapeMarkdown(creator.telegramUsername) || 'нет'})\n` +
       `📅 Дата: ${this.formatDateTime(machine.createdAt)}`;
 
     const keyboard = new InlineKeyboard()
