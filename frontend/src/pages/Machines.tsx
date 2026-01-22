@@ -81,10 +81,15 @@ export default function Machines() {
   }
 
   const onSubmit = (data: MachineForm) => {
+    // Convert isActive from string to boolean (radio buttons send strings)
+    const formData = {
+      ...data,
+      isActive: data.isActive === true || data.isActive === 'true' as unknown as boolean,
+    }
     if (editingMachine) {
-      updateMutation.mutate({ id: editingMachine.id, data })
+      updateMutation.mutate({ id: editingMachine.id, data: formData })
     } else {
-      createMutation.mutate(data)
+      createMutation.mutate(formData)
     }
   }
 

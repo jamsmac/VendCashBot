@@ -27,11 +27,13 @@ export default function Users() {
 
   const { register, handleSubmit, reset } = useForm<{ name: string; phone: string }>()
 
+  const botUsername = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'VendCashBot'
+
   const createInviteMutation = useMutation({
     mutationFn: invitesApi.create,
     onSuccess: (invite) => {
       queryClient.invalidateQueries({ queryKey: ['pending-invites'] })
-      const link = `https://t.me/VendCashBot?start=invite_${invite.code}`
+      const link = `https://t.me/${botUsername}?start=invite_${invite.code}`
       setInviteLink(link)
     },
     onError: (error: any) => {
@@ -232,7 +234,7 @@ export default function Users() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => {
-                          const link = `https://t.me/VendCashBot?start=invite_${invite.code}`
+                          const link = `https://t.me/${botUsername}?start=invite_${invite.code}`
                           navigator.clipboard.writeText(link)
                           toast.success('Ссылка скопирована')
                         }}
