@@ -1993,6 +1993,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     return card;
   }
 
+  private escapeMarkdown(text: string): string {
+    // Escape special Markdown characters: _ * ` [
+    return text.replace(/([_*`\[])/g, '\\$1');
+  }
+
   private async showWelcomeScreen(ctx: MyContext): Promise<void> {
     // Welcome image from DB settings, fallback to env, then default
     const welcomeImage =
@@ -2000,10 +2005,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       this.configService.get<string>('telegram.welcomeImage') ||
       'https://i.imgur.com/JQvVqXh.png';
 
-    // Dynamic texts from DB settings
-    const welcomeTitle = (await this.settingsService.getWelcomeTitle()) || 'VendCash';
-    const welcomeText = (await this.settingsService.getWelcomeText()) ||
-      'Система учёта инкассации\nвендинговых автоматов';
+    // Dynamic texts from DB settings (escaped for Markdown)
+    const welcomeTitle = this.escapeMarkdown(
+      (await this.settingsService.getWelcomeTitle()) || 'VendCash'
+    );
+    const welcomeText = this.escapeMarkdown(
+      (await this.settingsService.getWelcomeText()) ||
+      'Система учёта инкассации\nвендинговых автоматов'
+    );
 
     const caption =
       `╭─────────────────────╮\n` +
