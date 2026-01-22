@@ -8,6 +8,7 @@ import CollectionsPending from './pages/CollectionsPending'
 import HistoryEntry from './pages/HistoryEntry'
 import HistoryByMachine from './pages/HistoryByMachine'
 import HistoryByDate from './pages/HistoryByDate'
+import ExcelImport from './pages/ExcelImport'
 import Reports from './pages/Reports'
 import Machines from './pages/Machines'
 import Users from './pages/Users'
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="collections/history" element={<HistoryEntry />} />
         <Route path="collections/history/by-machine" element={<HistoryByMachine />} />
         <Route path="collections/history/by-date" element={<HistoryByDate />} />
+        <Route path="collections/history/excel-import" element={<ExcelImport />} />
         <Route path="reports" element={<Reports />} />
         <Route
           path="machines"

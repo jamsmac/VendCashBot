@@ -30,6 +30,10 @@ interface SessionData {
 
 type MyContext = Context & SessionFlavor<SessionData> & { user?: User };
 
+// UUID validation regex
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isValidUUID = (str: string): boolean => UUID_REGEX.test(str);
+
 @Injectable()
 export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TelegramService.name);
@@ -221,9 +225,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (ctx.session.step === 'entering_amount' && ctx.session.pendingCollectionId && ctx.user) {
         const amountStr = ctx.message.text.replace(/\s/g, '').replace(/,/g, '');
         const amount = parseInt(amountStr, 10);
+        const MAX_AMOUNT = 1_000_000_000; // 1 billion max
 
         if (isNaN(amount) || amount <= 0) {
           await ctx.reply('Введите корректную сумму (число > 0):');
+          return;
+        }
+
+        if (amount > MAX_AMOUNT) {
+          await ctx.reply(`Сумма не может превышать ${MAX_AMOUNT.toLocaleString('ru-RU')} сум`);
           return;
         }
 
@@ -477,6 +487,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await ctx.answerCallbackQuery();
 
       const machineId = ctx.match[1];
+      if (!isValidUUID(machineId)) {
+        await ctx.editMessageText('❌ Неверный ID автомата');
+        return;
+      }
       const machine = await this.machinesService.findById(machineId);
 
       if (!machine) {
@@ -545,6 +559,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
 
       const machineId = ctx.match[1];
+      if (!isValidUUID(machineId)) {
+        await ctx.answerCallbackQuery('Неверный ID');
+        return;
+      }
 
       try {
         const machine = await this.machinesService.approve(machineId, ctx.user.id);
@@ -573,6 +591,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
 
       const machineId = ctx.match[1];
+      if (!isValidUUID(machineId)) {
+        await ctx.answerCallbackQuery('Неверный ID');
+        return;
+      }
 
       try {
         const machine = await this.machinesService.reject(
@@ -641,6 +663,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await ctx.answerCallbackQuery();
 
       const machineId = ctx.match[1];
+      if (!isValidUUID(machineId)) {
+        await ctx.editMessageText('❌ Неверный ID автомата');
+        return;
+      }
       const machine = await this.machinesService.findById(machineId);
       if (!machine) {
         await ctx.editMessageText('❌ Автомат не найден');
@@ -685,8 +711,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await ctx.answerCallbackQuery();
 
       const machineId = ctx.match[1];
+      if (!isValidUUID(machineId)) {
+        await ctx.editMessageText('❌ Неверный ID автомата');
+        return;
+      }
       const machine = await this.machinesService.findById(machineId);
-      if (!machine) return;
+      if (!machine) {
+        await ctx.editMessageText('❌ Автомат не найден');
+        return;
+      }
 
       ctx.session.selectedMachineId = machine.id;
       ctx.session.collectionTime = new Date();
@@ -707,7 +740,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
     // Confirm collection
     this.bot.callbackQuery('confirm_collection', async (ctx) => {
-      if (!ctx.user || !ctx.session.selectedMachineId || !ctx.session.collectionTime) return;
+      if (!ctx.user || !ctx.session.selectedMachineId || !ctx.session.collectionTime) {
+        await ctx.answerCallbackQuery('⚠️ Сессия истекла, начните заново');
+        if (ctx.user) {
+          await ctx.editMessageText('⚠️ Сессия истекла. Вернитесь в главное меню.', {
+            reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu'),
+          });
+        }
+        return;
+      }
       await ctx.answerCallbackQuery();
 
       try {
@@ -792,7 +833,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
 
-      const collection = await this.collectionsService.findById(ctx.match[1]);
+      const collectionId = ctx.match[1];
+      if (!isValidUUID(collectionId)) {
+        await ctx.editMessageText('❌ Неверный ID инкассации');
+        return;
+      }
+      const collection = await this.collectionsService.findById(collectionId);
       if (!collection) {
         await ctx.editMessageText('❌ Инкассация не найдена');
         return;
@@ -889,6 +935,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await ctx.answerCallbackQuery();
 
       const machineId = ctx.match[1];
+      if (!isValidUUID(machineId)) {
+        await ctx.editMessageText('❌ Неверный ID автомата');
+        return;
+      }
       const machine = await this.machinesService.findByIdWithCreator(machineId);
 
       if (!machine) {
