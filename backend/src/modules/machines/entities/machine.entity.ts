@@ -4,8 +4,16 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-  OneToMany,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
+
+export enum MachineStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+}
 
 @Entity('machines')
 export class Machine {
@@ -23,6 +31,33 @@ export class Machine {
 
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
+
+  @Column({
+    type: 'enum',
+    enum: MachineStatus,
+    default: MachineStatus.APPROVED,
+  })
+  status: MachineStatus;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'created_by_id' })
+  createdBy: User;
+
+  @Column({ name: 'created_by_id', nullable: true })
+  createdById: string;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'approved_by_id' })
+  approvedBy: User;
+
+  @Column({ name: 'approved_by_id', nullable: true })
+  approvedById: string;
+
+  @Column({ name: 'approved_at', nullable: true })
+  approvedAt: Date;
+
+  @Column({ name: 'rejection_reason', nullable: true, length: 500 })
+  rejectionReason: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

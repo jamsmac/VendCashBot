@@ -9,14 +9,21 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { MachinesService } from './machines.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { UserRole } from '../users/entities/user.entity';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { UserRole, User } from '../users/entities/user.entity';
 import { CreateMachineDto } from './dto/create-machine.dto';
 import { UpdateMachineDto } from './dto/update-machine.dto';
+import { RejectMachineDto } from './dto/reject-machine.dto';
 
 @ApiTags('machines')
 @Controller('machines')
@@ -29,14 +36,26 @@ export class MachinesController {
   @ApiOperation({ summary: 'Get all machines' })
   @ApiQuery({ name: 'active', required: false, type: Boolean })
   @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'approved', required: false, type: Boolean })
   async findAll(
     @Query('active') active?: string,
     @Query('search') search?: string,
+    @Query('approved') approved?: string,
   ) {
     if (search) {
-      return this.machinesService.search(search);
+      return this.machinesService.search(search, approved === 'false');
     }
-    return this.machinesService.findAll(active !== 'false');
+    return this.machinesService.findAll(
+      active !== 'false',
+      approved !== 'false',
+    );
+  }
+
+  @Get('pending')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get pending machines (admin only)' })
+  async getPending() {
+    return this.machinesService.findPending();
   }
 
   @Get(':id')
@@ -52,10 +71,41 @@ export class MachinesController {
     return this.machinesService.create(createMachineDto);
   }
 
+  @Post('request')
+  @Roles(UserRole.OPERATOR, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Request new machine (creates pending machine)' })
+  async requestMachine(
+    @Body() createMachineDto: CreateMachineDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.machinesService.createByOperator(createMachineDto, user.id);
+  }
+
+  @Post(':id/approve')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Approve machine (admin only)' })
+  async approve(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.machinesService.approve(id, user.id);
+  }
+
+  @Post(':id/reject')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Reject machine (admin only)' })
+  async reject(
+    @Param('id') id: string,
+    @Body() dto: RejectMachineDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.machinesService.reject(id, user.id, dto.reason);
+  }
+
   @Patch(':id')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Update machine (admin only)' })
-  async update(@Param('id') id: string, @Body() updateMachineDto: UpdateMachineDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() updateMachineDto: UpdateMachineDto,
+  ) {
     return this.machinesService.update(id, updateMachineDto);
   }
 

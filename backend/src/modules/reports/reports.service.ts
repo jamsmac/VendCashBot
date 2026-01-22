@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Collection, CollectionStatus } from '../collections/entities/collection.entity';
+import { MachineStatus } from '../machines/entities/machine.entity';
 import { ReportQueryDto } from './dto/report-query.dto';
 
 export interface SummaryReport {
@@ -63,6 +64,7 @@ export class ReportsService {
 
     const result = await this.collectionRepository
       .createQueryBuilder('collection')
+      .leftJoin('collection.machine', 'machine')
       .select([
         'COUNT(*) as "totalCollections"',
         'COALESCE(SUM(CASE WHEN collection.status = :received THEN collection.amount ELSE 0 END), 0) as "totalAmount"',
@@ -71,6 +73,7 @@ export class ReportsService {
         'COUNT(CASE WHEN collection.status = :cancelled THEN 1 END) as "cancelledCount"',
       ])
       .where('collection.collectedAt BETWEEN :from AND :to', { from, to })
+      .andWhere('machine.status = :machineStatus', { machineStatus: MachineStatus.APPROVED })
       .setParameters({
         collected: CollectionStatus.COLLECTED,
         received: CollectionStatus.RECEIVED,
@@ -111,6 +114,7 @@ export class ReportsService {
       ])
       .where('collection.collectedAt BETWEEN :from AND :to', { from, to })
       .andWhere('collection.status = :status', { status: CollectionStatus.RECEIVED })
+      .andWhere('machine.status = :machineStatus', { machineStatus: MachineStatus.APPROVED })
       .groupBy('machine.id')
       .addGroupBy('machine.code')
       .addGroupBy('machine.name')
@@ -151,6 +155,7 @@ export class ReportsService {
 
     const results = await this.collectionRepository
       .createQueryBuilder('collection')
+      .leftJoin('collection.machine', 'machine')
       .select([
         'DATE(collection.collectedAt) as date',
         'COUNT(*) as "collectionsCount"',
@@ -158,6 +163,7 @@ export class ReportsService {
       ])
       .where('collection.collectedAt BETWEEN :from AND :to', { from, to })
       .andWhere('collection.status = :status', { status: CollectionStatus.RECEIVED })
+      .andWhere('machine.status = :machineStatus', { machineStatus: MachineStatus.APPROVED })
       .groupBy('DATE(collection.collectedAt)')
       .orderBy('date', 'DESC')
       .getRawMany();
@@ -193,6 +199,7 @@ export class ReportsService {
     const results = await this.collectionRepository
       .createQueryBuilder('collection')
       .leftJoin('collection.operator', 'operator')
+      .leftJoin('collection.machine', 'machine')
       .select([
         'operator.id as "operatorId"',
         'operator.name as "operatorName"',
@@ -202,6 +209,7 @@ export class ReportsService {
       ])
       .where('collection.collectedAt BETWEEN :from AND :to', { from, to })
       .andWhere('collection.status = :status', { status: CollectionStatus.RECEIVED })
+      .andWhere('machine.status = :machineStatus', { machineStatus: MachineStatus.APPROVED })
       .groupBy('operator.id')
       .addGroupBy('operator.name')
       .addGroupBy('operator.telegramUsername')
@@ -243,28 +251,36 @@ export class ReportsService {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-    const pending = await this.collectionRepository.count({
-      where: { status: CollectionStatus.COLLECTED },
-    });
+    // Pending count - only for approved machines
+    const pending = await this.collectionRepository
+      .createQueryBuilder('collection')
+      .leftJoin('collection.machine', 'machine')
+      .where('collection.status = :status', { status: CollectionStatus.COLLECTED })
+      .andWhere('machine.status = :machineStatus', { machineStatus: MachineStatus.APPROVED })
+      .getCount();
 
     const todayResult = await this.collectionRepository
       .createQueryBuilder('collection')
+      .leftJoin('collection.machine', 'machine')
       .select('COALESCE(SUM(collection.amount), 0)', 'total')
       .where('collection.collectedAt BETWEEN :from AND :to', {
         from: startOfDay,
         to: endOfDay,
       })
       .andWhere('collection.status = :status', { status: CollectionStatus.RECEIVED })
+      .andWhere('machine.status = :machineStatus', { machineStatus: MachineStatus.APPROVED })
       .getRawOne();
 
     const monthResult = await this.collectionRepository
       .createQueryBuilder('collection')
+      .leftJoin('collection.machine', 'machine')
       .select('COALESCE(SUM(collection.amount), 0)', 'total')
       .where('collection.collectedAt BETWEEN :from AND :to', {
         from: startOfMonth,
         to: endOfMonth,
       })
       .andWhere('collection.status = :status', { status: CollectionStatus.RECEIVED })
+      .andWhere('machine.status = :machineStatus', { machineStatus: MachineStatus.APPROVED })
       .getRawOne();
 
     return {

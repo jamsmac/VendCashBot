@@ -1,7 +1,12 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Machine } from './entities/machine.entity';
+import { Machine, MachineStatus } from './entities/machine.entity';
 import { CreateMachineDto } from './dto/create-machine.dto';
 import { UpdateMachineDto } from './dto/update-machine.dto';
 
@@ -21,22 +26,51 @@ export class MachinesService {
       throw new ConflictException('Machine with this code already exists');
     }
 
-    const machine = this.machineRepository.create(createMachineDto);
+    const machine = this.machineRepository.create({
+      ...createMachineDto,
+      status: MachineStatus.APPROVED,
+    });
     return this.machineRepository.save(machine);
   }
 
-  async findAll(activeOnly = true): Promise<Machine[]> {
+  async createByOperator(
+    createMachineDto: CreateMachineDto,
+    userId: string,
+  ): Promise<Machine> {
+    const existing = await this.machineRepository.findOne({
+      where: { code: createMachineDto.code },
+    });
+
+    if (existing) {
+      throw new ConflictException('Machine with this code already exists');
+    }
+
+    const machine = this.machineRepository.create({
+      ...createMachineDto,
+      status: MachineStatus.PENDING,
+      createdById: userId,
+    });
+    return this.machineRepository.save(machine);
+  }
+
+  async findAll(activeOnly = true, approvedOnly = true): Promise<Machine[]> {
     const query = this.machineRepository.createQueryBuilder('machine');
 
     if (activeOnly) {
       query.andWhere('machine.isActive = :isActive', { isActive: true });
     }
 
+    if (approvedOnly) {
+      query.andWhere('machine.status = :status', {
+        status: MachineStatus.APPROVED,
+      });
+    }
+
     return query.orderBy('machine.name', 'ASC').getMany();
   }
 
   async findAllActive(): Promise<Machine[]> {
-    return this.findAll(true);
+    return this.findAll(true, true);
   }
 
   async findById(id: string): Promise<Machine | null> {
@@ -45,6 +79,17 @@ export class MachinesService {
 
   async findByIdOrFail(id: string): Promise<Machine> {
     const machine = await this.findById(id);
+    if (!machine) {
+      throw new NotFoundException('Machine not found');
+    }
+    return machine;
+  }
+
+  async findByIdWithCreator(id: string): Promise<Machine> {
+    const machine = await this.machineRepository.findOne({
+      where: { id },
+      relations: ['createdBy'],
+    });
     if (!machine) {
       throw new NotFoundException('Machine not found');
     }
@@ -63,7 +108,47 @@ export class MachinesService {
     return machine;
   }
 
-  async update(id: string, updateMachineDto: UpdateMachineDto): Promise<Machine> {
+  async findPending(): Promise<Machine[]> {
+    return this.machineRepository.find({
+      where: { status: MachineStatus.PENDING },
+      relations: ['createdBy'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async approve(id: string, adminId: string): Promise<Machine> {
+    const machine = await this.findByIdOrFail(id);
+
+    if (machine.status !== MachineStatus.PENDING) {
+      throw new BadRequestException('Machine is not pending approval');
+    }
+
+    machine.status = MachineStatus.APPROVED;
+    machine.approvedById = adminId;
+    machine.approvedAt = new Date();
+
+    return this.machineRepository.save(machine);
+  }
+
+  async reject(id: string, adminId: string, reason: string): Promise<Machine> {
+    const machine = await this.findByIdOrFail(id);
+
+    if (machine.status !== MachineStatus.PENDING) {
+      throw new BadRequestException('Machine is not pending approval');
+    }
+
+    machine.status = MachineStatus.REJECTED;
+    machine.approvedById = adminId;
+    machine.approvedAt = new Date();
+    machine.rejectionReason = reason;
+
+    return this.machineRepository.save(machine);
+  }
+
+  async update(
+    id: string,
+    updateMachineDto: UpdateMachineDto,
+  ): Promise<Machine> {
     const machine = await this.findByIdOrFail(id);
 
     // Check if code is being updated and if it already exists
@@ -90,15 +175,22 @@ export class MachinesService {
     return this.machineRepository.save(machine);
   }
 
-  async search(query: string): Promise<Machine[]> {
-    return this.machineRepository
+  async search(query: string, includeAllStatuses = false): Promise<Machine[]> {
+    const qb = this.machineRepository
       .createQueryBuilder('machine')
-      .where('machine.isActive = :isActive', { isActive: true })
-      .andWhere(
-        '(machine.code ILIKE :query OR machine.name ILIKE :query OR machine.location ILIKE :query)',
-        { query: `%${query}%` },
-      )
-      .orderBy('machine.name', 'ASC')
-      .getMany();
+      .where('machine.isActive = :isActive', { isActive: true });
+
+    if (!includeAllStatuses) {
+      qb.andWhere('machine.status = :status', {
+        status: MachineStatus.APPROVED,
+      });
+    }
+
+    qb.andWhere(
+      '(machine.code ILIKE :query OR machine.name ILIKE :query OR machine.location ILIKE :query)',
+      { query: `%${query}%` },
+    );
+
+    return qb.orderBy('machine.name', 'ASC').getMany();
   }
 }

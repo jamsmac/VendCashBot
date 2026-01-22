@@ -6,13 +6,24 @@ import { InvitesService } from '../modules/invites/invites.service';
 import { MachinesService } from '../modules/machines/machines.service';
 import { CollectionsService } from '../modules/collections/collections.service';
 import { User, UserRole } from '../modules/users/entities/user.entity';
+import { Machine, MachineStatus } from '../modules/machines/entities/machine.entity';
 
 interface SessionData {
-  step: 'idle' | 'registering' | 'selecting_machine' | 'confirming' | 'entering_amount';
+  step:
+    | 'idle'
+    | 'registering'
+    | 'selecting_machine'
+    | 'confirming'
+    | 'entering_amount'
+    | 'searching_machine'
+    | 'creating_machine_code'
+    | 'creating_machine_name';
   inviteCode?: string;
   selectedMachineId?: string;
   collectionTime?: Date;
   pendingCollectionId?: string;
+  searchQuery?: string;
+  newMachineCode?: string;
 }
 
 type MyContext = Context & SessionFlavor<SessionData> & { user?: User };
@@ -197,15 +208,284 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         }
         return;
       }
+
+      // Search machine - text input
+      if (ctx.session.step === 'searching_machine' && ctx.user) {
+        const query = ctx.message.text.trim();
+
+        if (query.length < 2) {
+          await ctx.reply('Введите минимум 2 символа для поиска:');
+          return;
+        }
+
+        ctx.session.searchQuery = query;
+        const machines = await this.machinesService.search(query, true);
+
+        const keyboard = new InlineKeyboard();
+
+        if (machines.length > 0) {
+          machines.slice(0, 8).forEach((m) => {
+            const statusIcon =
+              m.status === MachineStatus.APPROVED
+                ? '✅'
+                : m.status === MachineStatus.PENDING
+                  ? '⏳'
+                  : '❌';
+            keyboard.text(`${statusIcon} ${m.code} - ${m.name}`, `select_found_${m.id}`).row();
+          });
+          if (machines.length > 8) {
+            keyboard.text(`... ещё ${machines.length - 8}`, 'noop').row();
+          }
+        }
+
+        keyboard.text('➕ Создать новый', 'create_new_machine').row();
+        keyboard.text('◀️ В меню', 'main_menu');
+
+        const resultText =
+          machines.length > 0
+            ? `🔍 Найдено: ${machines.length}\n\n✅ = подтверждён\n⏳ = ожидает подтверждения`
+            : `❌ Ничего не найдено по запросу "${query}"`;
+
+        await ctx.reply(resultText, { reply_markup: keyboard });
+        return;
+      }
+
+      // Creating machine - code input
+      if (ctx.session.step === 'creating_machine_code' && ctx.user) {
+        const code = ctx.message.text.trim().toUpperCase();
+
+        if (code.length < 1 || code.length > 50) {
+          await ctx.reply('Код должен быть от 1 до 50 символов. Попробуйте ещё раз:');
+          return;
+        }
+
+        // Check existing
+        const existing = await this.machinesService.findByCode(code);
+        if (existing) {
+          await ctx.reply(
+            `⚠️ Автомат с кодом "${code}" уже существует:\n` +
+              `${existing.name}\n\n` +
+              'Введите другой код или вернитесь в меню:',
+            { reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu') },
+          );
+          return;
+        }
+
+        ctx.session.newMachineCode = code;
+        ctx.session.step = 'creating_machine_name';
+
+        await ctx.reply(`✅ Код: *${code}*\n\nТеперь введите название автомата:`, {
+          parse_mode: 'Markdown',
+        });
+        return;
+      }
+
+      // Creating machine - name input
+      if (ctx.session.step === 'creating_machine_name' && ctx.user && ctx.session.newMachineCode) {
+        const name = ctx.message.text.trim();
+
+        if (name.length < 1 || name.length > 255) {
+          await ctx.reply('Название должно быть от 1 до 255 символов. Попробуйте ещё раз:');
+          return;
+        }
+
+        try {
+          const machine = await this.machinesService.createByOperator(
+            { code: ctx.session.newMachineCode, name },
+            ctx.user.id,
+          );
+
+          // Notify admin
+          await this.notifyAdminNewMachine(machine, ctx.user);
+
+          ctx.session.step = 'idle';
+          ctx.session.newMachineCode = undefined;
+
+          await ctx.reply(
+            `✅ *Автомат создан!*\n\n` +
+              `📟 Код: ${machine.code}\n` +
+              `📝 Название: ${machine.name}\n\n` +
+              `⏳ Статус: *Ожидает подтверждения*\n\n` +
+              `Администратор получит уведомление и проверит данные.`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: this.getMainMenu(ctx.user),
+            },
+          );
+        } catch (error: any) {
+          await ctx.reply(`❌ Ошибка: ${error.message}`);
+        }
+        return;
+      }
     });
 
     // Callback query handlers
     this.bot.callbackQuery('main_menu', async (ctx) => {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
+      ctx.session.step = 'idle';
       await ctx.editMessageText(`👋 ${ctx.user.name}\n\nВыберите действие:`, {
         reply_markup: this.getMainMenu(ctx.user),
       });
+    });
+
+    // Search machine
+    this.bot.callbackQuery('search_machine', async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      ctx.session.step = 'searching_machine';
+
+      await ctx.editMessageText(
+        '🔍 *Поиск автомата*\n\n' +
+          'Введите код или название автомата:\n' +
+          '(минимум 2 символа)',
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard().text('◀️ Назад', 'main_menu'),
+        },
+      );
+    });
+
+    // Create new machine
+    this.bot.callbackQuery('create_new_machine', async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      ctx.session.step = 'creating_machine_code';
+
+      await ctx.editMessageText(
+        '➕ *Создание нового автомата*\n\n' + 'Шаг 1/2: Введите код (серийный номер) автомата:',
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard().text('◀️ Отмена', 'main_menu'),
+        },
+      );
+    });
+
+    // Select found machine (from search results)
+    this.bot.callbackQuery(/^select_found_(.+)$/, async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      const machine = await this.machinesService.findById(machineId);
+
+      if (!machine) {
+        await ctx.editMessageText('❌ Автомат не найден', {
+          reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu'),
+        });
+        return;
+      }
+
+      if (machine.status !== MachineStatus.APPROVED) {
+        await ctx.editMessageText(
+          `⚠️ Автомат "${machine.name}" ещё не подтверждён администратором.\n\n` +
+            'Дождитесь подтверждения или выберите другой автомат.',
+          {
+            reply_markup: new InlineKeyboard()
+              .text('🔍 Новый поиск', 'search_machine')
+              .row()
+              .text('◀️ В меню', 'main_menu'),
+          },
+        );
+        return;
+      }
+
+      // Proceed to collection confirmation
+      const duplicate = await this.collectionsService.checkDuplicate(machineId, new Date());
+      if (duplicate) {
+        const time = this.formatTime(duplicate.collectedAt);
+        await ctx.editMessageText(
+          `⚠️ Внимание!\n\nДля этого автомата уже есть сбор в ${time}.\nВы уверены, что хотите создать ещё один?`,
+          {
+            reply_markup: new InlineKeyboard()
+              .text('✅ Да, создать', `confirm_dup_${machineId}`)
+              .text('❌ Отмена', 'main_menu'),
+          },
+        );
+        return;
+      }
+
+      ctx.session.selectedMachineId = machine.id;
+      ctx.session.collectionTime = new Date();
+      ctx.session.step = 'confirming';
+
+      const timeStr = this.formatDateTime(ctx.session.collectionTime);
+
+      await ctx.editMessageText(
+        `🏧 *${machine.name}*\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard()
+            .text('✅ Подтвердить', 'confirm_collection')
+            .text('❌ Отмена', 'main_menu'),
+        },
+      );
+    });
+
+    // Noop handler (for "... more items" button)
+    this.bot.callbackQuery('noop', async (ctx) => {
+      await ctx.answerCallbackQuery('Используйте поиск для уточнения');
+    });
+
+    // Admin: Approve machine
+    this.bot.callbackQuery(/^admin_approve_(.+)$/, async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) {
+        await ctx.answerCallbackQuery('Недостаточно прав');
+        return;
+      }
+
+      const machineId = ctx.match[1];
+
+      try {
+        const machine = await this.machinesService.approve(machineId, ctx.user.id);
+
+        await ctx.answerCallbackQuery('Автомат подтверждён!');
+        await ctx.editMessageText(
+          `✅ *Автомат подтверждён*\n\n` +
+            `📟 Код: \`${machine.code}\`\n` +
+            `📝 Название: ${machine.name}\n` +
+            `👤 Подтвердил: ${ctx.user.name}`,
+          { parse_mode: 'Markdown' },
+        );
+
+        // Notify creator
+        await this.notifyCreatorMachineApproved(machine);
+      } catch (error: any) {
+        await ctx.answerCallbackQuery(`Ошибка: ${error.message}`);
+      }
+    });
+
+    // Admin: Reject machine
+    this.bot.callbackQuery(/^admin_reject_(.+)$/, async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) {
+        await ctx.answerCallbackQuery('Недостаточно прав');
+        return;
+      }
+
+      const machineId = ctx.match[1];
+
+      try {
+        const machine = await this.machinesService.reject(
+          machineId,
+          ctx.user.id,
+          'Отклонено администратором',
+        );
+
+        await ctx.answerCallbackQuery('Автомат отклонён');
+        await ctx.editMessageText(
+          `❌ *Автомат отклонён*\n\n` +
+            `📟 Код: \`${machine.code}\`\n` +
+            `📝 Название: ${machine.name}`,
+          { parse_mode: 'Markdown' },
+        );
+
+        // Notify creator
+        await this.notifyCreatorMachineRejected(machine);
+      } catch (error: any) {
+        await ctx.answerCallbackQuery(`Ошибка: ${error.message}`);
+      }
     });
 
     // Operator: Start collection
@@ -216,16 +496,31 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const machines = await this.machinesService.findAllActive();
 
       if (machines.length === 0) {
-        await ctx.editMessageText('❌ Нет доступных автоматов', {
-          reply_markup: new InlineKeyboard().text('◀️ Назад', 'main_menu'),
-        });
+        await ctx.editMessageText(
+          '❌ Нет доступных автоматов\n\n' + 'Вы можете создать новый автомат через поиск.',
+          {
+            reply_markup: new InlineKeyboard()
+              .text('🔍 Поиск / Создать', 'search_machine')
+              .row()
+              .text('◀️ Назад', 'main_menu'),
+          },
+        );
         return;
       }
 
       const keyboard = new InlineKeyboard();
-      machines.forEach((m) => {
-        keyboard.text(`${m.name}`, `machine_${m.id}`).row();
+
+      // Add search button at top
+      keyboard.text('🔍 Поиск', 'search_machine').row();
+
+      machines.slice(0, 10).forEach((m) => {
+        keyboard.text(`${m.code} - ${m.name}`, `machine_${m.id}`).row();
       });
+
+      if (machines.length > 10) {
+        keyboard.text(`... ещё ${machines.length - 10} (используйте поиск)`, 'search_machine').row();
+      }
+
       keyboard.text('◀️ Назад', 'main_menu');
 
       await ctx.editMessageText('🏧 Выберите автомат:', { reply_markup: keyboard });
@@ -266,7 +561,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
 
       await ctx.editMessageText(
-        `🏧 *${machine.name}*\n📍 ${machine.location || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
+        `🏧 *${machine.name}*\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
@@ -292,7 +587,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
 
       await ctx.editMessageText(
-        `🏧 *${machine.name}*\n📍 ${machine.location || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
+        `🏧 *${machine.name}*\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
@@ -448,6 +743,64 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
     });
 
+    // Admin: Pending machines
+    this.bot.callbackQuery('pending_machines', async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
+      await ctx.answerCallbackQuery();
+
+      const pending = await this.machinesService.findPending();
+
+      if (pending.length === 0) {
+        await ctx.editMessageText('✅ Нет автоматов на модерации', {
+          reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu'),
+        });
+        return;
+      }
+
+      const keyboard = new InlineKeyboard();
+      pending.slice(0, 10).forEach((m) => {
+        keyboard.text(`${m.code} - ${m.name}`, `review_machine_${m.id}`).row();
+      });
+      keyboard.text('◀️ В меню', 'main_menu');
+
+      await ctx.editMessageText(`🔍 На модерации: ${pending.length}`, { reply_markup: keyboard });
+    });
+
+    // Admin: Review single machine
+    this.bot.callbackQuery(/^review_machine_(.+)$/, async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      const machine = await this.machinesService.findByIdWithCreator(machineId);
+
+      if (!machine) {
+        await ctx.editMessageText('❌ Автомат не найден');
+        return;
+      }
+
+      const creatorInfo = machine.createdBy
+        ? `👤 Создал: ${machine.createdBy.name} (@${machine.createdBy.telegramUsername || 'нет'})`
+        : '👤 Создал: неизвестно';
+
+      await ctx.editMessageText(
+        `🔍 *Автомат на модерации*\n\n` +
+          `📟 Код: \`${machine.code}\`\n` +
+          `📝 Название: ${machine.name}\n` +
+          `📍 Локация: ${machine.location || '—'}\n` +
+          `${creatorInfo}\n` +
+          `📅 Создан: ${this.formatDateTime(machine.createdAt)}`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard()
+            .text('✅ Подтвердить', `admin_approve_${machine.id}`)
+            .text('❌ Отклонить', `admin_reject_${machine.id}`)
+            .row()
+            .text('◀️ Назад', 'pending_machines'),
+        },
+      );
+    });
+
     // Web panel link
     this.bot.callbackQuery('web_panel', async (ctx) => {
       if (!ctx.user) return;
@@ -469,16 +822,22 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (ctx.user.role === UserRole.OPERATOR) {
         helpText +=
           '👷 *Оператор*\n' +
-          '• Выберите "Отметить сбор" для регистрации инкассации\n' +
-          '• Выберите автомат из списка\n' +
-          '• Подтвердите время сбора\n' +
-          '• Менеджер примет инкассацию и введёт сумму';
-      } else {
+          '• "Отметить сбор" — регистрация инкассации\n' +
+          '• "Поиск" — найти автомат по коду или названию\n' +
+          '• Если автомат не найден — можно создать новый\n' +
+          '• Новый автомат будет доступен после подтверждения админом';
+      } else if (ctx.user.role === UserRole.MANAGER) {
         helpText +=
           '📊 *Менеджер*\n' +
           '• "Ожидают приёма" — список инкассаций для приёма\n' +
           '• Нажмите на инкассацию и введите сумму\n' +
-          '• Используйте веб-панель для отчётов и управления';
+          '• Используйте веб-панель для отчётов';
+      } else {
+        helpText +=
+          '👑 *Администратор*\n' +
+          '• "На модерации" — автоматы, ожидающие подтверждения\n' +
+          '• "Пригласить" — создать ссылку для нового сотрудника\n' +
+          '• Используйте веб-панель для полного управления';
       }
 
       await ctx.editMessageText(helpText, {
@@ -492,19 +851,90 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     const kb = new InlineKeyboard();
 
     if (user.role === UserRole.OPERATOR) {
+      kb.text('🔍 Найти автомат', 'search_machine').row();
       kb.text('🏧 Отметить сбор', 'collect').row();
       kb.text('📋 Мои сборы', 'my_collections').row();
-    } else {
+    } else if (user.role === UserRole.MANAGER) {
       kb.text('📥 Ожидают приёма', 'pending_collections').row();
+      kb.text('🔍 Найти автомат', 'search_machine').row();
       kb.text('🌐 Веб-панель', 'web_panel').row();
-
-      if (user.role === UserRole.ADMIN) {
-        kb.text('👥 Пригласить', 'invite_user').row();
-      }
+    } else {
+      // Admin
+      kb.text('📥 Ожидают приёма', 'pending_collections').row();
+      kb.text('🔍 На модерации', 'pending_machines').row();
+      kb.text('👥 Пригласить', 'invite_user').row();
+      kb.text('🌐 Веб-панель', 'web_panel').row();
     }
 
     kb.text('❓ Помощь', 'help');
     return kb;
+  }
+
+  private async notifyAdminNewMachine(machine: Machine, creator: User): Promise<void> {
+    const adminTelegramId = this.configService.get<number>('admin.telegramId');
+
+    if (!adminTelegramId || adminTelegramId === 0) {
+      this.logger.warn('Admin Telegram ID not configured, skipping notification');
+      return;
+    }
+
+    const message =
+      `🆕 *Новый автомат ожидает подтверждения*\n\n` +
+      `📟 Код: \`${machine.code}\`\n` +
+      `📝 Название: ${machine.name}\n` +
+      `👤 Создал: ${creator.name} (@${creator.telegramUsername || 'нет'})\n` +
+      `📅 Дата: ${this.formatDateTime(machine.createdAt)}`;
+
+    const keyboard = new InlineKeyboard()
+      .text('✅ Подтвердить', `admin_approve_${machine.id}`)
+      .text('❌ Отклонить', `admin_reject_${machine.id}`);
+
+    try {
+      await this.bot.api.sendMessage(adminTelegramId, message, {
+        parse_mode: 'Markdown',
+        reply_markup: keyboard,
+      });
+    } catch (error) {
+      this.logger.error('Failed to send admin notification:', error);
+    }
+  }
+
+  private async notifyCreatorMachineApproved(machine: Machine): Promise<void> {
+    if (!machine.createdById) return;
+
+    try {
+      const creator = await this.usersService.findById(machine.createdById);
+      if (!creator || !creator.telegramId) return;
+
+      await this.bot.api.sendMessage(
+        creator.telegramId,
+        `✅ Ваш автомат подтверждён!\n\n` +
+          `📟 Код: ${machine.code}\n` +
+          `📝 Название: ${machine.name}\n\n` +
+          `Теперь вы можете использовать его для инкассаций.`,
+      );
+    } catch (error) {
+      this.logger.error('Failed to notify creator about approval:', error);
+    }
+  }
+
+  private async notifyCreatorMachineRejected(machine: Machine): Promise<void> {
+    if (!machine.createdById) return;
+
+    try {
+      const creator = await this.usersService.findById(machine.createdById);
+      if (!creator || !creator.telegramId) return;
+
+      await this.bot.api.sendMessage(
+        creator.telegramId,
+        `❌ Ваш автомат отклонён\n\n` +
+          `📟 Код: ${machine.code}\n` +
+          `📝 Название: ${machine.name}\n\n` +
+          `Причина: ${machine.rejectionReason || 'не указана'}`,
+      );
+    } catch (error) {
+      this.logger.error('Failed to notify creator about rejection:', error);
+    }
   }
 
   private formatDateTime(date: Date): string {
