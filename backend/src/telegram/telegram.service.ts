@@ -14,6 +14,8 @@ interface SessionData {
     | 'idle'
     | 'registering'
     | 'selecting_machine'
+    | 'selecting_date'
+    | 'entering_custom_date'
     | 'confirming'
     | 'entering_amount'
     | 'searching_machine'
@@ -364,6 +366,107 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
+      // Custom date/time input for collection
+      if (ctx.session.step === 'entering_custom_date' && ctx.user && ctx.session.selectedMachineId) {
+        const input = ctx.message.text.trim();
+        let parsedDate: Date | null = null;
+
+        // Try to parse "HH:MM" (time only - for today)
+        const timeOnlyMatch = input.match(/^(\d{1,2}):(\d{2})$/);
+        if (timeOnlyMatch) {
+          const hours = parseInt(timeOnlyMatch[1], 10);
+          const minutes = parseInt(timeOnlyMatch[2], 10);
+
+          if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+            parsedDate = new Date();
+            parsedDate.setHours(hours, minutes, 0, 0);
+          }
+        }
+
+        // Try to parse "DD.MM.YYYY HH:MM"
+        const fullMatch = input.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})$/);
+        if (!parsedDate && fullMatch) {
+          const day = parseInt(fullMatch[1], 10);
+          const month = parseInt(fullMatch[2], 10) - 1;
+          const year = parseInt(fullMatch[3], 10);
+          const hours = parseInt(fullMatch[4], 10);
+          const minutes = parseInt(fullMatch[5], 10);
+
+          if (day >= 1 && day <= 31 && month >= 0 && month <= 11 &&
+              year >= 2020 && year <= 2030 &&
+              hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+            parsedDate = new Date(year, month, day, hours, minutes, 0, 0);
+          }
+        }
+
+        // Try to parse "DD.MM.YYYY" (date only - use current time)
+        const dateOnlyMatch = input.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+        if (!parsedDate && dateOnlyMatch) {
+          const day = parseInt(dateOnlyMatch[1], 10);
+          const month = parseInt(dateOnlyMatch[2], 10) - 1;
+          const year = parseInt(dateOnlyMatch[3], 10);
+
+          if (day >= 1 && day <= 31 && month >= 0 && month <= 11 &&
+              year >= 2020 && year <= 2030) {
+            const now = new Date();
+            parsedDate = new Date(year, month, day, now.getHours(), now.getMinutes(), 0, 0);
+          }
+        }
+
+        if (!parsedDate || isNaN(parsedDate.getTime())) {
+          await ctx.reply(
+            '❌ Неверный формат\n\n' +
+            'Введите в формате:\n' +
+            '• *ЧЧ:ММ* (время сегодня)\n' +
+            '• *ДД.ММ.ГГГГ* (дата)\n' +
+            '• *ДД.ММ.ГГГГ ЧЧ:ММ* (дата и время)',
+            {
+              parse_mode: 'Markdown',
+              reply_markup: new InlineKeyboard().text('◀️ Отмена', 'main_menu'),
+            },
+          );
+          return;
+        }
+
+        // Check if date is not in the future
+        if (parsedDate > new Date()) {
+          await ctx.reply(
+            '❌ Нельзя указать дату в будущем',
+            {
+              reply_markup: new InlineKeyboard().text('◀️ Отмена', 'main_menu'),
+            },
+          );
+          return;
+        }
+
+        const machine = await this.machinesService.findById(ctx.session.selectedMachineId);
+        if (!machine) {
+          await ctx.reply('❌ Автомат не найден');
+          ctx.session.step = 'idle';
+          return;
+        }
+
+        ctx.session.collectionTime = parsedDate;
+        ctx.session.step = 'confirming';
+
+        const timeStr = this.formatDateTime(parsedDate);
+        const isHistorical = parsedDate.toDateString() !== new Date().toDateString();
+
+        await ctx.reply(
+          `🏧 *${machine.name}*\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n` +
+          `⏰ Время: *${timeStr}*\n` +
+          `${isHistorical ? '📆 _(исторические данные)_\n' : ''}\n` +
+          `Подтвердить сбор?`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: new InlineKeyboard()
+              .text('✅ Подтвердить', 'confirm_collection')
+              .text('❌ Отмена', 'main_menu'),
+          },
+        );
+        return;
+      }
+
       // Admin: Setting welcome image URL
       if (ctx.session.step === 'setting_welcome_image' && ctx.user?.role === UserRole.ADMIN) {
         const url = ctx.message.text.trim();
@@ -481,7 +584,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       );
     });
 
-    // Select found machine (from search results)
+    // Select found machine (from search results) - show date options
     this.bot.callbackQuery(/^select_found_(.+)$/, async (ctx) => {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
@@ -514,34 +617,25 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      // Proceed to collection confirmation
-      const duplicate = await this.collectionsService.checkDuplicate(machineId, new Date());
-      if (duplicate) {
-        const time = this.formatTime(duplicate.collectedAt);
-        await ctx.editMessageText(
-          `⚠️ Внимание!\n\nДля этого автомата уже есть сбор в ${time}.\nВы уверены, что хотите создать ещё один?`,
-          {
-            reply_markup: new InlineKeyboard()
-              .text('✅ Да, создать', `confirm_dup_${machineId}`)
-              .text('❌ Отмена', 'main_menu'),
-          },
-        );
-        return;
-      }
-
       ctx.session.selectedMachineId = machine.id;
-      ctx.session.collectionTime = new Date();
-      ctx.session.step = 'confirming';
+      ctx.session.step = 'selecting_date';
 
-      const timeStr = this.formatDateTime(ctx.session.collectionTime);
-
+      // Show date selection options
       await ctx.editMessageText(
-        `🏧 *${machine.name}*\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
+        `🏧 *${machine.name}*\n📟 ${machine.code}\n\n` +
+        `📅 *Выберите дату инкассации:*`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
-            .text('✅ Подтвердить', 'confirm_collection')
-            .text('❌ Отмена', 'main_menu'),
+            .text('🕐 Сейчас', `date_now_${machineId}`)
+            .row()
+            .text('📅 Сегодня (другое время)', `date_today_${machineId}`)
+            .row()
+            .text('📆 Вчера', `date_yesterday_${machineId}`)
+            .row()
+            .text('✏️ Другая дата', `date_custom_${machineId}`)
+            .row()
+            .text('◀️ Назад', 'search_machine'),
         },
       );
     });
@@ -657,7 +751,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.step = 'selecting_machine';
     });
 
-    // Machine selection
+    // Machine selection - show date options
     this.bot.callbackQuery(/^machine_(.+)$/, async (ctx) => {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
@@ -673,6 +767,38 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
+      ctx.session.selectedMachineId = machine.id;
+      ctx.session.step = 'selecting_date';
+
+      // Show date selection options
+      await ctx.editMessageText(
+        `🏧 *${machine.name}*\n📟 ${machine.code}\n\n` +
+        `📅 *Выберите дату инкассации:*`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard()
+            .text('🕐 Сейчас', `date_now_${machineId}`)
+            .row()
+            .text('📅 Сегодня (другое время)', `date_today_${machineId}`)
+            .row()
+            .text('📆 Вчера', `date_yesterday_${machineId}`)
+            .row()
+            .text('✏️ Другая дата', `date_custom_${machineId}`)
+            .row()
+            .text('◀️ Назад', 'collect'),
+        },
+      );
+    });
+
+    // Date selection: Now
+    this.bot.callbackQuery(/^date_now_(.+)$/, async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      const machine = await this.machinesService.findById(machineId);
+      if (!machine) return;
+
       // Check for duplicates
       const duplicate = await this.collectionsService.checkDuplicate(machineId, new Date());
       if (duplicate) {
@@ -681,7 +807,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `⚠️ Внимание!\n\nДля этого автомата уже есть сбор в ${time}.\nВы уверены, что хотите создать ещё один?`,
           {
             reply_markup: new InlineKeyboard()
-              .text('✅ Да, создать', `confirm_dup_${machineId}`)
+              .text('✅ Да, создать', `confirm_dup_now_${machineId}`)
               .text('❌ Отмена', 'main_menu'),
           },
         );
@@ -705,7 +831,111 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       );
     });
 
-    // Confirm duplicate
+    // Date selection: Today (with time input)
+    this.bot.callbackQuery(/^date_today_(.+)$/, async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      ctx.session.selectedMachineId = machineId;
+      ctx.session.step = 'entering_custom_date';
+
+      // Store that we're entering time for today
+      const today = new Date();
+      const dateStr = today.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tashkent' });
+
+      await ctx.editMessageText(
+        `📅 *Дата: ${dateStr}*\n\n` +
+        `Введите время в формате:\n` +
+        `*ЧЧ:ММ* (например: 14:30)`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard().text('◀️ Отмена', `machine_${machineId}`),
+        },
+      );
+    });
+
+    // Date selection: Yesterday
+    this.bot.callbackQuery(/^date_yesterday_(.+)$/, async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      const machine = await this.machinesService.findById(machineId);
+      if (!machine) return;
+
+      // Set yesterday's date with current time
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      ctx.session.selectedMachineId = machine.id;
+      ctx.session.collectionTime = yesterday;
+      ctx.session.step = 'confirming';
+
+      const timeStr = this.formatDateTime(ctx.session.collectionTime);
+
+      await ctx.editMessageText(
+        `🏧 *${machine.name}*\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n` +
+        `⏰ Время: *${timeStr}*\n` +
+        `📆 _(вчера)_\n\nПодтвердить сбор?`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard()
+            .text('✅ Подтвердить', 'confirm_collection')
+            .text('❌ Отмена', 'main_menu'),
+        },
+      );
+    });
+
+    // Date selection: Custom date
+    this.bot.callbackQuery(/^date_custom_(.+)$/, async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      ctx.session.selectedMachineId = machineId;
+      ctx.session.step = 'entering_custom_date';
+
+      await ctx.editMessageText(
+        `📆 *Введите дату и время*\n\n` +
+        `Формат: *ДД.ММ.ГГГГ ЧЧ:ММ*\n\n` +
+        `Примеры:\n` +
+        `• 15.01.2026 14:30\n` +
+        `• 20.01.2026 09:00`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard().text('◀️ Отмена', `machine_${machineId}`),
+        },
+      );
+    });
+
+    // Confirm duplicate with "now" time
+    this.bot.callbackQuery(/^confirm_dup_now_(.+)$/, async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      const machine = await this.machinesService.findById(machineId);
+      if (!machine) return;
+
+      ctx.session.selectedMachineId = machine.id;
+      ctx.session.collectionTime = new Date();
+      ctx.session.step = 'confirming';
+
+      const timeStr = this.formatDateTime(ctx.session.collectionTime);
+
+      await ctx.editMessageText(
+        `🏧 *${machine.name}*\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard()
+            .text('✅ Подтвердить', 'confirm_collection')
+            .text('❌ Отмена', 'main_menu'),
+        },
+      );
+    });
+
+    // Confirm duplicate (legacy handler for other flows)
     this.bot.callbackQuery(/^confirm_dup_(.+)$/, async (ctx) => {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
