@@ -19,13 +19,15 @@ interface SessionData {
     | 'searching_machine'
     | 'creating_machine_code'
     | 'creating_machine_name'
-    | 'setting_welcome_image';
+    | 'setting_welcome_image'
+    | 'entering_invite_username';
   inviteCode?: string;
   selectedMachineId?: string;
   collectionTime?: Date;
   pendingCollectionId?: string;
   searchQuery?: string;
   newMachineCode?: string;
+  inviteRole?: UserRole;
 }
 
 type MyContext = Context & SessionFlavor<SessionData> & { user?: User };
@@ -256,6 +258,103 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             `✅ Инкассация принята!\n💰 Сумма: ${amount.toLocaleString('ru-RU')} сум`,
             { reply_markup: this.getMainMenu(ctx.user) },
           );
+        } catch (error: any) {
+          await ctx.reply(`❌ Ошибка: ${error.message}`);
+        }
+        return;
+      }
+
+      // Invite - username input
+      if (ctx.session.step === 'entering_invite_username' && ctx.user && ctx.session.inviteRole) {
+        let username = ctx.message.text.trim();
+        // Remove @ if present
+        if (username.startsWith('@')) {
+          username = username.slice(1);
+        }
+
+        if (username.length < 3 || username.length > 32) {
+          await ctx.reply('Неверный username. Введите корректный Telegram username:');
+          return;
+        }
+
+        const role = ctx.session.inviteRole;
+        const roleName = role === UserRole.OPERATOR ? 'Оператор' : 'Менеджер';
+
+        try {
+          // Create invite
+          const invite = await this.invitesService.create(ctx.user.id, role);
+
+          // Try to find user by username
+          const targetUser = await this.usersService.findByUsername(username);
+          const botInfo = await this.bot.api.getMe();
+          const link = `https://t.me/${botInfo.username}?start=invite_${invite.code}`;
+
+          if (targetUser && targetUser.telegramId) {
+            // User exists in system - send direct message
+            try {
+              await this.bot.api.sendMessage(
+                targetUser.telegramId,
+                `📨 *Приглашение в VendCash*\n\n` +
+                `Вас приглашают как: *${roleName}*\n` +
+                `От: ${escapeMarkdown(ctx.user.name)}\n\n` +
+                `Нажмите кнопку ниже для регистрации:`,
+                {
+                  parse_mode: 'Markdown',
+                  reply_markup: new InlineKeyboard()
+                    .url('✅ Принять приглашение', link),
+                },
+              );
+
+              ctx.session.step = 'idle';
+              ctx.session.inviteRole = undefined;
+
+              await ctx.reply(
+                `✅ *Приглашение отправлено!*\n\n` +
+                `👤 Пользователь: @${escapeMarkdown(username)}\n` +
+                `🎭 Роль: ${roleName}\n\n` +
+                `Пользователь получил сообщение с кнопкой принятия.`,
+                {
+                  parse_mode: 'Markdown',
+                  reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu'),
+                },
+              );
+            } catch (sendError) {
+              // User blocked the bot or never started it
+              ctx.session.step = 'idle';
+              ctx.session.inviteRole = undefined;
+
+              await ctx.reply(
+                `⚠️ Не удалось отправить сообщение @${escapeMarkdown(username)}\n\n` +
+                `Пользователь не начал диалог с ботом.\n` +
+                `Отправьте ему ссылку:\n\n${link}`,
+                {
+                  parse_mode: 'Markdown',
+                  reply_markup: new InlineKeyboard()
+                    .url('🔗 Открыть ссылку', link)
+                    .row()
+                    .text('◀️ В меню', 'main_menu'),
+                },
+              );
+            }
+          } else {
+            // User not in system - show link for sharing
+            ctx.session.step = 'idle';
+            ctx.session.inviteRole = undefined;
+
+            await ctx.reply(
+              `📨 *Приглашение создано*\n\n` +
+              `👤 Роль: *${roleName}*\n\n` +
+              `Пользователь @${escapeMarkdown(username)} ещё не взаимодействовал с ботом.\n` +
+              `Отправьте ему ссылку:\n\n${link}`,
+              {
+                parse_mode: 'Markdown',
+                reply_markup: new InlineKeyboard()
+                  .url('🔗 Открыть ссылку', link)
+                  .row()
+                  .text('◀️ В меню', 'main_menu'),
+              },
+            );
+          }
         } catch (error: any) {
           await ctx.reply(`❌ Ошибка: ${error.message}`);
         }
@@ -877,7 +976,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       });
     });
 
-    // Create invite
+    // Create invite - ask for username
     this.bot.callbackQuery(/^create_invite_(operator|manager)$/, async (ctx) => {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
@@ -885,32 +984,18 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const role = ctx.match[1] === 'operator' ? UserRole.OPERATOR : UserRole.MANAGER;
       const roleName = role === UserRole.OPERATOR ? 'Оператор' : 'Менеджер';
 
-      try {
-        const invite = await this.invitesService.create(ctx.user.id, role);
-        const botInfo = await this.bot.api.getMe();
-        const link = `https://t.me/${botInfo.username}?start=invite_${invite.code}`;
+      ctx.session.step = 'entering_invite_username';
+      ctx.session.inviteRole = role;
 
-        // Send as a new message (not edit) for easy forwarding
-        await ctx.deleteMessage().catch(() => {});
-
-        await ctx.reply(
-          `📨 *Приглашение в VendCash*\n\n` +
-          `👤 Роль: *${roleName}*\n` +
-          `⏰ Действует: *24 часа*\n\n` +
-          `👇 Нажмите на ссылку для регистрации:\n\n` +
-          `${link}`,
-          {
-            parse_mode: 'Markdown',
-            reply_markup: new InlineKeyboard()
-              .url('🚀 Открыть бот', link)
-              .row()
-              .text('🔄 Новая ссылка', `create_invite_${ctx.match[1]}`)
-              .text('◀️ В меню', 'main_menu'),
-          },
-        );
-      } catch (error: any) {
-        await ctx.reply(`❌ Ошибка: ${error.message}`);
-      }
+      await ctx.editMessageText(
+        `📨 *Приглашение: ${roleName}*\n\n` +
+        `Введите Telegram username пользователя:\n` +
+        `(например: @username или username)`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard().text('◀️ Отмена', 'main_menu'),
+        },
+      );
     });
 
     // Admin: Pending machines

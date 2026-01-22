@@ -55,6 +55,13 @@ export class UsersService {
     return this.userRepository.findOne({ where: { telegramId } });
   }
 
+  async findByUsername(username: string): Promise<User | null> {
+    return this.userRepository
+      .createQueryBuilder('user')
+      .where('LOWER(user.telegramUsername) = LOWER(:username)', { username })
+      .getOne();
+  }
+
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
     const user = await this.findByIdOrFail(id);
     Object.assign(user, updateUserDto);
