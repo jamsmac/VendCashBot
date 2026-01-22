@@ -129,15 +129,24 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       // Already registered user
       if (ctx.user) {
         if (!ctx.user.isActive) {
-          await ctx.reply('❌ Ваш аккаунт деактивирован. Обратитесь к администратору.');
+          await ctx.reply(
+            `╭─────────────────────╮\n` +
+            `│  ⛔️  *ДОСТУП ЗАКРЫТ*\n` +
+            `╰─────────────────────╯\n\n` +
+            `Ваш аккаунт деактивирован.\n` +
+            `Обратитесь к администратору.`,
+            { parse_mode: 'Markdown' },
+          );
           return;
         }
-        const roleName =
-          ctx.user.role === UserRole.OPERATOR ? '👷 Оператор' :
-          ctx.user.role === UserRole.MANAGER ? '📊 Менеджер' : '👑 Админ';
+        const roleBadge = this.getRoleBadge(ctx.user.role);
 
         await ctx.reply(
-          `👋 *${ctx.user.name}*\n${roleName}\n\n` +
+          `╭─────────────────────╮\n` +
+          `│  🏧  *VendCash*\n` +
+          `╰─────────────────────╯\n\n` +
+          `👤  *${ctx.user.name}*\n` +
+          `${roleBadge}\n\n` +
           `Выберите действие:`,
           {
             parse_mode: 'Markdown',
@@ -166,12 +175,16 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.step = 'registering';
       ctx.session.inviteCode = inviteCode;
 
-      const roleName = validation.role === UserRole.OPERATOR ? 'Оператор' : 'Менеджер';
+      const roleBadge = validation.role === UserRole.OPERATOR ? '🟢 Оператор' : '🔵 Менеджер';
 
       await ctx.reply(
-        `👋 Добро пожаловать в VendCash!\n\n` +
-          `Вы приглашены как: *${roleName}*\n\n` +
-          `Введите ваше имя:`,
+        `╭─────────────────────╮\n` +
+        `│  🎉  *РЕГИСТРАЦИЯ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `Добро пожаловать в *VendCash*!\n\n` +
+        `📋  Ваша роль: ${roleBadge}\n\n` +
+        `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+        `✏️  Введите ваше имя:`,
         { parse_mode: 'Markdown' },
       );
     });
@@ -211,11 +224,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           ctx.session.inviteCode = undefined;
           ctx.user = user;
 
-          const roleName = user.role === UserRole.OPERATOR ? 'Оператор' : 'Менеджер';
+          const roleBadge = this.getRoleBadge(user.role);
 
           await ctx.reply(
-            `✅ Регистрация завершена!\n\n👤 Имя: ${user.name}\n🎭 Роль: ${roleName}`,
-            { reply_markup: this.getMainMenu(user) },
+            `╭─────────────────────╮\n` +
+            `│  ✅  *УСПЕШНО*\n` +
+            `╰─────────────────────╯\n\n` +
+            `Добро пожаловать!\n\n` +
+            `👤  *${user.name}*\n` +
+            `${roleBadge}\n\n` +
+            `Выберите действие:`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: this.getMainMenu(user),
+            },
           );
         } catch (error: any) {
           await ctx.reply(`❌ Ошибка регистрации: ${error.message}`);
@@ -248,8 +270,17 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           ctx.session.pendingCollectionId = undefined;
 
           await ctx.reply(
-            `✅ Инкассация принята!\n💰 Сумма: ${amount.toLocaleString('ru-RU')} сум`,
-            { reply_markup: this.getMainMenu(ctx.user) },
+            `╭─────────────────────╮\n` +
+            `│  ✅  *ПРИНЯТО*\n` +
+            `╰─────────────────────╯\n\n` +
+            `💰  *${amount.toLocaleString('ru-RU')}* сум\n\n` +
+            `Инкассация успешно принята!`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: new InlineKeyboard()
+                .text('📥 Ещё приём', 'pending_collections')
+                .text('🏠 Меню', 'main_menu'),
+            },
           );
         } catch (error: any) {
           await ctx.reply(`❌ Ошибка: ${error.message}`);
@@ -322,9 +353,18 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         ctx.session.newMachineCode = code;
         ctx.session.step = 'creating_machine_name';
 
-        await ctx.reply(`✅ Код: *${code}*\n\nТеперь введите название автомата:`, {
-          parse_mode: 'Markdown',
-        });
+        await ctx.reply(
+          `╭─────────────────────╮\n` +
+          `│  ➕  *НОВЫЙ АВТОМАТ*\n` +
+          `╰─────────────────────╯\n\n` +
+          `📍 Шаг *2* из 2\n\n` +
+          `📟  Код: \`${code}\`\n\n` +
+          `Введите название автомата:`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: new InlineKeyboard().text('✖️ Отмена', 'main_menu'),
+          },
+        );
         return;
       }
 
@@ -350,11 +390,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           ctx.session.newMachineCode = undefined;
 
           await ctx.reply(
-            `✅ *Автомат создан!*\n\n` +
-              `📟 Код: ${machine.code}\n` +
-              `📝 Название: ${machine.name}\n\n` +
-              `⏳ Статус: *Ожидает подтверждения*\n\n` +
-              `Администратор получит уведомление и проверит данные.`,
+            `╭─────────────────────╮\n` +
+            `│  ✅  *СОЗДАНО*\n` +
+            `╰─────────────────────╯\n\n` +
+            `📟  Код: \`${machine.code}\`\n` +
+            `📝  Название: ${machine.name}\n\n` +
+            `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+            `⏳  *Ожидает подтверждения*\n\n` +
+            `Админ получит уведомление\n` +
+            `и проверит данные.`,
             {
               parse_mode: 'Markdown',
               reply_markup: this.getMainMenu(ctx.user),
@@ -545,9 +589,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
       ctx.session.step = 'idle';
-      await ctx.editMessageText(`👋 ${ctx.user.name}\n\nВыберите действие:`, {
-        reply_markup: this.getMainMenu(ctx.user),
-      });
+      const roleBadge = this.getRoleBadge(ctx.user.role);
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  🏧  *VendCash*\n` +
+        `╰─────────────────────╯\n\n` +
+        `👤  *${ctx.user.name}*\n` +
+        `${roleBadge}\n\n` +
+        `Выберите действие:`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: this.getMainMenu(ctx.user),
+        },
+      );
     });
 
     // Search machine
@@ -558,9 +612,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.step = 'searching_machine';
 
       await ctx.editMessageText(
-        '🔍 *Поиск автомата*\n\n' +
-          'Введите код или название автомата:\n' +
-          '(минимум 2 символа)',
+        `╭─────────────────────╮\n` +
+        `│  🔍  *ПОИСК*\n` +
+        `╰─────────────────────╯\n\n` +
+        `Введите код или название\n` +
+        `автомата _(мин. 2 символа)_`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard().text('◀️ Назад', 'main_menu'),
@@ -576,10 +632,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.step = 'creating_machine_code';
 
       await ctx.editMessageText(
-        '➕ *Создание нового автомата*\n\n' + 'Шаг 1/2: Введите код (серийный номер) автомата:',
+        `╭─────────────────────╮\n` +
+        `│  ➕  *НОВЫЙ АВТОМАТ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `📍 Шаг *1* из 2\n\n` +
+        `Введите код _(серийный номер)_\n` +
+        `автомата:`,
         {
           parse_mode: 'Markdown',
-          reply_markup: new InlineKeyboard().text('◀️ Отмена', 'main_menu'),
+          reply_markup: new InlineKeyboard().text('✖️ Отмена', 'main_menu'),
         },
       );
     });
@@ -622,18 +683,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       // Show date selection options
       await ctx.editMessageText(
-        `🏧 *${machine.name}*\n📟 ${machine.code}\n\n` +
-        `📅 *Выберите дату инкассации:*`,
+        `╭─────────────────────╮\n` +
+        `│  📦  *НОВЫЙ СБОР*\n` +
+        `╰─────────────────────╯\n\n` +
+        `🏧  *${machine.name}*\n` +
+        `📟  \`${machine.code}\`\n\n` +
+        `Выберите время:`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
             .text('🕐 Сейчас', `date_now_${machineId}`)
-            .row()
-            .text('📅 Сегодня (другое время)', `date_today_${machineId}`)
+            .text('📅 Сегодня', `date_today_${machineId}`)
             .row()
             .text('📆 Вчера', `date_yesterday_${machineId}`)
-            .row()
-            .text('✏️ Другая дата', `date_custom_${machineId}`)
+            .text('✏️ Другая', `date_custom_${machineId}`)
             .row()
             .text('◀️ Назад', 'search_machine'),
         },
@@ -661,13 +724,17 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       try {
         const machine = await this.machinesService.approve(machineId, ctx.user.id);
 
-        await ctx.answerCallbackQuery('Автомат подтверждён!');
+        await ctx.answerCallbackQuery('Подтверждено ✓');
         await ctx.editMessageText(
-          `✅ *Автомат подтверждён*\n\n` +
-            `📟 Код: \`${machine.code}\`\n` +
-            `📝 Название: ${machine.name}\n` +
-            `👤 Подтвердил: ${ctx.user.name}`,
-          { parse_mode: 'Markdown' },
+          `╭─────────────────────╮\n` +
+          `│  ✅  *ПОДТВЕРЖДЕНО*\n` +
+          `╰─────────────────────╯\n\n` +
+          `📟  \`${machine.code}\`\n` +
+          `📝  ${machine.name}`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: new InlineKeyboard().text('🔍 Модерация', 'pending_machines'),
+          },
         );
 
         // Notify creator
@@ -697,12 +764,17 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           'Отклонено администратором',
         );
 
-        await ctx.answerCallbackQuery('Автомат отклонён');
+        await ctx.answerCallbackQuery('Отклонено ✗');
         await ctx.editMessageText(
-          `❌ *Автомат отклонён*\n\n` +
-            `📟 Код: \`${machine.code}\`\n` +
-            `📝 Название: ${machine.name}`,
-          { parse_mode: 'Markdown' },
+          `╭─────────────────────╮\n` +
+          `│  ❌  *ОТКЛОНЕНО*\n` +
+          `╰─────────────────────╯\n\n` +
+          `📟  \`${machine.code}\`\n` +
+          `📝  ${machine.name}`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: new InlineKeyboard().text('🔍 Модерация', 'pending_machines'),
+          },
         );
 
         // Notify creator
@@ -721,12 +793,16 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       if (machines.length === 0) {
         await ctx.editMessageText(
-          '❌ Нет доступных автоматов\n\n' + 'Вы можете создать новый автомат через поиск.',
+          `╭─────────────────────╮\n` +
+          `│  📦  *НОВЫЙ СБОР*\n` +
+          `╰─────────────────────╯\n\n` +
+          `Нет доступных автоматов\n\n` +
+          `Создайте через поиск`,
           {
+            parse_mode: 'Markdown',
             reply_markup: new InlineKeyboard()
-              .text('🔍 Поиск / Создать', 'search_machine')
-              .row()
-              .text('◀️ Назад', 'main_menu'),
+              .text('🔍 Поиск', 'search_machine')
+              .text('🏠 Меню', 'main_menu'),
           },
         );
         return;
@@ -737,17 +813,26 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       // Add search button at top
       keyboard.text('🔍 Поиск', 'search_machine').row();
 
-      machines.slice(0, 10).forEach((m) => {
-        keyboard.text(`${m.code} - ${m.name}`, `machine_${m.id}`).row();
+      machines.slice(0, 8).forEach((m) => {
+        keyboard.text(`${m.code}  ${m.name}`, `machine_${m.id}`).row();
       });
 
-      if (machines.length > 10) {
-        keyboard.text(`... ещё ${machines.length - 10} (используйте поиск)`, 'search_machine').row();
+      if (machines.length > 8) {
+        keyboard.text(`⋯ ещё ${machines.length - 8}`, 'search_machine').row();
       }
 
-      keyboard.text('◀️ Назад', 'main_menu');
+      keyboard.text('🏠 Меню', 'main_menu');
 
-      await ctx.editMessageText('🏧 Выберите автомат:', { reply_markup: keyboard });
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  📦  *НОВЫЙ СБОР*\n` +
+        `╰─────────────────────╯\n\n` +
+        `Выберите автомат:`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: keyboard,
+        },
+      );
       ctx.session.step = 'selecting_machine';
     });
 
@@ -772,18 +857,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       // Show date selection options
       await ctx.editMessageText(
-        `🏧 *${machine.name}*\n📟 ${machine.code}\n\n` +
-        `📅 *Выберите дату инкассации:*`,
+        `╭─────────────────────╮\n` +
+        `│  📦  *НОВЫЙ СБОР*\n` +
+        `╰─────────────────────╯\n\n` +
+        `🏧  *${machine.name}*\n` +
+        `📟  \`${machine.code}\`\n\n` +
+        `Выберите время:`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
             .text('🕐 Сейчас', `date_now_${machineId}`)
-            .row()
-            .text('📅 Сегодня (другое время)', `date_today_${machineId}`)
+            .text('📅 Сегодня', `date_today_${machineId}`)
             .row()
             .text('📆 Вчера', `date_yesterday_${machineId}`)
-            .row()
-            .text('✏️ Другая дата', `date_custom_${machineId}`)
+            .text('✏️ Другая', `date_custom_${machineId}`)
             .row()
             .text('◀️ Назад', 'collect'),
         },
@@ -821,12 +908,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
 
       await ctx.editMessageText(
-        `🏧 *${machine.name}*\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
+        `╭─────────────────────╮\n` +
+        `│  📦  *ПОДТВЕРЖДЕНИЕ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `🏧  *${machine.name}*\n` +
+        `📟  \`${machine.code}\`\n` +
+        `📍  ${machine.location || '—'}\n\n` +
+        `⏰  ${timeStr}\n\n` +
+        `Подтвердить сбор?`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
-            .text('✅ Подтвердить', 'confirm_collection')
-            .text('❌ Отмена', 'main_menu'),
+            .text('✅ Да', 'confirm_collection')
+            .text('✖️ Отмена', 'main_menu'),
         },
       );
     });
@@ -845,12 +939,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const dateStr = today.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tashkent' });
 
       await ctx.editMessageText(
-        `📅 *Дата: ${dateStr}*\n\n` +
-        `Введите время в формате:\n` +
-        `*ЧЧ:ММ* (например: 14:30)`,
+        `╭─────────────────────╮\n` +
+        `│  ⏰  *ВРЕМЯ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `📅  ${dateStr}\n\n` +
+        `Введите время:\n` +
+        `_Например: 14:30_`,
         {
           parse_mode: 'Markdown',
-          reply_markup: new InlineKeyboard().text('◀️ Отмена', `machine_${machineId}`),
+          reply_markup: new InlineKeyboard().text('✖️ Отмена', `machine_${machineId}`),
         },
       );
     });
@@ -875,14 +972,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
 
       await ctx.editMessageText(
-        `🏧 *${machine.name}*\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n` +
-        `⏰ Время: *${timeStr}*\n` +
-        `📆 _(вчера)_\n\nПодтвердить сбор?`,
+        `╭─────────────────────╮\n` +
+        `│  📦  *ПОДТВЕРЖДЕНИЕ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `🏧  *${machine.name}*\n` +
+        `📟  \`${machine.code}\`\n` +
+        `📍  ${machine.location || '—'}\n\n` +
+        `⏰  ${timeStr}\n` +
+        `📆  _вчера_\n\n` +
+        `Подтвердить сбор?`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
-            .text('✅ Подтвердить', 'confirm_collection')
-            .text('❌ Отмена', 'main_menu'),
+            .text('✅ Да', 'confirm_collection')
+            .text('✖️ Отмена', 'main_menu'),
         },
       );
     });
@@ -897,14 +1000,16 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.step = 'entering_custom_date';
 
       await ctx.editMessageText(
-        `📆 *Введите дату и время*\n\n` +
-        `Формат: *ДД.ММ.ГГГГ ЧЧ:ММ*\n\n` +
-        `Примеры:\n` +
+        `╭─────────────────────╮\n` +
+        `│  📆  *ДАТА*\n` +
+        `╰─────────────────────╯\n\n` +
+        `Введите дату и время:\n\n` +
+        `_Примеры:_\n` +
         `• 15.01.2026 14:30\n` +
-        `• 20.01.2026 09:00`,
+        `• 20.01.2026`,
         {
           parse_mode: 'Markdown',
-          reply_markup: new InlineKeyboard().text('◀️ Отмена', `machine_${machineId}`),
+          reply_markup: new InlineKeyboard().text('✖️ Отмена', `machine_${machineId}`),
         },
       );
     });
@@ -925,12 +1030,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
 
       await ctx.editMessageText(
-        `🏧 *${machine.name}*\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
+        `╭─────────────────────╮\n` +
+        `│  📦  *ПОДТВЕРЖДЕНИЕ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `🏧  *${machine.name}*\n` +
+        `📟  \`${machine.code}\`\n` +
+        `📍  ${machine.location || '—'}\n\n` +
+        `⏰  ${timeStr}\n\n` +
+        `Подтвердить сбор?`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
-            .text('✅ Подтвердить', 'confirm_collection')
-            .text('❌ Отмена', 'main_menu'),
+            .text('✅ Да', 'confirm_collection')
+            .text('✖️ Отмена', 'main_menu'),
         },
       );
     });
@@ -958,12 +1070,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
 
       await ctx.editMessageText(
-        `🏧 *${machine.name}*\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n⏰ Время: *${timeStr}*\n\nПодтвердить сбор?`,
+        `╭─────────────────────╮\n` +
+        `│  📦  *ПОДТВЕРЖДЕНИЕ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `🏧  *${machine.name}*\n` +
+        `📟  \`${machine.code}\`\n` +
+        `📍  ${machine.location || '—'}\n\n` +
+        `⏰  ${timeStr}\n\n` +
+        `Подтвердить сбор?`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
-            .text('✅ Подтвердить', 'confirm_collection')
-            .text('❌ Отмена', 'main_menu'),
+            .text('✅ Да', 'confirm_collection')
+            .text('✖️ Отмена', 'main_menu'),
         },
       );
     });
@@ -998,10 +1117,17 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         ctx.session.collectionTime = undefined;
 
         await ctx.editMessageText(
-          `✅ *Сбор зарегистрирован!*\n\n🏧 ${machine?.name}\n🔢 #${collection.id.slice(0, 8)}`,
+          `╭─────────────────────╮\n` +
+          `│  ✅  *ГОТОВО*\n` +
+          `╰─────────────────────╯\n\n` +
+          `🏧  ${machine?.name}\n` +
+          `🔢  \`#${collection.id.slice(0, 8)}\`\n\n` +
+          `Сбор успешно зарегистрирован!`,
           {
             parse_mode: 'Markdown',
-            reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu'),
+            reply_markup: new InlineKeyboard()
+              .text('📦 Ещё сбор', 'collect')
+              .text('🏠 Меню', 'main_menu'),
           },
         );
       } catch (error: any) {
@@ -1017,21 +1143,42 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const collections = await this.collectionsService.findByOperator(ctx.user.id, new Date());
 
       if (collections.length === 0) {
-        await ctx.editMessageText('📋 У вас нет сборов за сегодня', {
-          reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu'),
-        });
+        await ctx.editMessageText(
+          `╭─────────────────────╮\n` +
+          `│  📋  *МОИ СБОРЫ*\n` +
+          `╰─────────────────────╯\n\n` +
+          `За сегодня нет сборов`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: new InlineKeyboard()
+              .text('📦 Новый сбор', 'collect')
+              .text('🏠 Меню', 'main_menu'),
+          },
+        );
         return;
       }
 
       const lines = collections.map((c) => {
         const time = this.formatTime(c.collectedAt);
         const status = c.status === 'collected' ? '⏳' : c.status === 'received' ? '✅' : '❌';
-        return `${status} ${time} ${c.machine.name}`;
+        return `${status}  ${time}  ${c.machine.name}`;
       });
 
-      await ctx.editMessageText(`📋 Ваши сборы за сегодня:\n\n${lines.join('\n')}`, {
-        reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu'),
-      });
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  📋  *МОИ СБОРЫ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `📅 Сегодня: *${collections.length}*\n\n` +
+        `${lines.join('\n')}\n\n` +
+        `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+        `✅ принят  ⏳ ожидает`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard()
+            .text('📦 Ещё сбор', 'collect')
+            .text('🏠 Меню', 'main_menu'),
+        },
+      );
     });
 
     // Manager: Pending collections
@@ -1042,20 +1189,37 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const pending = await this.collectionsService.findPending();
 
       if (pending.length === 0) {
-        await ctx.editMessageText('✅ Нет ожидающих приёма', {
-          reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu'),
-        });
+        await ctx.editMessageText(
+          `╭─────────────────────╮\n` +
+          `│  📥  *ПРИЁМ*\n` +
+          `╰─────────────────────╯\n\n` +
+          `✅ Нет ожидающих инкассаций`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: new InlineKeyboard().text('🏠 Меню', 'main_menu'),
+          },
+        );
         return;
       }
 
       const keyboard = new InlineKeyboard();
       pending.slice(0, 10).forEach((c) => {
         const time = this.formatTime(c.collectedAt);
-        keyboard.text(`${time} ${c.machine.name}`, `receive_${c.id}`).row();
+        keyboard.text(`⏳ ${time}  ${c.machine.name}`, `receive_${c.id}`).row();
       });
-      keyboard.text('◀️ В меню', 'main_menu');
+      keyboard.text('🏠 Меню', 'main_menu');
 
-      await ctx.editMessageText(`📥 Ожидают приёма: ${pending.length}`, { reply_markup: keyboard });
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  📥  *ПРИЁМ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `Ожидают: *${pending.length}*\n\n` +
+        `Нажмите для приёма:`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: keyboard,
+        },
+      );
     });
 
     // Receive collection
@@ -1080,8 +1244,18 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const time = this.formatDateTime(collection.collectedAt);
 
       await ctx.editMessageText(
-        `💰 *Введите сумму (сум):*\n\n🏧 ${collection.machine.name}\n⏰ ${time}\n👷 ${collection.operator.name}`,
-        { parse_mode: 'Markdown' },
+        `╭─────────────────────╮\n` +
+        `│  💰  *ПРИЁМ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `🏧  *${collection.machine.name}*\n` +
+        `⏰  ${time}\n` +
+        `👤  ${collection.operator.name}\n\n` +
+        `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+        `✏️ Введите сумму _(сум)_:`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard().text('✖️ Отмена', 'pending_collections'),
+        },
       );
     });
 
@@ -1090,14 +1264,21 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
 
-      await ctx.editMessageText('Выберите роль:', {
-        reply_markup: new InlineKeyboard()
-          .text('👷 Оператор', 'create_invite_operator')
-          .row()
-          .text('📊 Менеджер', 'create_invite_manager')
-          .row()
-          .text('◀️ Назад', 'main_menu'),
-      });
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  👥  *ПРИГЛАШЕНИЕ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `Выберите роль нового\n` +
+        `сотрудника:`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard()
+            .text('🟢 Оператор', 'create_invite_operator')
+            .text('🔵 Менеджер', 'create_invite_manager')
+            .row()
+            .text('◀️ Назад', 'main_menu'),
+        },
+      );
     });
 
     // Create invite
@@ -1106,7 +1287,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await ctx.answerCallbackQuery();
 
       const role = ctx.match[1] === 'operator' ? UserRole.OPERATOR : UserRole.MANAGER;
-      const roleName = role === UserRole.OPERATOR ? 'Оператор' : 'Менеджер';
+      const roleBadge = role === UserRole.OPERATOR ? '🟢 Оператор' : '🔵 Менеджер';
 
       try {
         const invite = await this.invitesService.create(ctx.user.id, role);
@@ -1117,18 +1298,21 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         await ctx.deleteMessage().catch(() => {});
 
         await ctx.reply(
-          `📨 *Приглашение в VendCash*\n\n` +
-          `👤 Роль: *${roleName}*\n` +
-          `⏰ Действует: *24 часа*\n\n` +
-          `👇 Нажмите на ссылку для регистрации:\n\n` +
-          `${link}`,
+          `╭─────────────────────╮\n` +
+          `│  📨  *ПРИГЛАШЕНИЕ*\n` +
+          `╰─────────────────────╯\n\n` +
+          `${roleBadge}\n` +
+          `⏰  Действует *24 часа*\n\n` +
+          `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+          `👇 Перешлите это сообщение\n` +
+          `или нажмите кнопку:`,
           {
             parse_mode: 'Markdown',
             reply_markup: new InlineKeyboard()
-              .url('🚀 Открыть бот', link)
+              .url('🚀 Открыть', link)
               .row()
-              .text('🔄 Новая ссылка', `create_invite_${ctx.match[1]}`)
-              .text('◀️ В меню', 'main_menu'),
+              .text('🔄 Новая', `create_invite_${ctx.match[1]}`)
+              .text('🏠 Меню', 'main_menu'),
           },
         );
       } catch (error: any) {
@@ -1144,19 +1328,36 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const pending = await this.machinesService.findPending();
 
       if (pending.length === 0) {
-        await ctx.editMessageText('✅ Нет автоматов на модерации', {
-          reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu'),
-        });
+        await ctx.editMessageText(
+          `╭─────────────────────╮\n` +
+          `│  🔍  *МОДЕРАЦИЯ*\n` +
+          `╰─────────────────────╯\n\n` +
+          `✅ Нет автоматов на проверке`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: new InlineKeyboard().text('🏠 Меню', 'main_menu'),
+          },
+        );
         return;
       }
 
       const keyboard = new InlineKeyboard();
       pending.slice(0, 10).forEach((m) => {
-        keyboard.text(`${m.code} - ${m.name}`, `review_machine_${m.id}`).row();
+        keyboard.text(`⏳ ${m.code}  ${m.name}`, `review_machine_${m.id}`).row();
       });
-      keyboard.text('◀️ В меню', 'main_menu');
+      keyboard.text('🏠 Меню', 'main_menu');
 
-      await ctx.editMessageText(`🔍 На модерации: ${pending.length}`, { reply_markup: keyboard });
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  🔍  *МОДЕРАЦИЯ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `На проверке: *${pending.length}*\n\n` +
+        `Нажмите для просмотра:`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: keyboard,
+        },
+      );
     });
 
     // Admin: Review single machine
@@ -1177,16 +1378,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
 
       const creatorInfo = machine.createdBy
-        ? `👤 Создал: ${machine.createdBy.name} (@${machine.createdBy.telegramUsername || 'нет'})`
-        : '👤 Создал: неизвестно';
+        ? `👤  ${machine.createdBy.name}`
+        : '👤  Неизвестно';
 
       await ctx.editMessageText(
-        `🔍 *Автомат на модерации*\n\n` +
-          `📟 Код: \`${machine.code}\`\n` +
-          `📝 Название: ${machine.name}\n` +
-          `📍 Локация: ${machine.location || '—'}\n` +
-          `${creatorInfo}\n` +
-          `📅 Создан: ${this.formatDateTime(machine.createdAt)}`,
+        `╭─────────────────────╮\n` +
+        `│  🔍  *ПРОВЕРКА*\n` +
+        `╰─────────────────────╯\n\n` +
+        `📟  Код: \`${machine.code}\`\n` +
+        `📝  ${machine.name}\n` +
+        `📍  ${machine.location || '—'}\n\n` +
+        `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+        `${creatorInfo}\n` +
+        `📅  ${this.formatDateTime(machine.createdAt)}`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
@@ -1204,9 +1408,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await ctx.answerCallbackQuery();
 
       const webUrl = this.configService.get('frontendUrl');
-      await ctx.editMessageText(`🌐 Веб-панель:\n${webUrl}`, {
-        reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu'),
-      });
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  🌐  *ВЕБ-ПАНЕЛЬ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `Откройте для просмотра\n` +
+        `отчётов и аналитики:`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard()
+            .url('🚀 Открыть', webUrl)
+            .row()
+            .text('🏠 Меню', 'main_menu'),
+        },
+      );
     });
 
     // Help
@@ -1214,36 +1429,55 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
 
-      let helpText = '❓ *Помощь*\n\n';
+      let helpContent = '';
 
       if (ctx.user.role === UserRole.OPERATOR) {
-        helpText +=
-          '👷 *Оператор*\n' +
-          '• "Отметить сбор" — регистрация инкассации\n' +
-          '• "Поиск" — найти автомат по коду или названию\n' +
-          '• Если автомат не найден — можно создать новый\n' +
-          '• Новый автомат будет доступен после подтверждения админом';
+        helpContent =
+          `🟢 *Оператор*\n\n` +
+          `📦  *Новый сбор*\n` +
+          `Регистрация инкассации\n\n` +
+          `🔍  *Поиск*\n` +
+          `Найти автомат по коду\n` +
+          `или названию\n\n` +
+          `📋  *Мои сборы*\n` +
+          `История за сегодня\n\n` +
+          `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+          `💡 Не нашли автомат?\n` +
+          `Создайте новый через поиск`;
       } else if (ctx.user.role === UserRole.MANAGER) {
-        helpText +=
-          '📊 *Менеджер*\n' +
-          '• "Ожидают приёма" — список инкассаций для приёма\n' +
-          '• Нажмите на инкассацию и введите сумму\n' +
-          '• Используйте веб-панель для отчётов';
+        helpContent =
+          `🔵 *Менеджер*\n\n` +
+          `📥  *Принять*\n` +
+          `Приём инкассаций\n\n` +
+          `🔍  *Поиск*\n` +
+          `Найти автомат\n\n` +
+          `🌐  *Веб-панель*\n` +
+          `Отчёты и аналитика`;
       } else {
-        helpText +=
-          '👑 *Администратор*\n' +
-          '• "На модерации" — автоматы, ожидающие подтверждения\n' +
-          '• "Пригласить" — создать ссылку для нового сотрудника\n' +
-          '• Используйте веб-панель для полного управления';
+        helpContent =
+          `🟣 *Администратор*\n\n` +
+          `📥  *Принять*\n` +
+          `Приём инкассаций\n\n` +
+          `🔍  *Модерация*\n` +
+          `Проверка новых автоматов\n\n` +
+          `👥  *Пригласить*\n` +
+          `Добавить сотрудника\n\n` +
+          `⚙️  *Настройки*\n` +
+          `Настройки бота`;
       }
 
-      await ctx.editMessageText(helpText, {
-        parse_mode: 'Markdown',
-        reply_markup: new InlineKeyboard()
-          .text('⚙️ Настройки', 'settings')
-          .row()
-          .text('◀️ В меню', 'main_menu'),
-      });
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  ❔  *ПОМОЩЬ*\n` +
+        `╰─────────────────────╯\n\n` +
+        helpContent,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard()
+            .text('⚙️ Аккаунт', 'settings')
+            .text('🏠 Меню', 'main_menu'),
+        },
+      );
     });
 
     // Settings
@@ -1251,17 +1485,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
 
+      const roleBadge = this.getRoleBadge(ctx.user.role);
+
       await ctx.editMessageText(
-        `⚙️ *Настройки*\n\n` +
-        `👤 ${ctx.user.name}\n` +
-        `🎭 ${ctx.user.role === UserRole.OPERATOR ? 'Оператор' : ctx.user.role === UserRole.MANAGER ? 'Менеджер' : 'Администратор'}\n\n` +
-        `⚠️ Деактивация аккаунта необратима.\n` +
-        `Для восстановления потребуется\n` +
-        `новое приглашение от админа.`,
+        `╭─────────────────────╮\n` +
+        `│  👤  *АККАУНТ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `📛  *${ctx.user.name}*\n` +
+        `${roleBadge}\n\n` +
+        `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+        `⚠️ Деактивация необратима`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
-            .text('🚫 Деактивировать аккаунт', 'confirm_deactivate')
+            .text('🚫 Деактивировать', 'confirm_deactivate')
             .row()
             .text('◀️ Назад', 'help'),
         },
@@ -1274,16 +1511,17 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await ctx.answerCallbackQuery();
 
       await ctx.editMessageText(
-        `⚠️ *Вы уверены?*\n\n` +
-        `После деактивации:\n` +
-        `• Вы потеряете доступ к боту\n` +
-        `• Потребуется новое приглашение\n` +
-        `• Ваши данные сохранятся`,
+        `╭─────────────────────╮\n` +
+        `│  ⚠️  *ВНИМАНИЕ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `После деактивации:\n\n` +
+        `• Потеряете доступ\n` +
+        `• Нужно новое приглашение\n` +
+        `• Данные сохранятся`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
-            .text('❌ Да, деактивировать', 'do_deactivate')
-            .row()
+            .text('🚫 Да, выйти', 'do_deactivate')
             .text('◀️ Отмена', 'settings'),
         },
       );
@@ -1295,13 +1533,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       try {
         await this.usersService.deactivate(ctx.user.id);
-        await ctx.answerCallbackQuery('Аккаунт деактивирован');
+        await ctx.answerCallbackQuery('Деактивировано');
 
         await ctx.editMessageText(
-          `👋 *Аккаунт деактивирован*\n\n` +
-          `Спасибо за использование VendCash!\n\n` +
-          `Для восстановления доступа\n` +
-          `обратитесь к администратору.`,
+          `╭─────────────────────╮\n` +
+          `│  👋  *ДО СВИДАНИЯ*\n` +
+          `╰─────────────────────╯\n\n` +
+          `Аккаунт деактивирован\n\n` +
+          `Для восстановления\n` +
+          `обратитесь к админу`,
           { parse_mode: 'Markdown' },
         );
       } catch (error: any) {
@@ -1318,28 +1558,28 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await ctx.answerCallbackQuery();
 
       const currentImage = await this.settingsService.getWelcomeImage();
-      const imageType = currentImage
+      const imageStatus = currentImage
         ? currentImage.startsWith('tg:')
-          ? '📷 Загружено'
-          : '🔗 URL'
-        : '❌ По умолчанию';
+          ? '✅ Загружено'
+          : '✅ URL'
+        : '⚪️ По умолчанию';
 
       await ctx.editMessageText(
-        `⚙️ *Настройки бота*\n\n` +
-        `━━━━━━━━━━━━━━━━━\n\n` +
-        `🖼 *Приветственная картинка*\n` +
-        `Статус: ${imageType}\n\n` +
-        `Отображается пользователям\n` +
-        `без приглашения`,
+        `╭─────────────────────╮\n` +
+        `│  ⚙️  *НАСТРОЙКИ*\n` +
+        `╰─────────────────────╯\n\n` +
+        `🖼  *Приветствие*\n` +
+        `Статус: ${imageStatus}\n\n` +
+        `Показывается новым\n` +
+        `пользователям`,
         {
           parse_mode: 'Markdown',
           reply_markup: new InlineKeyboard()
-            .text('📷 Изменить картинку', 'change_welcome_image')
+            .text('📷 Изменить', 'change_welcome_image')
+            .text('👁 Превью', 'preview_welcome')
             .row()
-            .text('👁 Предпросмотр', 'preview_welcome')
-            .text('🗑 Сбросить', 'reset_welcome_image')
-            .row()
-            .text('◀️ В меню', 'main_menu'),
+            .text('🗑 Сброс', 'reset_welcome_image')
+            .text('🏠 Меню', 'main_menu'),
         },
       );
     });
@@ -1355,15 +1595,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.step = 'setting_welcome_image';
 
       await ctx.editMessageText(
-        `🖼 *Изменение картинки*\n\n` +
+        `╭─────────────────────╮\n` +
+        `│  🖼  *КАРТИНКА*\n` +
+        `╰─────────────────────╯\n\n` +
         `Выберите способ:\n\n` +
-        `📷 *Загрузить фото* — просто отправьте\n` +
-        `изображение в этот чат\n\n` +
-        `🔗 *URL* — отправьте ссылку на\n` +
-        `изображение (https://...)`,
+        `📷  Отправьте фото\n` +
+        `🔗  Или ссылку (https://...)`,
         {
           parse_mode: 'Markdown',
-          reply_markup: new InlineKeyboard().text('◀️ Отмена', 'bot_settings'),
+          reply_markup: new InlineKeyboard().text('✖️ Отмена', 'bot_settings'),
         },
       );
     });
@@ -1416,23 +1656,25 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     const kb = new InlineKeyboard();
 
     if (user.role === UserRole.OPERATOR) {
-      kb.text('🏧 Отметить сбор', 'collect').row();
-      kb.text('🔍 Поиск автомата', 'search_machine').row();
-      kb.text('📋 Мои сборы', 'my_collections').row();
-      kb.text('❓ Помощь', 'help');
+      // Operator - clean 2-column layout
+      kb.text('📦 Новый сбор', 'collect')
+        .text('🔍 Поиск', 'search_machine').row();
+      kb.text('📋 Мои сборы', 'my_collections')
+        .text('❔ Помощь', 'help').row();
     } else if (user.role === UserRole.MANAGER) {
-      kb.text('📥 Принять инкассацию', 'pending_collections').row();
-      kb.text('🔍 Поиск автомата', 'search_machine').row();
-      kb.text('🌐 Веб-панель', 'web_panel').row();
-      kb.text('❓ Помощь', 'help');
+      // Manager - 2-column layout
+      kb.text('📥 Принять', 'pending_collections')
+        .text('🔍 Поиск', 'search_machine').row();
+      kb.text('🌐 Веб-панель', 'web_panel')
+        .text('❔ Помощь', 'help').row();
     } else {
-      // Admin - organized menu
-      kb.text('📥 Принять инкассацию', 'pending_collections')
+      // Admin - comprehensive 2-column layout
+      kb.text('📥 Принять', 'pending_collections')
         .text('🔍 Модерация', 'pending_machines').row();
       kb.text('👥 Пригласить', 'invite_user')
         .text('⚙️ Настройки', 'bot_settings').row();
       kb.text('🌐 Веб-панель', 'web_panel')
-        .text('❓ Помощь', 'help').row();
+        .text('❔ Помощь', 'help').row();
     }
 
     return kb;
@@ -1525,6 +1767,27 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  private getRoleBadge(role: UserRole): string {
+    switch (role) {
+      case UserRole.OPERATOR:
+        return '🟢 Оператор';
+      case UserRole.MANAGER:
+        return '🔵 Менеджер';
+      case UserRole.ADMIN:
+        return '🟣 Администратор';
+      default:
+        return '⚪️ Пользователь';
+    }
+  }
+
+  private formatCard(title: string, content: string, footer?: string): string {
+    let card = `╭─────────────────────╮\n│  ${title}\n╰─────────────────────╯\n\n${content}`;
+    if (footer) {
+      card += `\n\n┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n${footer}`;
+    }
+    return card;
+  }
+
   private async showWelcomeScreen(ctx: MyContext): Promise<void> {
     // Welcome image from DB settings, fallback to env, then default
     const welcomeImage =
@@ -1533,13 +1796,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       'https://i.imgur.com/JQvVqXh.png';
 
     const caption =
-      `🏧 *VendCash*\n\n` +
+      `╭─────────────────────╮\n` +
+      `│  🏧  *VendCash*\n` +
+      `╰─────────────────────╯\n\n` +
       `Система учёта инкассации\n` +
       `вендинговых автоматов\n\n` +
-      `━━━━━━━━━━━━━━━━━\n\n` +
+      `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
       `🔐 Для доступа необходимо\n` +
-      `получить приглашение от\n` +
-      `администратора`;
+      `получить приглашение`;
 
     try {
       // Check if it's a Telegram file_id (prefixed with 'tg:')
