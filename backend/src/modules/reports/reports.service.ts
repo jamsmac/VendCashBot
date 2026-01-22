@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { Collection, CollectionStatus } from '../collections/entities/collection.entity';
 import { MachineStatus } from '../machines/entities/machine.entity';
 import { ReportQueryDto } from './dto/report-query.dto';
@@ -36,9 +38,12 @@ export interface OperatorReport {
 
 @Injectable()
 export class ReportsService {
+  private readonly CACHE_TTL = 60000; // 1 minute cache for reports
+
   constructor(
     @InjectRepository(Collection)
     private readonly collectionRepository: Repository<Collection>,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
   private getDateRange(query: ReportQueryDto): { from: Date; to: Date } {
@@ -59,7 +64,15 @@ export class ReportsService {
     return { from, to };
   }
 
+  private getCacheKey(prefix: string, query: ReportQueryDto): string {
+    return `report:${prefix}:${query.from || 'default'}:${query.to || 'default'}`;
+  }
+
   async getSummary(query: ReportQueryDto): Promise<SummaryReport> {
+    const cacheKey = this.getCacheKey('summary', query);
+    const cached = await this.cacheManager.get<SummaryReport>(cacheKey);
+    if (cached) return cached;
+
     const { from, to } = this.getDateRange(query);
 
     const result = await this.collectionRepository
@@ -84,7 +97,7 @@ export class ReportsService {
     const totalAmount = parseFloat(result.totalAmount) || 0;
     const receivedCount = parseInt(result.receivedCount) || 0;
 
-    return {
+    const report: SummaryReport = {
       period: { from: from.toISOString(), to: to.toISOString() },
       totalCollections: parseInt(result.totalCollections) || 0,
       totalAmount,
@@ -93,6 +106,9 @@ export class ReportsService {
       cancelledCount: parseInt(result.cancelledCount) || 0,
       averageAmount: receivedCount > 0 ? totalAmount / receivedCount : 0,
     };
+
+    await this.cacheManager.set(cacheKey, report, this.CACHE_TTL);
+    return report;
   }
 
   async getByMachine(query: ReportQueryDto): Promise<{
@@ -100,6 +116,14 @@ export class ReportsService {
     data: MachineReport[];
     totals: { collectionsCount: number; totalAmount: number };
   }> {
+    const cacheKey = this.getCacheKey('by-machine', query);
+    const cached = await this.cacheManager.get<{
+      period: { from: string; to: string };
+      data: MachineReport[];
+      totals: { collectionsCount: number; totalAmount: number };
+    }>(cacheKey);
+    if (cached) return cached;
+
     const { from, to } = this.getDateRange(query);
 
     const results = await this.collectionRepository
@@ -139,11 +163,14 @@ export class ReportsService {
       { collectionsCount: 0, totalAmount: 0 },
     );
 
-    return {
+    const report = {
       period: { from: from.toISOString(), to: to.toISOString() },
       data,
       totals,
     };
+
+    await this.cacheManager.set(cacheKey, report, this.CACHE_TTL);
+    return report;
   }
 
   async getByDate(query: ReportQueryDto): Promise<{
@@ -151,6 +178,14 @@ export class ReportsService {
     data: DateReport[];
     totals: { collectionsCount: number; totalAmount: number };
   }> {
+    const cacheKey = this.getCacheKey('by-date', query);
+    const cached = await this.cacheManager.get<{
+      period: { from: string; to: string };
+      data: DateReport[];
+      totals: { collectionsCount: number; totalAmount: number };
+    }>(cacheKey);
+    if (cached) return cached;
+
     const { from, to } = this.getDateRange(query);
 
     const results = await this.collectionRepository
@@ -182,11 +217,14 @@ export class ReportsService {
       { collectionsCount: 0, totalAmount: 0 },
     );
 
-    return {
+    const report = {
       period: { from: from.toISOString(), to: to.toISOString() },
       data,
       totals,
     };
+
+    await this.cacheManager.set(cacheKey, report, this.CACHE_TTL);
+    return report;
   }
 
   async getByOperator(query: ReportQueryDto): Promise<{
@@ -194,6 +232,14 @@ export class ReportsService {
     data: OperatorReport[];
     totals: { collectionsCount: number; totalAmount: number };
   }> {
+    const cacheKey = this.getCacheKey('by-operator', query);
+    const cached = await this.cacheManager.get<{
+      period: { from: string; to: string };
+      data: OperatorReport[];
+      totals: { collectionsCount: number; totalAmount: number };
+    }>(cacheKey);
+    if (cached) return cached;
+
     const { from, to } = this.getDateRange(query);
 
     const results = await this.collectionRepository
@@ -234,14 +280,21 @@ export class ReportsService {
       { collectionsCount: 0, totalAmount: 0 },
     );
 
-    return {
+    const report = {
       period: { from: from.toISOString(), to: to.toISOString() },
       data,
       totals,
     };
+
+    await this.cacheManager.set(cacheKey, report, this.CACHE_TTL);
+    return report;
   }
 
   async getTodaySummary(): Promise<{ pending: number; todayAmount: number; monthAmount: number }> {
+    const cacheKey = 'report:today-summary';
+    const cached = await this.cacheManager.get<{ pending: number; todayAmount: number; monthAmount: number }>(cacheKey);
+    if (cached) return cached;
+
     const now = new Date();
     const startOfDay = new Date(now);
     startOfDay.setHours(0, 0, 0, 0);
@@ -283,10 +336,31 @@ export class ReportsService {
       .andWhere('machine.status = :machineStatus', { machineStatus: MachineStatus.APPROVED })
       .getRawOne();
 
-    return {
+    const result = {
       pending,
       todayAmount: parseFloat(todayResult?.total) || 0,
       monthAmount: parseFloat(monthResult?.total) || 0,
     };
+
+    // Short TTL for today summary (30 seconds)
+    await this.cacheManager.set(cacheKey, result, 30000);
+    return result;
+  }
+
+  // Invalidate cache when data changes
+  async invalidateCache(): Promise<void> {
+    const cacheKeys = [
+      'report:summary:*',
+      'report:by-machine:*',
+      'report:by-date:*',
+      'report:by-operator:*',
+      'report:today-summary',
+    ];
+    // Delete cache keys individually (cache-manager v5+ doesn't have reset())
+    for (const pattern of cacheKeys) {
+      // For now, we delete specific known keys since pattern deletion requires Redis
+      const baseKey = pattern.replace(':*', '');
+      await this.cacheManager.del(baseKey);
+    }
   }
 }

@@ -14,6 +14,8 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { HealthModule } from './health/health.module';
+import { CacheModule } from './cache/cache.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import configuration from './config/configuration';
 
 @Module({
@@ -63,6 +65,8 @@ import configuration from './config/configuration';
     SettingsModule,
     TelegramModule,
     HealthModule,
+    CacheModule,
+    NotificationsModule,
   ],
   providers: [
     {

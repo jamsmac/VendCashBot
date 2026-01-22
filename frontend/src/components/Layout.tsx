@@ -1,5 +1,8 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../contexts/AuthContext'
+import { useNotifications } from '../hooks/useNotifications'
+import ThemeToggle from './ThemeToggle'
+import NotificationBell from './NotificationBell'
 import {
   LayoutDashboard,
   ClipboardList,
@@ -10,6 +13,7 @@ import {
   LogOut,
   Menu,
   X,
+  History,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -18,31 +22,39 @@ export default function Layout() {
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  // Initialize WebSocket notifications
+  useNotifications()
+
   const handleLogout = () => {
     logout()
     navigate('/login')
   }
 
   const isAdmin = user?.role === 'admin'
+  const isManager = user?.role === 'manager' || isAdmin
 
   const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Главная' },
     { to: '/collections/pending', icon: Clock, label: 'Ожидают приёма' },
     { to: '/collections', icon: ClipboardList, label: 'Инкассации' },
+    ...(isManager ? [{ to: '/collections/history', icon: History, label: 'Ввод истории' }] : []),
     { to: '/reports', icon: BarChart3, label: 'Отчёты' },
     ...(isAdmin ? [{ to: '/machines', icon: Settings, label: 'Автоматы' }] : []),
     ...(isAdmin ? [{ to: '/users', icon: Users, label: 'Сотрудники' }] : []),
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Mobile header */}
-      <div className="lg:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+      <div className="lg:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
         <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2">
-          <Menu className="w-6 h-6" />
+          <Menu className="w-6 h-6 dark:text-gray-200" />
         </button>
-        <span className="font-bold text-lg text-primary-600">VendCash</span>
-        <div className="w-10" />
+        <span className="font-bold text-lg text-primary-600 dark:text-primary-400">VendCash</span>
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <ThemeToggle />
+        </div>
       </div>
 
       {/* Mobile sidebar overlay */}
@@ -55,15 +67,21 @@ export default function Layout() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-full w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 lg:translate-x-0 ${
+        className={`fixed top-0 left-0 z-50 h-full w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-200 lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <span className="font-bold text-xl text-primary-600">VendCash</span>
-          <button className="lg:hidden p-2" onClick={() => setSidebarOpen(false)}>
-            <X className="w-5 h-5" />
-          </button>
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <span className="font-bold text-xl text-primary-600 dark:text-primary-400">VendCash</span>
+          <div className="flex items-center gap-1">
+            <div className="hidden lg:flex items-center gap-1">
+              <NotificationBell />
+              <ThemeToggle />
+            </div>
+            <button className="lg:hidden p-2" onClick={() => setSidebarOpen(false)}>
+              <X className="w-5 h-5 dark:text-gray-200" />
+            </button>
+          </div>
         </div>
 
         <nav className="p-4 space-y-1">
@@ -75,8 +93,8 @@ export default function Layout() {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                   isActive
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`
               }
             >
@@ -86,21 +104,21 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-              <span className="text-primary-700 font-medium">
+            <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900/50 rounded-full flex items-center justify-center">
+              <span className="text-primary-700 dark:text-primary-300 font-medium">
                 {user?.name?.charAt(0).toUpperCase()}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-medium truncate">{user?.name}</div>
-              <div className="text-sm text-gray-500 capitalize">{user?.role}</div>
+              <div className="font-medium truncate dark:text-gray-100">{user?.name}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 capitalize">{user?.role}</div>
             </div>
           </div>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 w-full px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            className="flex items-center gap-2 w-full px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
           >
             <LogOut className="w-5 h-5" />
             Выйти

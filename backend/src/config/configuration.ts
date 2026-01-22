@@ -8,6 +8,12 @@ export default () => ({
     password: process.env.DB_PASSWORD || 'vendcash',
     database: process.env.DB_DATABASE || 'vendcash',
   },
+  redis: {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379', 10),
+    password: process.env.REDIS_PASSWORD || undefined,
+    ttl: parseInt(process.env.REDIS_TTL || '300', 10), // 5 minutes default
+  },
   jwt: {
     secret: process.env.JWT_SECRET || 'vendcash-super-secret-key-change-in-production',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
