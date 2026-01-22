@@ -5,6 +5,7 @@ import { UsersService } from '../modules/users/users.service';
 import { InvitesService } from '../modules/invites/invites.service';
 import { MachinesService } from '../modules/machines/machines.service';
 import { CollectionsService } from '../modules/collections/collections.service';
+import { SettingsService, SETTING_KEYS } from '../modules/settings/settings.service';
 import { User, UserRole } from '../modules/users/entities/user.entity';
 import { Machine, MachineStatus } from '../modules/machines/entities/machine.entity';
 
@@ -17,7 +18,8 @@ interface SessionData {
     | 'entering_amount'
     | 'searching_machine'
     | 'creating_machine_code'
-    | 'creating_machine_name';
+    | 'creating_machine_name'
+    | 'setting_welcome_image';
   inviteCode?: string;
   selectedMachineId?: string;
   collectionTime?: Date;
@@ -39,6 +41,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     private readonly invitesService: InvitesService,
     private readonly machinesService: MachinesService,
     private readonly collectionsService: CollectionsService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async onModuleInit() {
@@ -123,9 +126,18 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           await ctx.reply('❌ Ваш аккаунт деактивирован. Обратитесь к администратору.');
           return;
         }
-        await ctx.reply(`👋 С возвращением, ${ctx.user.name}!`, {
-          reply_markup: this.getMainMenu(ctx.user),
-        });
+        const roleName =
+          ctx.user.role === UserRole.OPERATOR ? '👷 Оператор' :
+          ctx.user.role === UserRole.MANAGER ? '📊 Менеджер' : '👑 Админ';
+
+        await ctx.reply(
+          `👋 *${ctx.user.name}*\n${roleName}\n\n` +
+          `Выберите действие:`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: this.getMainMenu(ctx.user),
+          },
+        );
         return;
       }
 
@@ -334,6 +346,78 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             {
               parse_mode: 'Markdown',
               reply_markup: this.getMainMenu(ctx.user),
+            },
+          );
+        } catch (error: any) {
+          await ctx.reply(`❌ Ошибка: ${error.message}`);
+        }
+        return;
+      }
+
+      // Admin: Setting welcome image URL
+      if (ctx.session.step === 'setting_welcome_image' && ctx.user?.role === UserRole.ADMIN) {
+        const url = ctx.message.text.trim();
+
+        // Basic URL validation
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+          await ctx.reply(
+            '❌ Неверный формат\n\n' +
+            'Отправьте:\n' +
+            '• URL (https://...)\n' +
+            '• Или загрузите картинку напрямую 📷',
+            {
+              reply_markup: new InlineKeyboard().text('◀️ Отмена', 'bot_settings'),
+            },
+          );
+          return;
+        }
+
+        try {
+          await this.settingsService.setWelcomeImage(url);
+
+          ctx.session.step = 'idle';
+
+          await ctx.reply(
+            `✅ *Изображение обновлено!*`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: new InlineKeyboard()
+                .text('👁 Предпросмотр', 'preview_welcome')
+                .row()
+                .text('◀️ В настройки', 'bot_settings'),
+            },
+          );
+        } catch (error: any) {
+          await ctx.reply(`❌ Ошибка: ${error.message}`);
+        }
+        return;
+      }
+    });
+
+    // Handle photo uploads (for welcome image)
+    this.bot.on('message:photo', async (ctx) => {
+      // Admin: Setting welcome image via photo upload
+      if (ctx.session.step === 'setting_welcome_image' && ctx.user?.role === UserRole.ADMIN) {
+        // Get the largest photo (last in array)
+        const photos = ctx.message.photo;
+        const largestPhoto = photos[photos.length - 1];
+        const fileId = largestPhoto.file_id;
+
+        try {
+          // Store file_id prefixed with 'tg:' to distinguish from URLs
+          await this.settingsService.setWelcomeImage(`tg:${fileId}`);
+
+          ctx.session.step = 'idle';
+
+          await ctx.reply(
+            `✅ *Картинка установлена!*\n\n` +
+            `Изображение сохранено из Telegram.`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: new InlineKeyboard()
+                .text('👁 Предпросмотр', 'preview_welcome')
+                .row()
+                .text('◀️ В настройки', 'bot_settings'),
             },
           );
         } catch (error: any) {
@@ -944,28 +1028,133 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         await ctx.answerCallbackQuery(`Ошибка: ${error.message}`);
       }
     });
+
+    // Admin: Bot settings
+    this.bot.callbackQuery('bot_settings', async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) {
+        await ctx.answerCallbackQuery('Недостаточно прав');
+        return;
+      }
+      await ctx.answerCallbackQuery();
+
+      const currentImage = await this.settingsService.getWelcomeImage();
+      const imageType = currentImage
+        ? currentImage.startsWith('tg:')
+          ? '📷 Загружено'
+          : '🔗 URL'
+        : '❌ По умолчанию';
+
+      await ctx.editMessageText(
+        `⚙️ *Настройки бота*\n\n` +
+        `━━━━━━━━━━━━━━━━━\n\n` +
+        `🖼 *Приветственная картинка*\n` +
+        `Статус: ${imageType}\n\n` +
+        `Отображается пользователям\n` +
+        `без приглашения`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard()
+            .text('📷 Изменить картинку', 'change_welcome_image')
+            .row()
+            .text('👁 Предпросмотр', 'preview_welcome')
+            .text('🗑 Сбросить', 'reset_welcome_image')
+            .row()
+            .text('◀️ В меню', 'main_menu'),
+        },
+      );
+    });
+
+    // Admin: Change welcome image
+    this.bot.callbackQuery('change_welcome_image', async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) {
+        await ctx.answerCallbackQuery('Недостаточно прав');
+        return;
+      }
+      await ctx.answerCallbackQuery();
+
+      ctx.session.step = 'setting_welcome_image';
+
+      await ctx.editMessageText(
+        `🖼 *Изменение картинки*\n\n` +
+        `Выберите способ:\n\n` +
+        `📷 *Загрузить фото* — просто отправьте\n` +
+        `изображение в этот чат\n\n` +
+        `🔗 *URL* — отправьте ссылку на\n` +
+        `изображение (https://...)`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard().text('◀️ Отмена', 'bot_settings'),
+        },
+      );
+    });
+
+    // Admin: Preview welcome screen
+    this.bot.callbackQuery('preview_welcome', async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) {
+        await ctx.answerCallbackQuery('Недостаточно прав');
+        return;
+      }
+      await ctx.answerCallbackQuery('Показываю превью...');
+
+      // Show the welcome screen as preview
+      await this.showWelcomeScreen(ctx);
+
+      await ctx.reply('👆 Так видят экран незарегистрированные пользователи', {
+        reply_markup: new InlineKeyboard().text('◀️ В настройки', 'bot_settings'),
+      });
+    });
+
+    // Admin: Reset welcome image to default
+    this.bot.callbackQuery('reset_welcome_image', async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) {
+        await ctx.answerCallbackQuery('Недостаточно прав');
+        return;
+      }
+
+      try {
+        await this.settingsService.setWelcomeImage('');
+        await ctx.answerCallbackQuery('Сброшено');
+
+        await ctx.editMessageText(
+          `✅ *Картинка сброшена*\n\n` +
+          `Теперь используется картинка по умолчанию.`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: new InlineKeyboard()
+              .text('👁 Предпросмотр', 'preview_welcome')
+              .row()
+              .text('◀️ В настройки', 'bot_settings'),
+          },
+        );
+      } catch (error: any) {
+        await ctx.answerCallbackQuery(`Ошибка: ${error.message}`);
+      }
+    });
   }
 
   private getMainMenu(user: User): InlineKeyboard {
     const kb = new InlineKeyboard();
 
     if (user.role === UserRole.OPERATOR) {
-      kb.text('🔍 Найти автомат', 'search_machine').row();
       kb.text('🏧 Отметить сбор', 'collect').row();
+      kb.text('🔍 Поиск автомата', 'search_machine').row();
       kb.text('📋 Мои сборы', 'my_collections').row();
+      kb.text('❓ Помощь', 'help');
     } else if (user.role === UserRole.MANAGER) {
-      kb.text('📥 Ожидают приёма', 'pending_collections').row();
-      kb.text('🔍 Найти автомат', 'search_machine').row();
+      kb.text('📥 Принять инкассацию', 'pending_collections').row();
+      kb.text('🔍 Поиск автомата', 'search_machine').row();
       kb.text('🌐 Веб-панель', 'web_panel').row();
+      kb.text('❓ Помощь', 'help');
     } else {
-      // Admin
-      kb.text('📥 Ожидают приёма', 'pending_collections').row();
-      kb.text('🔍 На модерации', 'pending_machines').row();
-      kb.text('👥 Пригласить', 'invite_user').row();
-      kb.text('🌐 Веб-панель', 'web_panel').row();
+      // Admin - organized menu
+      kb.text('📥 Принять инкассацию', 'pending_collections')
+        .text('🔍 Модерация', 'pending_machines').row();
+      kb.text('👥 Пригласить', 'invite_user')
+        .text('⚙️ Настройки', 'bot_settings').row();
+      kb.text('🌐 Веб-панель', 'web_panel')
+        .text('❓ Помощь', 'help').row();
     }
 
-    kb.text('❓ Помощь', 'help');
     return kb;
   }
 
@@ -1057,9 +1246,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async showWelcomeScreen(ctx: MyContext): Promise<void> {
-    // Welcome image URL (can be configured in env)
-    const welcomeImageUrl = this.configService.get<string>('telegram.welcomeImage') ||
-      'https://i.imgur.com/JQvVqXh.png'; // Default placeholder
+    // Welcome image from DB settings, fallback to env, then default
+    const welcomeImage =
+      (await this.settingsService.getWelcomeImage()) ||
+      this.configService.get<string>('telegram.welcomeImage') ||
+      'https://i.imgur.com/JQvVqXh.png';
 
     const caption =
       `🏧 *VendCash*\n\n` +
@@ -1071,7 +1262,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       `администратора`;
 
     try {
-      await ctx.replyWithPhoto(welcomeImageUrl, {
+      // Check if it's a Telegram file_id (prefixed with 'tg:')
+      const imageSource = welcomeImage.startsWith('tg:')
+        ? welcomeImage.slice(3) // Remove 'tg:' prefix
+        : welcomeImage;
+
+      await ctx.replyWithPhoto(imageSource, {
         caption,
         parse_mode: 'Markdown',
       });

@@ -7,6 +7,7 @@ import { InvitesModule } from './modules/invites/invites.module';
 import { MachinesModule } from './modules/machines/machines.module';
 import { CollectionsModule } from './modules/collections/collections.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { SettingsModule } from './modules/settings/settings.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { HealthModule } from './health/health.module';
 import configuration from './config/configuration';
@@ -38,6 +39,7 @@ import configuration from './config/configuration';
     MachinesModule,
     CollectionsModule,
     ReportsModule,
+    SettingsModule,
     TelegramModule,
     HealthModule,
   ],
