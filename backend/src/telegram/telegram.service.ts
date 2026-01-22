@@ -68,6 +68,30 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await next();
     });
 
+    // Block non-registered users (except /start with invite)
+    this.bot.use(async (ctx, next) => {
+      // Allow /start command (for registration flow)
+      if (ctx.message?.text?.startsWith('/start')) {
+        await next();
+        return;
+      }
+
+      // Block all other interactions for non-registered users
+      if (!ctx.user) {
+        // Show welcome image for any interaction
+        await this.showWelcomeScreen(ctx);
+        return;
+      }
+
+      // Block deactivated users
+      if (!ctx.user.isActive) {
+        await ctx.reply('❌ Ваш аккаунт деактивирован. Обратитесь к администратору.');
+        return;
+      }
+
+      await next();
+    });
+
     this.setupHandlers();
 
     // Start bot in background (don't await - it blocks until bot stops)
@@ -105,12 +129,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      // New user without invite
+      // New user without invite - show welcome image only
       if (!payload || !payload.startsWith('invite_')) {
-        await ctx.reply(
-          '👋 Добро пожаловать в VendCash!\n\n' +
-            'Для регистрации нужна ссылка-приглашение от администратора.',
-        );
+        await this.showWelcomeScreen(ctx);
         return;
       }
 
@@ -725,24 +746,33 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await ctx.answerCallbackQuery();
 
       const role = ctx.match[1] === 'operator' ? UserRole.OPERATOR : UserRole.MANAGER;
+      const roleName = role === UserRole.OPERATOR ? 'Оператор' : 'Менеджер';
 
       try {
         const invite = await this.invitesService.create(ctx.user.id, role);
         const botInfo = await this.bot.api.getMe();
         const link = `https://t.me/${botInfo.username}?start=invite_${invite.code}`;
 
-        await ctx.editMessageText(
-          `✅ Ссылка для приглашения:\n\n\`${link}\`\n\n⏰ Действует 24 часа`,
+        // Send as a new message (not edit) for easy forwarding
+        await ctx.deleteMessage().catch(() => {});
+
+        await ctx.reply(
+          `📨 *Приглашение в VendCash*\n\n` +
+          `👤 Роль: *${roleName}*\n` +
+          `⏰ Действует: *24 часа*\n\n` +
+          `👇 Нажмите на ссылку для регистрации:\n\n` +
+          `${link}`,
           {
             parse_mode: 'Markdown',
             reply_markup: new InlineKeyboard()
-              .text('🔄 Новая ссылка', `create_invite_${ctx.match[1]}`)
+              .url('🚀 Открыть бот', link)
               .row()
+              .text('🔄 Новая ссылка', `create_invite_${ctx.match[1]}`)
               .text('◀️ В меню', 'main_menu'),
           },
         );
       } catch (error: any) {
-        await ctx.editMessageText(`❌ Ошибка: ${error.message}`);
+        await ctx.reply(`❌ Ошибка: ${error.message}`);
       }
     });
 
@@ -845,8 +875,74 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(helpText, {
         parse_mode: 'Markdown',
-        reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu'),
+        reply_markup: new InlineKeyboard()
+          .text('⚙️ Настройки', 'settings')
+          .row()
+          .text('◀️ В меню', 'main_menu'),
       });
+    });
+
+    // Settings
+    this.bot.callbackQuery('settings', async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      await ctx.editMessageText(
+        `⚙️ *Настройки*\n\n` +
+        `👤 ${ctx.user.name}\n` +
+        `🎭 ${ctx.user.role === UserRole.OPERATOR ? 'Оператор' : ctx.user.role === UserRole.MANAGER ? 'Менеджер' : 'Администратор'}\n\n` +
+        `⚠️ Деактивация аккаунта необратима.\n` +
+        `Для восстановления потребуется\n` +
+        `новое приглашение от админа.`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard()
+            .text('🚫 Деактивировать аккаунт', 'confirm_deactivate')
+            .row()
+            .text('◀️ Назад', 'help'),
+        },
+      );
+    });
+
+    // Confirm deactivation
+    this.bot.callbackQuery('confirm_deactivate', async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      await ctx.editMessageText(
+        `⚠️ *Вы уверены?*\n\n` +
+        `После деактивации:\n` +
+        `• Вы потеряете доступ к боту\n` +
+        `• Потребуется новое приглашение\n` +
+        `• Ваши данные сохранятся`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard()
+            .text('❌ Да, деактивировать', 'do_deactivate')
+            .row()
+            .text('◀️ Отмена', 'settings'),
+        },
+      );
+    });
+
+    // Do deactivation
+    this.bot.callbackQuery('do_deactivate', async (ctx) => {
+      if (!ctx.user) return;
+
+      try {
+        await this.usersService.deactivate(ctx.user.id);
+        await ctx.answerCallbackQuery('Аккаунт деактивирован');
+
+        await ctx.editMessageText(
+          `👋 *Аккаунт деактивирован*\n\n` +
+          `Спасибо за использование VendCash!\n\n` +
+          `Для восстановления доступа\n` +
+          `обратитесь к администратору.`,
+          { parse_mode: 'Markdown' },
+        );
+      } catch (error: any) {
+        await ctx.answerCallbackQuery(`Ошибка: ${error.message}`);
+      }
     });
   }
 
@@ -958,5 +1054,30 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       hour: '2-digit',
       minute: '2-digit',
     });
+  }
+
+  private async showWelcomeScreen(ctx: MyContext): Promise<void> {
+    // Welcome image URL (can be configured in env)
+    const welcomeImageUrl = this.configService.get<string>('telegram.welcomeImage') ||
+      'https://i.imgur.com/JQvVqXh.png'; // Default placeholder
+
+    const caption =
+      `🏧 *VendCash*\n\n` +
+      `Система учёта инкассации\n` +
+      `вендинговых автоматов\n\n` +
+      `━━━━━━━━━━━━━━━━━\n\n` +
+      `🔐 Для доступа необходимо\n` +
+      `получить приглашение от\n` +
+      `администратора`;
+
+    try {
+      await ctx.replyWithPhoto(welcomeImageUrl, {
+        caption,
+        parse_mode: 'Markdown',
+      });
+    } catch (error) {
+      // Fallback to text if image fails
+      await ctx.reply(caption, { parse_mode: 'Markdown' });
+    }
   }
 }

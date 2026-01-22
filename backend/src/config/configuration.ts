@@ -14,6 +14,7 @@ export default () => ({
   },
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN || '',
+    welcomeImage: process.env.TELEGRAM_WELCOME_IMAGE || '',
   },
   admin: {
     telegramId: parseInt(process.env.ADMIN_TELEGRAM_ID || '0', 10),
