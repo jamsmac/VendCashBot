@@ -499,14 +499,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
         const timeStr = this.formatDateTime(parsedDate);
         const isHistorical = parsedDate.toDateString() !== new Date().toDateString();
+        const safeMachineName = this.escapeHtml(machine.name);
 
         await ctx.reply(
-          `🏧 *${machine.name}*\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n` +
-          `⏰ Время: *${timeStr}*\n` +
-          `${isHistorical ? '📆 _(исторические данные)_\n' : ''}\n` +
+          `🏧 <b>${safeMachineName}</b>\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n` +
+          `⏰ Время: <b>${timeStr}</b>\n` +
+          `${isHistorical ? '📆 <i>(исторические данные)</i>\n' : ''}\n` +
           `Подтвердить сбор?`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
               .text('✅ Подтвердить', 'confirm_collection')
               .text('❌ Отмена', 'main_menu'),
@@ -732,17 +733,18 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       ctx.session.selectedMachineId = machine.id;
       ctx.session.step = 'selecting_date';
+      const safeMachineName = this.escapeHtml(machine.name);
 
       // Show date selection options
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  📦  *НОВЫЙ СБОР*\n` +
+        `│  📦  <b>НОВЫЙ СБОР</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `🏧  *${machine.name}*\n` +
-        `📟  \`${machine.code}\`\n\n` +
+        `🏧  <b>${safeMachineName}</b>\n` +
+        `📟  <code>${machine.code}</code>\n\n` +
         `Выберите время:`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('🕐 Сейчас', `date_now_${machineId}`)
             .text('📅 Сегодня', `date_today_${machineId}`)
@@ -906,17 +908,18 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       ctx.session.selectedMachineId = machine.id;
       ctx.session.step = 'selecting_date';
+      const safeMachineName = this.escapeHtml(machine.name);
 
       // Show date selection options
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  📦  *НОВЫЙ СБОР*\n` +
+        `│  📦  <b>НОВЫЙ СБОР</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `🏧  *${machine.name}*\n` +
-        `📟  \`${machine.code}\`\n\n` +
+        `🏧  <b>${safeMachineName}</b>\n` +
+        `📟  <code>${machine.code}</code>\n\n` +
         `Выберите время:`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('🕐 Сейчас', `date_now_${machineId}`)
             .text('📅 Сегодня', `date_today_${machineId}`)
@@ -958,18 +961,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.step = 'confirming';
 
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
+      const safeMachineName = this.escapeHtml(machine.name);
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  📦  *ПОДТВЕРЖДЕНИЕ*\n` +
+        `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `🏧  *${machine.name}*\n` +
-        `📟  \`${machine.code}\`\n` +
+        `🏧  <b>${safeMachineName}</b>\n` +
+        `📟  <code>${machine.code}</code>\n` +
         `📍  ${machine.location || '—'}\n\n` +
         `⏰  ${timeStr}\n\n` +
         `Подтвердить сбор?`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('✅ Да', 'confirm_collection')
             .text('✖️ Отмена', 'main_menu'),
@@ -992,13 +996,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  ⏰  *ВРЕМЯ*\n` +
+        `│  ⏰  <b>ВРЕМЯ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `📅  ${dateStr}\n\n` +
         `Введите время:\n` +
-        `_Например: 14:30_`,
+        `<i>Например: 14:30</i>`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard().text('✖️ Отмена', `machine_${machineId}`),
         },
       );
@@ -1022,19 +1026,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.step = 'confirming';
 
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
+      const safeMachineName = this.escapeHtml(machine.name);
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  📦  *ПОДТВЕРЖДЕНИЕ*\n` +
+        `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `🏧  *${machine.name}*\n` +
-        `📟  \`${machine.code}\`\n` +
+        `🏧  <b>${safeMachineName}</b>\n` +
+        `📟  <code>${machine.code}</code>\n` +
         `📍  ${machine.location || '—'}\n\n` +
         `⏰  ${timeStr}\n` +
-        `📆  _вчера_\n\n` +
+        `📆  <i>вчера</i>\n\n` +
         `Подтвердить сбор?`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('✅ Да', 'confirm_collection')
             .text('✖️ Отмена', 'main_menu'),
@@ -1053,14 +1058,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  📆  *ДАТА*\n` +
+        `│  📆  <b>ДАТА</b>\n` +
         `╰─────────────────────╯\n\n` +
         `Введите дату и время:\n\n` +
-        `_Примеры:_\n` +
+        `<i>Примеры:</i>\n` +
         `• 15.01.2026 14:30\n` +
         `• 20.01.2026`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard().text('✖️ Отмена', `machine_${machineId}`),
         },
       );
@@ -1080,18 +1085,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.step = 'confirming';
 
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
+      const safeMachineName = this.escapeHtml(machine.name);
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  📦  *ПОДТВЕРЖДЕНИЕ*\n` +
+        `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `🏧  *${machine.name}*\n` +
-        `📟  \`${machine.code}\`\n` +
+        `🏧  <b>${safeMachineName}</b>\n` +
+        `📟  <code>${machine.code}</code>\n` +
         `📍  ${machine.location || '—'}\n\n` +
         `⏰  ${timeStr}\n\n` +
         `Подтвердить сбор?`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('✅ Да', 'confirm_collection')
             .text('✖️ Отмена', 'main_menu'),
@@ -1120,18 +1126,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.step = 'confirming';
 
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
+      const safeMachineName = this.escapeHtml(machine.name);
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  📦  *ПОДТВЕРЖДЕНИЕ*\n` +
+        `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `🏧  *${machine.name}*\n` +
-        `📟  \`${machine.code}\`\n` +
+        `🏧  <b>${safeMachineName}</b>\n` +
+        `📟  <code>${machine.code}</code>\n` +
         `📍  ${machine.location || '—'}\n\n` +
         `⏰  ${timeStr}\n\n` +
         `Подтвердить сбор?`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('✅ Да', 'confirm_collection')
             .text('✖️ Отмена', 'main_menu'),
