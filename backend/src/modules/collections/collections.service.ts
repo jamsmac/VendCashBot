@@ -2,9 +2,12 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, LessThan, MoreThan } from 'typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { Collection, CollectionStatus, CollectionSource } from './entities/collection.entity';
 import { CollectionHistory } from './entities/collection-history.entity';
 import { MachinesService } from '../machines/machines.service';
@@ -22,7 +25,22 @@ export class CollectionsService {
     @InjectRepository(CollectionHistory)
     private readonly historyRepository: Repository<CollectionHistory>,
     private readonly machinesService: MachinesService,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
+
+  // Invalidate reports cache when collection data changes
+  private async invalidateReportsCache(): Promise<void> {
+    const cacheKeys = [
+      'report:summary',
+      'report:by-machine',
+      'report:by-date',
+      'report:by-operator',
+      'report:today-summary',
+    ];
+    for (const key of cacheKeys) {
+      await this.cacheManager.del(key);
+    }
+  }
 
   async create(dto: CreateCollectionDto, operatorId: string): Promise<Collection> {
     // Verify machine exists
@@ -56,7 +74,9 @@ export class CollectionsService {
       notes: dto.notes,
     });
 
-    return this.collectionRepository.save(collection);
+    const saved = await this.collectionRepository.save(collection);
+    await this.invalidateReportsCache();
+    return saved;
   }
 
   async bulkCreate(dto: BulkCreateCollectionDto, operatorId: string): Promise<{
@@ -109,6 +129,9 @@ export class CollectionsService {
       }
     }
 
+    if (results.created > 0) {
+      await this.invalidateReportsCache();
+    }
     return results;
   }
 
@@ -144,9 +167,10 @@ export class CollectionsService {
       qb.andWhere('collection.collectedAt <= :to', { to: query.to });
     }
 
-    // Sorting
-    const sortBy = query.sortBy || 'collectedAt';
-    const sortOrder = query.sortOrder || 'DESC';
+    // Sorting - whitelist allowed fields to prevent SQL injection
+    const allowedSortFields = ['collectedAt', 'amount', 'status', 'receivedAt', 'createdAt'];
+    const sortBy = query.sortBy && allowedSortFields.includes(query.sortBy) ? query.sortBy : 'collectedAt';
+    const sortOrder = query.sortOrder === 'ASC' ? 'ASC' : 'DESC';
     qb.orderBy(`collection.${sortBy}`, sortOrder);
 
     // Pagination
@@ -197,7 +221,9 @@ export class CollectionsService {
       collection.notes = dto.notes;
     }
 
-    return this.collectionRepository.save(collection);
+    const saved = await this.collectionRepository.save(collection);
+    await this.invalidateReportsCache();
+    return saved;
   }
 
   async edit(id: string, userId: string, dto: EditCollectionDto): Promise<Collection> {
@@ -220,7 +246,9 @@ export class CollectionsService {
       collection.amount = dto.amount;
     }
 
-    return this.collectionRepository.save(collection);
+    const saved = await this.collectionRepository.save(collection);
+    await this.invalidateReportsCache();
+    return saved;
   }
 
   async cancel(id: string, userId: string, reason?: string): Promise<Collection> {
@@ -241,7 +269,9 @@ export class CollectionsService {
     });
 
     collection.status = CollectionStatus.CANCELLED;
-    return this.collectionRepository.save(collection);
+    const saved = await this.collectionRepository.save(collection);
+    await this.invalidateReportsCache();
+    return saved;
   }
 
   async getHistory(id: string): Promise<CollectionHistory[]> {

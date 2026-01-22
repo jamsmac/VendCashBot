@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { CollectionsService } from './collections.service';
 import { Collection, CollectionStatus, CollectionSource } from './entities/collection.entity';
 import { CollectionHistory } from './entities/collection-history.entity';
@@ -65,6 +66,14 @@ describe('CollectionsService', () => {
             findByIdOrFail: jest.fn(),
             findById: jest.fn(),
             findByCode: jest.fn(),
+          },
+        },
+        {
+          provide: CACHE_MANAGER,
+          useValue: {
+            get: jest.fn(),
+            set: jest.fn(),
+            del: jest.fn(),
           },
         },
       ],

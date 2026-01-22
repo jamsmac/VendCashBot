@@ -168,13 +168,37 @@ export default function ExcelImport() {
       const machinesData = await machinesApi.getAll()
       const machineMap = new Map(machinesData.map((m) => [m.code.toUpperCase(), m.id]))
 
-      const collections = validRows.map((row) => ({
-        machineId: machineMap.get(row.machineCode),
-        machineCode: row.machineCode,
-        collectedAt: row.collectedAt,
-        amount: row.amount ?? undefined,
-        notes: row.notes,
-      }))
+      // Filter out rows with unknown machine codes and build collections
+      const collectionsWithMachines = validRows
+        .map((row) => {
+          const machineId = machineMap.get(row.machineCode)
+          return {
+            machineId,
+            machineCode: row.machineCode,
+            collectedAt: row.collectedAt,
+            amount: row.amount ?? undefined,
+            notes: row.notes,
+            _hasValidMachine: !!machineId,
+          }
+        })
+
+      const invalidMachineCount = collectionsWithMachines.filter((c) => !c._hasValidMachine).length
+      if (invalidMachineCount > 0) {
+        toast(`${invalidMachineCount} записей с неизвестными кодами аппаратов пропущены`, {
+          icon: '⚠️',
+          duration: 5000,
+        })
+      }
+
+      const collections = collectionsWithMachines
+        .filter((c) => c._hasValidMachine)
+        .map(({ _hasValidMachine, ...rest }) => rest)
+
+      if (collections.length === 0) {
+        toast.error('Нет записей с валидными кодами аппаратов')
+        setIsLoading(false)
+        return
+      }
 
       const result = await collectionsApi.bulkCreate({
         collections,
