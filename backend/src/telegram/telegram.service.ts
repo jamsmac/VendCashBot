@@ -133,25 +133,26 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         if (!ctx.user.isActive) {
           await ctx.reply(
             `╭─────────────────────╮\n` +
-            `│  ⛔️  *ДОСТУП ЗАКРЫТ*\n` +
+            `│  ⛔️  <b>ДОСТУП ЗАКРЫТ</b>\n` +
             `╰─────────────────────╯\n\n` +
             `Ваш аккаунт деактивирован.\n` +
             `Обратитесь к администратору.`,
-            { parse_mode: 'Markdown' },
+            { parse_mode: 'HTML' },
           );
           return;
         }
         const roleBadge = this.getRoleBadge(ctx.user.role);
+        const safeName = this.escapeHtml(ctx.user.name);
 
         await ctx.reply(
           `╭─────────────────────╮\n` +
-          `│  🏧  *VendCash*\n` +
+          `│  🏧  <b>VendCash</b>\n` +
           `╰─────────────────────╯\n\n` +
-          `👤  *${ctx.user.name}*\n` +
+          `👤  <b>${safeName}</b>\n` +
           `${roleBadge}\n\n` +
           `Выберите действие:`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: this.getMainMenu(ctx.user),
           },
         );
@@ -227,17 +228,18 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           ctx.user = user;
 
           const roleBadge = this.getRoleBadge(user.role);
+          const safeName = this.escapeHtml(user.name);
 
           await ctx.reply(
             `╭─────────────────────╮\n` +
-            `│  ✅  *УСПЕШНО*\n` +
+            `│  ✅  <b>УСПЕШНО</b>\n` +
             `╰─────────────────────╯\n\n` +
             `Добро пожаловать!\n\n` +
-            `👤  *${user.name}*\n` +
+            `👤  <b>${safeName}</b>\n` +
             `${roleBadge}\n\n` +
             `Выберите действие:`,
             {
-              parse_mode: 'Markdown',
+              parse_mode: 'HTML',
               reply_markup: this.getMainMenu(user),
             },
           );
@@ -639,15 +641,16 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await ctx.answerCallbackQuery();
       ctx.session.step = 'idle';
       const roleBadge = this.getRoleBadge(ctx.user.role);
+      const safeName = this.escapeHtml(ctx.user.name);
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  🏧  *VendCash*\n` +
+        `│  🏧  <b>VendCash</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `👤  *${ctx.user.name}*\n` +
+        `👤  <b>${safeName}</b>\n` +
         `${roleBadge}\n\n` +
         `Выберите действие:`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: this.getMainMenu(ctx.user),
         },
       );
@@ -1291,18 +1294,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.pendingCollectionId = collection.id;
 
       const time = this.formatDateTime(collection.collectedAt);
+      const safeMachineName = this.escapeHtml(collection.machine.name);
+      const safeOperatorName = this.escapeHtml(collection.operator.name);
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  💰  *ПРИЁМ*\n` +
+        `│  💰  <b>ПРИЁМ</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `🏧  *${collection.machine.name}*\n` +
+        `🏧  <b>${safeMachineName}</b>\n` +
         `⏰  ${time}\n` +
-        `👤  ${collection.operator.name}\n\n` +
-        `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
-        `✏️ Введите сумму _(сум)_:`,
+        `👤  ${safeOperatorName}\n\n` +
+        `────────────────────\n` +
+        `✏️ Введите сумму <i>(сум)</i>:`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard().text('✖️ Отмена', 'pending_collections'),
         },
       );
@@ -1537,17 +1542,18 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await ctx.answerCallbackQuery();
 
       const roleBadge = this.getRoleBadge(ctx.user.role);
+      const safeName = this.escapeHtml(ctx.user.name);
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  👤  *АККАУНТ*\n` +
+        `│  👤  <b>АККАУНТ</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `📛  *${ctx.user.name}*\n` +
+        `📛  <b>${safeName}</b>\n` +
         `${roleBadge}\n\n` +
-        `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+        `────────────────────\n` +
         `⚠️ Деактивация необратима`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('🚫 Деактивировать', 'confirm_deactivate')
             .row()
@@ -2000,6 +2006,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     return text.replace(/([_*`\[])/g, '\\$1');
   }
 
+  private escapeHtml(text: string): string {
+    // Escape special HTML characters
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
   private async showWelcomeScreen(ctx: MyContext): Promise<void> {
     // Welcome image from DB settings, fallback to env, then default
     const welcomeImage =
@@ -2007,21 +2021,21 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       this.configService.get<string>('telegram.welcomeImage') ||
       'https://i.imgur.com/JQvVqXh.png';
 
-    // Dynamic texts from DB settings (escaped for Markdown)
-    const welcomeTitle = this.escapeMarkdown(
+    // Dynamic texts from DB settings (escaped for HTML)
+    const welcomeTitle = this.escapeHtml(
       (await this.settingsService.getWelcomeTitle()) || 'VendCash'
     );
-    const welcomeText = this.escapeMarkdown(
+    const welcomeText = this.escapeHtml(
       (await this.settingsService.getWelcomeText()) ||
       'Система учёта инкассации\nвендинговых автоматов'
     );
 
     const caption =
       `╭─────────────────────╮\n` +
-      `│  🏧  *${welcomeTitle}*\n` +
+      `│  🏧  <b>${welcomeTitle}</b>\n` +
       `╰─────────────────────╯\n\n` +
       `${welcomeText}\n\n` +
-      `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
+      `────────────────────\n\n` +
       `🔐 Для доступа необходимо\n` +
       `получить приглашение`;
 
@@ -2033,11 +2047,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.replyWithPhoto(imageSource, {
         caption,
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
       });
     } catch (error) {
       // Fallback to text if image fails
-      await ctx.reply(caption, { parse_mode: 'Markdown' });
+      await ctx.reply(caption, { parse_mode: 'HTML' });
     }
   }
 }
