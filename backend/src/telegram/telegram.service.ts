@@ -1315,12 +1315,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  👥  *ПРИГЛАШЕНИЕ*\n` +
+        `│  👥  <b>ПРИГЛАШЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `Выберите роль нового\n` +
         `сотрудника:`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('🟢 Оператор', 'create_invite_operator')
             .text('🔵 Менеджер', 'create_invite_manager')
@@ -1348,15 +1348,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
         await ctx.reply(
           `╭─────────────────────╮\n` +
-          `│  📨  *ПРИГЛАШЕНИЕ*\n` +
+          `│  📨  <b>ПРИГЛАШЕНИЕ</b>\n` +
           `╰─────────────────────╯\n\n` +
           `${roleBadge}\n` +
-          `⏰  Действует *24 часа*\n\n` +
-          `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+          `⏰  Действует <b>24 часа</b>\n\n` +
+          `────────────────────\n` +
           `👇 Перешлите это сообщение\n` +
           `или нажмите кнопку:`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
               .url('🚀 Открыть', link)
               .row()
@@ -1365,7 +1365,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           },
         );
       } catch (error: any) {
-        await ctx.reply(`❌ Ошибка: ${error.message}`);
+        // Escape error message to prevent Markdown issues
+        const safeError = this.escapeMarkdown(error.message || 'Неизвестная ошибка');
+        await ctx.reply(`❌ Ошибка: ${safeError}`);
       }
     });
 
