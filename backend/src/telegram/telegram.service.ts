@@ -1243,10 +1243,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
     });
 
-    // My collections today
-    this.bot.callbackQuery('my_collections', async (ctx) => {
+    // My collections today with pagination
+    this.bot.callbackQuery(/^my_collections(?:_(\d+))?$/, async (ctx) => {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
+
+      const page = ctx.match[1] ? parseInt(ctx.match[1], 10) : 0;
+      const pageSize = 10;
 
       const collections = await this.collectionsService.findByOperator(ctx.user.id, new Date());
 
@@ -1266,12 +1269,31 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      const lines = collections.map((c) => {
+      const totalPages = Math.ceil(collections.length / pageSize);
+      const pageItems = collections.slice(page * pageSize, (page + 1) * pageSize);
+
+      const lines = pageItems.map((c) => {
         const time = this.formatTime(c.collectedAt);
         const status = c.status === 'collected' ? '⏳' : c.status === 'received' ? '✅' : '❌';
         const safeMachineName = this.escapeHtml(c.machine.name);
         return `${status}  ${time}  ${safeMachineName}`;
       });
+
+      const keyboard = new InlineKeyboard();
+
+      // Pagination buttons
+      if (totalPages > 1) {
+        if (page > 0) {
+          keyboard.text('◀️', `my_collections_${page - 1}`);
+        }
+        keyboard.text(`${page + 1}/${totalPages}`, 'noop');
+        if (page < totalPages - 1) {
+          keyboard.text('▶️', `my_collections_${page + 1}`);
+        }
+        keyboard.row();
+      }
+
+      keyboard.text('📦 Ещё сбор', 'collect').text('🏠 Меню', 'main_menu');
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
@@ -1283,17 +1305,18 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `✅ принят  ⏳ ожидает`,
         {
           parse_mode: 'HTML',
-          reply_markup: new InlineKeyboard()
-            .text('📦 Ещё сбор', 'collect')
-            .text('🏠 Меню', 'main_menu'),
+          reply_markup: keyboard,
         },
       );
     });
 
-    // Manager: Pending collections
-    this.bot.callbackQuery('pending_collections', async (ctx) => {
+    // Manager: Pending collections with pagination
+    this.bot.callbackQuery(/^pending_collections(?:_(\d+))?$/, async (ctx) => {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
+
+      const page = ctx.match[1] ? parseInt(ctx.match[1], 10) : 0;
+      const pageSize = 8;
 
       const pending = await this.collectionsService.findPending();
 
@@ -1311,12 +1334,29 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
+      const totalPages = Math.ceil(pending.length / pageSize);
+      const pageItems = pending.slice(page * pageSize, (page + 1) * pageSize);
+
       const keyboard = new InlineKeyboard();
-      pending.slice(0, 10).forEach((c) => {
+      pageItems.forEach((c) => {
         const time = this.formatTime(c.collectedAt);
-        const safeMachineName = this.escapeHtml(c.machine.name);
-        keyboard.text(`⏳ ${time}  ${safeMachineName}`, `receive_${c.id}`).row();
+        // Truncate long names for button text (no HTML escaping needed for buttons)
+        const displayName = c.machine.name.length > 18 ? c.machine.name.slice(0, 16) + '..' : c.machine.name;
+        keyboard.text(`⏳ ${time}  ${displayName}`, `receive_${c.id}_${page}`).row();
       });
+
+      // Pagination buttons
+      if (totalPages > 1) {
+        if (page > 0) {
+          keyboard.text('◀️', `pending_collections_${page - 1}`);
+        }
+        keyboard.text(`${page + 1}/${totalPages}`, 'noop');
+        if (page < totalPages - 1) {
+          keyboard.text('▶️', `pending_collections_${page + 1}`);
+        }
+        keyboard.row();
+      }
+
       keyboard.text('🏠 Меню', 'main_menu');
 
       await ctx.editMessageText(
@@ -1333,11 +1373,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     });
 
     // Receive collection
-    this.bot.callbackQuery(/^receive_(.+)$/, async (ctx) => {
+    this.bot.callbackQuery(/^receive_([a-f0-9-]+)(?:_(\d+))?$/, async (ctx) => {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
 
       const collectionId = ctx.match[1];
+      const returnPage = ctx.match[2] || '0';
+
       if (!isValidUUID(collectionId)) {
         await ctx.editMessageText('❌ Неверный ID инкассации');
         return;
@@ -1366,14 +1408,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `✏️ Введите сумму <i>(сум)</i>:`,
         {
           parse_mode: 'HTML',
-          reply_markup: new InlineKeyboard().text('✖️ Отмена', 'pending_collections'),
+          reply_markup: new InlineKeyboard().text('✖️ Отмена', `pending_collections_${returnPage}`),
         },
       );
     });
 
     // Admin: Invite user
     this.bot.callbackQuery('invite_user', async (ctx) => {
-      if (!ctx.user) return;
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
       await ctx.answerCallbackQuery();
 
       await ctx.editMessageText(
@@ -1395,7 +1437,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
     // Create invite
     this.bot.callbackQuery(/^create_invite_(operator|manager)$/, async (ctx) => {
-      if (!ctx.user) return;
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
       await ctx.answerCallbackQuery();
 
       const role = ctx.match[1] === 'operator' ? UserRole.OPERATOR : UserRole.MANAGER;
@@ -1434,10 +1476,175 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
     });
 
-    // Admin: Pending machines
-    this.bot.callbackQuery('pending_machines', async (ctx) => {
+    // Admin: List invites
+    this.bot.callbackQuery(/^list_invites(?:_(\d+))?$/, async (ctx) => {
       if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
       await ctx.answerCallbackQuery();
+
+      const page = ctx.match[1] ? parseInt(ctx.match[1], 10) : 0;
+      const pageSize = 8;
+
+      const pending = await this.invitesService.findPending();
+      const totalPages = Math.ceil(pending.length / pageSize);
+      const pageItems = pending.slice(page * pageSize, (page + 1) * pageSize);
+
+      if (pending.length === 0) {
+        await ctx.editMessageText(
+          `╭─────────────────────╮\n` +
+          `│  📋  <b>ПРИГЛАШЕНИЯ</b>\n` +
+          `╰─────────────────────╯\n\n` +
+          `Нет активных приглашений.\n\n` +
+          `<i>Создайте новое через\nкнопку "👥 Пригласить"</i>`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: new InlineKeyboard()
+              .text('👥 Создать', 'invite_user')
+              .text('🏠 Меню', 'main_menu'),
+          },
+        );
+        return;
+      }
+
+      const keyboard = new InlineKeyboard();
+      for (const inv of pageItems) {
+        const roleBadge = inv.role === UserRole.OPERATOR ? '🟢' : '🔵';
+        const expiresIn = Math.max(0, Math.ceil((inv.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60)));
+        keyboard.text(`${roleBadge} ${inv.code} (${expiresIn}ч)`, `view_invite_${inv.id}`).row();
+      }
+
+      // Pagination buttons
+      if (totalPages > 1) {
+        if (page > 0) {
+          keyboard.text('◀️', `list_invites_${page - 1}`);
+        }
+        keyboard.text(`${page + 1}/${totalPages}`, 'noop');
+        if (page < totalPages - 1) {
+          keyboard.text('▶️', `list_invites_${page + 1}`);
+        }
+        keyboard.row();
+      }
+
+      keyboard.text('👥 Создать', 'invite_user').text('🏠 Меню', 'main_menu');
+
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  📋  <b>ПРИГЛАШЕНИЯ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `Активных: <b>${pending.length}</b>\n\n` +
+        `🟢 Оператор  🔵 Менеджер\n` +
+        `<i>(часов до истечения)</i>`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: keyboard,
+        },
+      );
+    });
+
+    // Admin: View single invite
+    this.bot.callbackQuery(/^view_invite_(.+)$/, async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
+      await ctx.answerCallbackQuery();
+
+      const inviteId = ctx.match[1];
+      if (!isValidUUID(inviteId)) {
+        await ctx.editMessageText('❌ Неверный ID приглашения');
+        return;
+      }
+
+      const invites = await this.invitesService.findAll();
+      const invite = invites.find(i => i.id === inviteId);
+
+      if (!invite) {
+        await ctx.editMessageText('❌ Приглашение не найдено');
+        return;
+      }
+
+      const roleBadge = this.getRoleBadge(invite.role);
+      const status = invite.isUsed
+        ? '✅ Использовано'
+        : invite.isExpired
+        ? '⏰ Истекло'
+        : '🟡 Активно';
+
+      const expiresIn = Math.max(0, Math.ceil((invite.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60)));
+      const creatorName = invite.createdBy ? this.escapeHtml(invite.createdBy.name) : 'Неизвестно';
+
+      let message =
+        `╭─────────────────────╮\n` +
+        `│  📨  <b>ПРИГЛАШЕНИЕ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `📋 Код: <code>${invite.code}</code>\n` +
+        `${roleBadge}\n` +
+        `${status}\n\n` +
+        `────────────────────\n` +
+        `👤 Создал: ${creatorName}\n` +
+        `📅 ${this.formatDateTime(invite.createdAt)}\n`;
+
+      if (!invite.isUsed && !invite.isExpired) {
+        message += `⏰ Истекает через: <b>${expiresIn}ч</b>\n`;
+      }
+
+      if (invite.isUsed && invite.usedBy) {
+        const usedByName = this.escapeHtml(invite.usedBy.name);
+        message += `\n✅ Использовал: ${usedByName}\n`;
+        message += `📅 ${this.formatDateTime(invite.usedAt!)}`;
+      }
+
+      const keyboard = new InlineKeyboard();
+      if (!invite.isUsed) {
+        keyboard.text('🗑️ Удалить', `delete_invite_${invite.id}`).row();
+      }
+      keyboard.text('◀️ Назад', 'list_invites').text('🏠 Меню', 'main_menu');
+
+      await ctx.editMessageText(message, {
+        parse_mode: 'HTML',
+        reply_markup: keyboard,
+      });
+    });
+
+    // Admin: Delete invite
+    this.bot.callbackQuery(/^delete_invite_(.+)$/, async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
+      await ctx.answerCallbackQuery();
+
+      const inviteId = ctx.match[1];
+      if (!isValidUUID(inviteId)) {
+        await ctx.editMessageText('❌ Неверный ID приглашения');
+        return;
+      }
+
+      try {
+        await this.invitesService.delete(inviteId);
+        await ctx.editMessageText(
+          `✅ Приглашение удалено`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: new InlineKeyboard()
+              .text('📋 К списку', 'list_invites')
+              .text('🏠 Меню', 'main_menu'),
+          },
+        );
+      } catch (error: any) {
+        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+        await ctx.editMessageText(`❌ Ошибка: ${safeError}`, {
+          reply_markup: new InlineKeyboard()
+            .text('◀️ Назад', 'list_invites'),
+        });
+      }
+    });
+
+    // Noop callback for pagination indicator
+    this.bot.callbackQuery('noop', async (ctx) => {
+      await ctx.answerCallbackQuery();
+    });
+
+    // Admin: Pending machines with pagination
+    this.bot.callbackQuery(/^pending_machines(?:_(\d+))?$/, async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
+      await ctx.answerCallbackQuery();
+
+      const page = ctx.match[1] ? parseInt(ctx.match[1], 10) : 0;
+      const pageSize = 8;
 
       const pending = await this.machinesService.findPending();
 
@@ -1455,10 +1662,28 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
+      const totalPages = Math.ceil(pending.length / pageSize);
+      const pageItems = pending.slice(page * pageSize, (page + 1) * pageSize);
+
       const keyboard = new InlineKeyboard();
-      pending.slice(0, 10).forEach((m) => {
-        keyboard.text(`⏳ ${m.code}  ${m.name}`, `review_machine_${m.id}`).row();
+      pageItems.forEach((m) => {
+        // Truncate long names to prevent button overflow
+        const displayName = m.name.length > 20 ? m.name.slice(0, 18) + '..' : m.name;
+        keyboard.text(`⏳ ${m.code}  ${displayName}`, `review_machine_${m.id}_${page}`).row();
       });
+
+      // Pagination buttons
+      if (totalPages > 1) {
+        if (page > 0) {
+          keyboard.text('◀️', `pending_machines_${page - 1}`);
+        }
+        keyboard.text(`${page + 1}/${totalPages}`, 'noop');
+        if (page < totalPages - 1) {
+          keyboard.text('▶️', `pending_machines_${page + 1}`);
+        }
+        keyboard.row();
+      }
+
       keyboard.text('🏠 Меню', 'main_menu');
 
       await ctx.editMessageText(
@@ -1475,11 +1700,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     });
 
     // Admin: Review single machine
-    this.bot.callbackQuery(/^review_machine_(.+)$/, async (ctx) => {
+    this.bot.callbackQuery(/^review_machine_([a-f0-9-]+)(?:_(\d+))?$/, async (ctx) => {
       if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
       await ctx.answerCallbackQuery();
 
       const machineId = ctx.match[1];
+      const returnPage = ctx.match[2] || '0';
+
       if (!isValidUUID(machineId)) {
         await ctx.editMessageText('❌ Неверный ID автомата');
         return;
@@ -1511,7 +1738,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             .text('✅ Подтвердить', `admin_approve_${machine.id}`)
             .text('❌ Отклонить', `admin_reject_${machine.id}`)
             .row()
-            .text('◀️ Назад', 'pending_machines'),
+            .text('◀️ Назад', `pending_machines_${returnPage}`),
         },
       );
     });
@@ -1945,9 +2172,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       kb.text('📥 Принять', 'pending_collections')
         .text('🔍 Модерация', 'pending_machines').row();
       kb.text('👥 Пригласить', 'invite_user')
-        .text('⚙️ Настройки', 'bot_settings').row();
-      kb.text('🌐 Веб-панель', 'web_panel')
-        .text('❔ Помощь', 'help').row();
+        .text('📋 Приглашения', 'list_invites').row();
+      kb.text('⚙️ Настройки', 'bot_settings')
+        .text('🌐 Веб-панель', 'web_panel').row();
+      kb.text('❔ Помощь', 'help').row();
     }
 
     return kb;

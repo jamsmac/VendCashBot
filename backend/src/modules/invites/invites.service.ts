@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, IsNull, MoreThan } from 'typeorm';
 import { Invite } from './entities/invite.entity';
 import { UserRole } from '../users/entities/user.entity';
 import { v4 as uuidv4 } from 'uuid';
@@ -64,7 +64,10 @@ export class InvitesService {
 
   async findPending(): Promise<Invite[]> {
     return this.inviteRepository.find({
-      where: { usedById: IsNull() },
+      where: {
+        usedById: IsNull(),
+        expiresAt: MoreThan(new Date()),  // Only non-expired invites
+      },
       relations: ['createdBy'],
       order: { createdAt: 'DESC' },
     });
