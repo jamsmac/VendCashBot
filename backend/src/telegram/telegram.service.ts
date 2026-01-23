@@ -307,7 +307,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             },
           );
         } catch (error: any) {
-          await ctx.reply(`❌ Ошибка: ${error.message}`);
+          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+          await ctx.reply(`❌ Ошибка: ${safeError}`);
+          ctx.session.step = 'idle';
+          ctx.session.pendingCollectionId = undefined;
         }
         return;
       }
@@ -344,12 +347,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         keyboard.text('➕ Создать новый', 'create_new_machine').row();
         keyboard.text('◀️ В меню', 'main_menu');
 
+        const safeQuery = this.escapeHtml(query);
         const resultText =
           machines.length > 0
             ? `🔍 Найдено: ${machines.length}\n\n✅ = подтверждён\n⏳ = ожидает подтверждения`
-            : `❌ Ничего не найдено по запросу "${query}"`;
+            : `❌ Ничего не найдено по запросу "${safeQuery}"`;
 
-        await ctx.reply(resultText, { reply_markup: keyboard });
+        await ctx.reply(resultText, { parse_mode: 'HTML', reply_markup: keyboard });
         return;
       }
 
@@ -365,11 +369,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         // Check existing
         const existing = await this.machinesService.findByCode(code);
         if (existing) {
+          const safeExistingName = this.escapeHtml(existing.name);
           await ctx.reply(
-            `⚠️ Автомат с кодом "${code}" уже существует:\n` +
-              `${existing.name}\n\n` +
+            `⚠️ Автомат с кодом "${this.escapeHtml(code)}" уже существует:\n` +
+              `${safeExistingName}\n\n` +
               'Введите другой код или вернитесь в меню:',
-            { reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu') },
+            {
+              parse_mode: 'HTML',
+              reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu'),
+            },
           );
           return;
         }
@@ -430,7 +438,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             },
           );
         } catch (error: any) {
-          await ctx.reply(`❌ Ошибка: ${error.message}`);
+          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+          await ctx.reply(`❌ Ошибка: ${safeError}`);
+          ctx.session.step = 'idle';
+          ctx.session.newMachineCode = undefined;
         }
         return;
       }
@@ -580,7 +591,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             },
           );
         } catch (error: any) {
-          await ctx.reply(`❌ Ошибка: ${error.message}`);
+          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+          await ctx.reply(`❌ Ошибка: ${safeError}`);
+          ctx.session.step = 'idle';
+          ctx.session.editingTextKey = undefined;
         }
         return;
       }
@@ -619,7 +633,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             },
           );
         } catch (error: any) {
-          await ctx.reply(`❌ Ошибка: ${error.message}`);
+          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+          await ctx.reply(`❌ Ошибка: ${safeError}`);
+          ctx.session.step = 'idle';
         }
         return;
       }
@@ -652,7 +668,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             },
           );
         } catch (error: any) {
-          await ctx.reply(`❌ Ошибка: ${error.message}`);
+          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+          await ctx.reply(`❌ Ошибка: ${safeError}`);
+          ctx.session.step = 'idle';
         }
         return;
       }
@@ -740,10 +758,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
 
       if (machine.status !== MachineStatus.APPROVED) {
+        const safeName = this.escapeHtml(machine.name);
         await ctx.editMessageText(
-          `⚠️ Автомат "${machine.name}" ещё не подтверждён администратором.\n\n` +
+          `⚠️ Автомат "${safeName}" ещё не подтверждён администратором.\n\n` +
             'Дождитесь подтверждения или выберите другой автомат.',
           {
+            parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
               .text('🔍 Новый поиск', 'search_machine')
               .row()
@@ -781,6 +801,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
     // Noop handler (for "... more items" button)
     this.bot.callbackQuery('noop', async (ctx) => {
+      if (!ctx.user) return;
       await ctx.answerCallbackQuery('Используйте поиск для уточнения');
     });
 
@@ -817,7 +838,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         // Notify creator
         await this.notifyCreatorMachineApproved(machine);
       } catch (error: any) {
-        await ctx.answerCallbackQuery(`Ошибка: ${error.message}`);
+        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+        await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
       }
     });
 
@@ -858,7 +880,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         // Notify creator
         await this.notifyCreatorMachineRejected(machine);
       } catch (error: any) {
-        await ctx.answerCallbackQuery(`Ошибка: ${error.message}`);
+        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+        await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
       }
     });
 
@@ -1215,7 +1238,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           },
         );
       } catch (error: any) {
-        await ctx.editMessageText(`❌ Ошибка: ${error.message}`);
+        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+        await ctx.editMessageText(`❌ Ошибка: ${safeError}`);
       }
     });
 
@@ -1245,7 +1269,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const lines = collections.map((c) => {
         const time = this.formatTime(c.collectedAt);
         const status = c.status === 'collected' ? '⏳' : c.status === 'received' ? '✅' : '❌';
-        return `${status}  ${time}  ${c.machine.name}`;
+        const safeMachineName = this.escapeHtml(c.machine.name);
+        return `${status}  ${time}  ${safeMachineName}`;
       });
 
       await ctx.editMessageText(
@@ -1289,7 +1314,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const keyboard = new InlineKeyboard();
       pending.slice(0, 10).forEach((c) => {
         const time = this.formatTime(c.collectedAt);
-        keyboard.text(`⏳ ${time}  ${c.machine.name}`, `receive_${c.id}`).row();
+        const safeMachineName = this.escapeHtml(c.machine.name);
+        keyboard.text(`⏳ ${time}  ${safeMachineName}`, `receive_${c.id}`).row();
       });
       keyboard.text('🏠 Меню', 'main_menu');
 
@@ -1634,7 +1660,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           { parse_mode: 'HTML' },
         );
       } catch (error: any) {
-        await ctx.answerCallbackQuery(`Ошибка: ${error.message}`);
+        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+        await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
       }
     });
 
@@ -1795,7 +1822,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           },
         );
       } catch (error: any) {
-        await ctx.answerCallbackQuery(`Ошибка: ${error.message}`);
+        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+        await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
       }
     });
 
@@ -1823,7 +1851,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           },
         );
       } catch (error: any) {
-        await ctx.answerCallbackQuery(`Ошибка: ${error.message}`);
+        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+        await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
       }
     });
 
@@ -1890,7 +1919,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           },
         );
       } catch (error: any) {
-        await ctx.answerCallbackQuery(`Ошибка: ${error.message}`);
+        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+        await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
       }
     });
   }
@@ -1963,12 +1993,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const creator = await this.usersService.findById(machine.createdById);
       if (!creator || !creator.telegramId) return;
 
+      const safeMachineName = this.escapeHtml(machine.name);
       await this.bot.api.sendMessage(
         creator.telegramId,
         `✅ Ваш автомат подтверждён!\n\n` +
-          `📟 Код: ${machine.code}\n` +
-          `📝 Название: ${machine.name}\n\n` +
+          `📟 Код: <code>${machine.code}</code>\n` +
+          `📝 Название: ${safeMachineName}\n\n` +
           `Теперь вы можете использовать его для инкассаций.`,
+        { parse_mode: 'HTML' },
       );
     } catch (error) {
       this.logger.error('Failed to notify creator about approval:', error);
@@ -1982,12 +2014,17 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const creator = await this.usersService.findById(machine.createdById);
       if (!creator || !creator.telegramId) return;
 
+      const safeMachineName = this.escapeHtml(machine.name);
+      const safeReason = machine.rejectionReason
+        ? this.escapeHtml(machine.rejectionReason)
+        : 'не указана';
       await this.bot.api.sendMessage(
         creator.telegramId,
         `❌ Ваш автомат отклонён\n\n` +
-          `📟 Код: ${machine.code}\n` +
-          `📝 Название: ${machine.name}\n\n` +
-          `Причина: ${machine.rejectionReason || 'не указана'}`,
+          `📟 Код: <code>${machine.code}</code>\n` +
+          `📝 Название: ${safeMachineName}\n\n` +
+          `Причина: ${safeReason}`,
+        { parse_mode: 'HTML' },
       );
     } catch (error) {
       this.logger.error('Failed to notify creator about rejection:', error);
