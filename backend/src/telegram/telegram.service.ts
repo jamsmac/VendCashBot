@@ -39,6 +39,27 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
     this.bot = new Bot<MyContext>(token);
 
+    // Global error handler
+    this.bot.catch((err) => {
+      const ctx = err.ctx;
+      const error = err.error;
+
+      // Handle "bot was blocked by the user" errors silently
+      if (error instanceof Error && error.message.includes('bot was blocked by the user')) {
+        this.logger.debug(`User ${ctx.from?.id} has blocked the bot`);
+        return;
+      }
+
+      // Handle other Telegram API errors
+      if (error instanceof Error && error.message.includes('Forbidden')) {
+        this.logger.debug(`Telegram API forbidden error for user ${ctx.from?.id}: ${error.message}`);
+        return;
+      }
+
+      // Log other errors
+      this.logger.error(`Error while handling update ${ctx.update.update_id}:`, error);
+    });
+
     // Session middleware - use Redis if available, otherwise in-memory
     const redisHost = this.configService.get('redis.host');
     if (redisHost) {
@@ -87,7 +108,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       // Block deactivated users
       if (!ctx.user.isActive) {
-        await ctx.reply('❌ Ваш аккаунт деактивирован. Обратитесь к администратору.');
+        try {
+          await ctx.reply('❌ Ваш аккаунт деактивирован. Обратитесь к администратору.');
+        } catch {
+          // User may have blocked the bot - ignore
+        }
         return;
       }
 
