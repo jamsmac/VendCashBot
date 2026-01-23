@@ -1,6 +1,10 @@
 import { RedisAdapter } from '@grammyjs/storage-redis';
+import { StorageAdapter } from 'grammy';
 import Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
+
+const logger = new Logger('SessionStorage');
 
 export interface SessionData {
   step:
@@ -25,13 +29,89 @@ export interface SessionData {
   editingTextKey?: string;
 }
 
-export function createRedisSessionStorage(configService: ConfigService) {
-  const redis = new Redis({
-    host: configService.get('redis.host') || 'localhost',
-    port: configService.get('redis.port') || 6379,
-    password: configService.get('redis.password'),
-    keyPrefix: 'vendcash:session:',
-  });
+/**
+ * Check if Redis is properly configured (not using localhost defaults)
+ */
+export function isRedisConfigured(configService: ConfigService): boolean {
+  const redisHost = configService.get('redis.host');
+  // Redis is configured if host is set and not localhost (the default)
+  return !!redisHost && redisHost !== 'localhost';
+}
 
-  return new RedisAdapter<SessionData>({ instance: redis });
+/**
+ * Simple in-memory session storage adapter for grammy
+ */
+class MemorySessionStorage<T> implements StorageAdapter<T> {
+  private sessions: Map<string, T> = new Map();
+
+  read(key: string): Promise<T | undefined> {
+    return Promise.resolve(this.sessions.get(key));
+  }
+
+  write(key: string, value: T): Promise<void> {
+    this.sessions.set(key, value);
+    return Promise.resolve();
+  }
+
+  delete(key: string): Promise<void> {
+    this.sessions.delete(key);
+    return Promise.resolve();
+  }
+}
+
+/**
+ * Create session storage - Redis if configured, otherwise in-memory
+ */
+export function createSessionStorage(
+  configService: ConfigService,
+): { storage: StorageAdapter<SessionData>; type: 'redis' | 'memory' } {
+  if (!isRedisConfigured(configService)) {
+    logger.warn('Redis not configured, using in-memory session storage');
+    return {
+      storage: new MemorySessionStorage<SessionData>(),
+      type: 'memory',
+    };
+  }
+
+  try {
+    const redis = new Redis({
+      host: configService.get('redis.host'),
+      port: configService.get('redis.port') || 6379,
+      password: configService.get('redis.password'),
+      keyPrefix: 'vendcash:session:',
+      maxRetriesPerRequest: 3,
+      retryStrategy(times) {
+        if (times > 3) {
+          logger.error('Redis connection failed after 3 retries');
+          return null; // Stop retrying
+        }
+        return Math.min(times * 100, 3000);
+      },
+      lazyConnect: true,
+    });
+
+    // Handle connection errors gracefully
+    redis.on('error', (err) => {
+      logger.error(`Redis connection error: ${err.message}`);
+    });
+
+    return {
+      storage: new RedisAdapter<SessionData>({ instance: redis }),
+      type: 'redis',
+    };
+  } catch (error) {
+    logger.error(`Failed to create Redis adapter: ${error.message}`);
+    logger.warn('Falling back to in-memory session storage');
+    return {
+      storage: new MemorySessionStorage<SessionData>(),
+      type: 'memory',
+    };
+  }
+}
+
+/**
+ * @deprecated Use createSessionStorage instead
+ */
+export function createRedisSessionStorage(configService: ConfigService) {
+  return createSessionStorage(configService).storage;
 }

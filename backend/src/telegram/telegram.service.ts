@@ -8,7 +8,7 @@ import { CollectionsService } from '../modules/collections/collections.service';
 import { SettingsService, SETTING_KEYS } from '../modules/settings/settings.service';
 import { User, UserRole } from '../modules/users/entities/user.entity';
 import { Machine, MachineStatus } from '../modules/machines/entities/machine.entity';
-import { createRedisSessionStorage, SessionData } from './session-storage';
+import { createSessionStorage, SessionData } from './session-storage';
 
 type MyContext = Context & SessionFlavor<SessionData> & { user?: User };
 
@@ -61,22 +61,16 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     });
 
     // Session middleware - use Redis if available, otherwise in-memory
-    const redisHost = this.configService.get('redis.host');
-    if (redisHost) {
-      const storage = createRedisSessionStorage(this.configService);
-      this.bot.use(
-        session({
-          initial: (): SessionData => ({ step: 'idle' }),
-          storage,
-        }),
-      );
+    const { storage, type } = createSessionStorage(this.configService);
+    this.bot.use(
+      session({
+        initial: (): SessionData => ({ step: 'idle' }),
+        storage,
+      }),
+    );
+    if (type === 'redis') {
       this.logger.log('Telegram sessions: Redis');
     } else {
-      this.bot.use(
-        session({
-          initial: (): SessionData => ({ step: 'idle' }),
-        }),
-      );
       this.logger.warn('Telegram sessions: In-memory (not recommended for production)');
     }
 
