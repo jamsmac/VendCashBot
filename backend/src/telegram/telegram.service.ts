@@ -8,29 +8,7 @@ import { CollectionsService } from '../modules/collections/collections.service';
 import { SettingsService, SETTING_KEYS } from '../modules/settings/settings.service';
 import { User, UserRole } from '../modules/users/entities/user.entity';
 import { Machine, MachineStatus } from '../modules/machines/entities/machine.entity';
-
-interface SessionData {
-  step:
-    | 'idle'
-    | 'registering'
-    | 'selecting_machine'
-    | 'selecting_date'
-    | 'entering_custom_date'
-    | 'confirming'
-    | 'entering_amount'
-    | 'searching_machine'
-    | 'creating_machine_code'
-    | 'creating_machine_name'
-    | 'setting_welcome_image'
-    | 'editing_text';
-  inviteCode?: string;
-  selectedMachineId?: string;
-  collectionTime?: Date;
-  pendingCollectionId?: string;
-  searchQuery?: string;
-  newMachineCode?: string;
-  editingTextKey?: string;
-}
+import { createRedisSessionStorage, SessionData } from './session-storage';
 
 type MyContext = Context & SessionFlavor<SessionData> & { user?: User };
 
@@ -61,12 +39,25 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
     this.bot = new Bot<MyContext>(token);
 
-    // Session middleware
-    this.bot.use(
-      session({
-        initial: (): SessionData => ({ step: 'idle' }),
-      }),
-    );
+    // Session middleware - use Redis if available, otherwise in-memory
+    const redisHost = this.configService.get('redis.host');
+    if (redisHost) {
+      const storage = createRedisSessionStorage(this.configService);
+      this.bot.use(
+        session({
+          initial: (): SessionData => ({ step: 'idle' }),
+          storage,
+        }),
+      );
+      this.logger.log('Telegram sessions: Redis');
+    } else {
+      this.bot.use(
+        session({
+          initial: (): SessionData => ({ step: 'idle' }),
+        }),
+      );
+      this.logger.warn('Telegram sessions: In-memory (not recommended for production)');
+    }
 
     // User middleware
     this.bot.use(async (ctx, next) => {

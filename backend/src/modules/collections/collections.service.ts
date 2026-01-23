@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Repository, Between, LessThan, MoreThan } from 'typeorm';
+import { Repository, Between, LessThan, MoreThan, DataSource } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { Collection, CollectionStatus, CollectionSource } from './entities/collection.entity';
@@ -30,6 +30,7 @@ export class CollectionsService {
     private readonly machinesService: MachinesService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly configService: ConfigService,
+    private readonly dataSource: DataSource,
   ) {
     this.duplicateCheckMinutes = this.configService.get<number>('app.duplicateCheckMinutes') || 30;
   }
@@ -99,46 +100,59 @@ export class CollectionsService {
       collections: [] as Collection[],
     };
 
-    for (let i = 0; i < dto.collections.length; i++) {
-      const item = dto.collections[i];
-      try {
-        // Validate machine exists
-        let machine;
-        if (item.machineId) {
-          machine = await this.machinesService.findById(item.machineId);
-        } else if (item.machineCode) {
-          machine = await this.machinesService.findByCode(item.machineCode);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      for (let i = 0; i < dto.collections.length; i++) {
+        const item = dto.collections[i];
+        try {
+          // Validate machine exists
+          let machine;
+          if (item.machineId) {
+            machine = await this.machinesService.findById(item.machineId);
+          } else if (item.machineCode) {
+            machine = await this.machinesService.findByCode(item.machineCode);
+          }
+
+          if (!machine) {
+            throw new Error('Machine not found');
+          }
+
+          const collection = queryRunner.manager.create(Collection, {
+            machineId: machine.id,
+            operatorId,
+            collectedAt: new Date(item.collectedAt),
+            amount: item.amount,
+            status: item.amount ? CollectionStatus.RECEIVED : CollectionStatus.COLLECTED,
+            receivedAt: item.amount ? new Date() : undefined,
+            managerId: item.amount ? operatorId : undefined,
+            source: dto.source || CollectionSource.MANUAL_HISTORY,
+            notes: item.notes,
+          });
+
+          const saved = await queryRunner.manager.save(collection);
+          results.collections.push(saved);
+          results.created++;
+        } catch (error: any) {
+          results.failed++;
+          results.errors.push({ index: i, error: error.message });
         }
-
-        if (!machine) {
-          throw new Error('Machine not found');
-        }
-
-        const collectionData = {
-          machineId: machine.id,
-          operatorId,
-          collectedAt: new Date(item.collectedAt),
-          amount: item.amount,
-          status: item.amount ? CollectionStatus.RECEIVED : CollectionStatus.COLLECTED,
-          receivedAt: item.amount ? new Date() : undefined,
-          managerId: item.amount ? operatorId : undefined,
-          source: dto.source || CollectionSource.MANUAL_HISTORY,
-          notes: item.notes,
-        };
-
-        const collection = this.collectionRepository.create(collectionData);
-        const saved = await this.collectionRepository.save(collection);
-        results.collections.push(saved);
-        results.created++;
-      } catch (error: any) {
-        results.failed++;
-        results.errors.push({ index: i, error: error.message });
       }
+
+      await queryRunner.commitTransaction();
+
+      if (results.created > 0) {
+        await this.invalidateReportsCache();
+      }
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
 
-    if (results.created > 0) {
-      await this.invalidateReportsCache();
-    }
     return results;
   }
 
@@ -214,71 +228,131 @@ export class CollectionsService {
   }
 
   async receive(id: string, managerId: string, dto: ReceiveCollectionDto): Promise<Collection> {
-    const collection = await this.findByIdOrFail(id);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (collection.status !== CollectionStatus.COLLECTED) {
-      throw new BadRequestException('Collection is not in collected status');
+    try {
+      const collection = await queryRunner.manager.findOne(Collection, {
+        where: { id },
+        relations: ['machine', 'operator', 'manager'],
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!collection) {
+        throw new NotFoundException('Collection not found');
+      }
+      if (collection.status !== CollectionStatus.COLLECTED) {
+        throw new BadRequestException('Collection is not in collected status');
+      }
+
+      collection.managerId = managerId;
+      collection.amount = dto.amount;
+      collection.receivedAt = new Date();
+      collection.status = CollectionStatus.RECEIVED;
+      if (dto.notes) {
+        collection.notes = dto.notes;
+      }
+
+      const saved = await queryRunner.manager.save(collection);
+      await queryRunner.commitTransaction();
+      await this.invalidateReportsCache();
+      return saved;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    collection.managerId = managerId;
-    collection.amount = dto.amount;
-    collection.receivedAt = new Date();
-    collection.status = CollectionStatus.RECEIVED;
-    if (dto.notes) {
-      collection.notes = dto.notes;
-    }
-
-    const saved = await this.collectionRepository.save(collection);
-    await this.invalidateReportsCache();
-    return saved;
   }
 
   async edit(id: string, userId: string, dto: EditCollectionDto): Promise<Collection> {
-    const collection = await this.findByIdOrFail(id);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (collection.status !== CollectionStatus.RECEIVED) {
-      throw new BadRequestException('Can only edit received collections');
-    }
-
-    // Log history
-    if (dto.amount !== undefined && dto.amount !== collection.amount) {
-      await this.historyRepository.save({
-        collectionId: id,
-        changedById: userId,
-        fieldName: 'amount',
-        oldValue: collection.amount?.toString(),
-        newValue: dto.amount.toString(),
-        reason: dto.reason,
+    try {
+      const collection = await queryRunner.manager.findOne(Collection, {
+        where: { id },
+        relations: ['machine', 'operator', 'manager'],
+        lock: { mode: 'pessimistic_write' },
       });
-      collection.amount = dto.amount;
-    }
 
-    const saved = await this.collectionRepository.save(collection);
-    await this.invalidateReportsCache();
-    return saved;
+      if (!collection) {
+        throw new NotFoundException('Collection not found');
+      }
+      if (collection.status !== CollectionStatus.RECEIVED) {
+        throw new BadRequestException('Can only edit received collections');
+      }
+
+      // Log history within transaction
+      if (dto.amount !== undefined && dto.amount !== collection.amount) {
+        const history = queryRunner.manager.create(CollectionHistory, {
+          collectionId: id,
+          changedById: userId,
+          fieldName: 'amount',
+          oldValue: collection.amount?.toString(),
+          newValue: dto.amount.toString(),
+          reason: dto.reason,
+        });
+        await queryRunner.manager.save(history);
+        collection.amount = dto.amount;
+      }
+
+      const saved = await queryRunner.manager.save(collection);
+      await queryRunner.commitTransaction();
+      await this.invalidateReportsCache();
+      return saved;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async cancel(id: string, userId: string, reason?: string): Promise<Collection> {
-    const collection = await this.findByIdOrFail(id);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (collection.status === CollectionStatus.CANCELLED) {
-      throw new BadRequestException('Collection is already cancelled');
+    try {
+      const collection = await queryRunner.manager.findOne(Collection, {
+        where: { id },
+        relations: ['machine', 'operator', 'manager'],
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!collection) {
+        throw new NotFoundException('Collection not found');
+      }
+      if (collection.status === CollectionStatus.CANCELLED) {
+        throw new BadRequestException('Collection is already cancelled');
+      }
+
+      // Log history within transaction
+      const history = queryRunner.manager.create(CollectionHistory, {
+        collectionId: id,
+        changedById: userId,
+        fieldName: 'status',
+        oldValue: collection.status,
+        newValue: CollectionStatus.CANCELLED,
+        reason: reason || 'Cancelled by user',
+      });
+      await queryRunner.manager.save(history);
+
+      collection.status = CollectionStatus.CANCELLED;
+
+      const saved = await queryRunner.manager.save(collection);
+      await queryRunner.commitTransaction();
+      await this.invalidateReportsCache();
+      return saved;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    // Log history
-    await this.historyRepository.save({
-      collectionId: id,
-      changedById: userId,
-      fieldName: 'status',
-      oldValue: collection.status,
-      newValue: CollectionStatus.CANCELLED,
-      reason,
-    });
-
-    collection.status = CollectionStatus.CANCELLED;
-    const saved = await this.collectionRepository.save(collection);
-    await this.invalidateReportsCache();
-    return saved;
   }
 
   async getHistory(id: string): Promise<CollectionHistory[]> {

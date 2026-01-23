@@ -9,6 +9,22 @@ import { UserRole } from '../users/entities/user.entity';
 import { ReportQueryDto } from './dto/report-query.dto';
 import * as XLSX from 'xlsx';
 
+/**
+ * Sanitize string values for Excel export to prevent formula injection.
+ * Characters =, +, -, @, |, and tab can trigger formula execution in Excel.
+ */
+function sanitizeForExcel(value: unknown): string {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  const str = String(value);
+  // Prefix dangerous characters with a single quote to prevent formula execution
+  if (/^[=+\-@|\t]/.test(str)) {
+    return `'${str}`;
+  }
+  return str;
+}
+
 @ApiTags('reports')
 @Controller('reports')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -63,10 +79,10 @@ export class ReportsController {
 
     const wb = XLSX.utils.book_new();
 
-    // By Machine sheet
+    // By Machine sheet (sanitize strings to prevent Excel formula injection)
     const machineData = byMachine.data.map((item) => ({
-      'Код': item.machine.code,
-      'Название': item.machine.name,
+      'Код': sanitizeForExcel(item.machine.code),
+      'Название': sanitizeForExcel(item.machine.name),
       'Кол-во': item.collectionsCount,
       'Сумма': item.totalAmount,
       'Среднее': Math.round(item.averageAmount),
@@ -81,9 +97,9 @@ export class ReportsController {
     const machineSheet = XLSX.utils.json_to_sheet(machineData);
     XLSX.utils.book_append_sheet(wb, machineSheet, 'По автоматам');
 
-    // By Date sheet
+    // By Date sheet (sanitize strings to prevent Excel formula injection)
     const dateData = byDate.data.map((item) => ({
-      'Дата': item.date,
+      'Дата': sanitizeForExcel(item.date),
       'Кол-во': item.collectionsCount,
       'Сумма': item.totalAmount,
     }));
@@ -95,10 +111,10 @@ export class ReportsController {
     const dateSheet = XLSX.utils.json_to_sheet(dateData);
     XLSX.utils.book_append_sheet(wb, dateSheet, 'По датам');
 
-    // By Operator sheet
+    // By Operator sheet (sanitize strings to prevent Excel formula injection)
     const operatorData = byOperator.data.map((item) => ({
-      'Оператор': item.operator.name,
-      'Telegram': item.operator.telegramUsername || '-',
+      'Оператор': sanitizeForExcel(item.operator.name),
+      'Telegram': sanitizeForExcel(item.operator.telegramUsername || '-'),
       'Кол-во': item.collectionsCount,
       'Сумма': item.totalAmount,
     }));

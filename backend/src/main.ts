@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { createLogger } from './config/logger.config';
 
@@ -17,6 +18,21 @@ async function bootstrap() {
   appLogger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   appLogger.log(`PORT: ${process.env.PORT || 3000}`);
   appLogger.log(`DB_HOST: ${process.env.DB_HOST}`);
+
+  // Security headers (must be before CORS)
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+        },
+      },
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
 
   // Global prefix
   app.setGlobalPrefix('api');
@@ -47,6 +63,25 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   const port = process.env.PORT || 3000;
+
+  // Enable graceful shutdown hooks
+  app.enableShutdownHooks();
+
+  // Handle SIGTERM for graceful shutdown
+  process.on('SIGTERM', async () => {
+    appLogger.log('SIGTERM received, shutting down gracefully...');
+    await app.close();
+    appLogger.log('Application shut down complete');
+    process.exit(0);
+  });
+
+  // Handle SIGINT for graceful shutdown
+  process.on('SIGINT', async () => {
+    appLogger.log('SIGINT received, shutting down gracefully...');
+    await app.close();
+    appLogger.log('Application shut down complete');
+    process.exit(0);
+  });
 
   try {
     await app.listen(port, '0.0.0.0');

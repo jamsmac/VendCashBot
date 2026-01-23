@@ -24,6 +24,7 @@ describe('AuthController (e2e)', () => {
   } as User;
 
   const mockJwtToken = 'mock.jwt.token';
+  const mockRefreshToken = 'mock.refresh.token';
 
   // Mock JwtAuthGuard that sets user on request
   const mockJwtAuthGuard = {
@@ -47,7 +48,8 @@ describe('AuthController (e2e)', () => {
           useValue: {
             validateTelegramAuth: jest.fn(),
             login: jest.fn(),
-            refreshToken: jest.fn(),
+            refreshTokens: jest.fn(),
+            revokeAllUserTokens: jest.fn(),
             validateJwtPayload: jest.fn(),
           },
         },
@@ -79,10 +81,11 @@ describe('AuthController (e2e)', () => {
       hash: 'valid-hash-string',
     };
 
-    it('should authenticate user via Telegram and return token', async () => {
+    it('should authenticate user via Telegram and return tokens', async () => {
       authService.validateTelegramAuth.mockResolvedValue(mockUser);
       authService.login.mockResolvedValue({
         accessToken: mockJwtToken,
+        refreshToken: mockRefreshToken,
         user: mockUser,
       });
 
@@ -92,8 +95,10 @@ describe('AuthController (e2e)', () => {
         .expect(201);
 
       expect(response.body).toHaveProperty('accessToken');
+      expect(response.body).toHaveProperty('refreshToken');
       expect(response.body).toHaveProperty('user');
       expect(response.body.accessToken).toBe(mockJwtToken);
+      expect(response.body.refreshToken).toBe(mockRefreshToken);
       expect(response.body.user.id).toBe(mockUser.id);
     });
 
@@ -132,6 +137,7 @@ describe('AuthController (e2e)', () => {
       authService.validateTelegramAuth.mockResolvedValue(mockUser);
       authService.login.mockResolvedValue({
         accessToken: mockJwtToken,
+        refreshToken: mockRefreshToken,
         user: mockUser,
       });
 
@@ -141,6 +147,7 @@ describe('AuthController (e2e)', () => {
         .expect(201);
 
       expect(response.body.accessToken).toBe(mockJwtToken);
+      expect(response.body.refreshToken).toBe(mockRefreshToken);
     });
 
     it('should handle service validation errors', async () => {
@@ -174,23 +181,50 @@ describe('AuthController (e2e)', () => {
   });
 
   describe('POST /auth/refresh', () => {
-    it('should return 401 without authorization header', async () => {
-      await request(app.getHttpServer())
-        .post('/auth/refresh')
-        .expect(401);
-    });
-
-    it('should refresh token with valid authorization', async () => {
-      authService.refreshToken.mockResolvedValue({
+    it('should refresh tokens with valid refresh token', async () => {
+      authService.refreshTokens.mockResolvedValue({
         accessToken: 'new-mock-token',
+        refreshToken: 'new-mock-refresh-token',
       });
 
       const response = await request(app.getHttpServer())
         .post('/auth/refresh')
-        .set('Authorization', 'Bearer valid-token')
-        .expect(201);
+        .send({ refreshToken: mockRefreshToken })
+        .expect(200);
 
       expect(response.body.accessToken).toBe('new-mock-token');
+      expect(response.body.refreshToken).toBe('new-mock-refresh-token');
+    });
+
+    it('should return 401 for invalid refresh token', async () => {
+      authService.refreshTokens.mockRejectedValue(
+        new UnauthorizedException('Invalid or expired refresh token'),
+      );
+
+      await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken: 'invalid-token' })
+        .expect(401);
+    });
+  });
+
+  describe('POST /auth/logout', () => {
+    it('should return 401 without authorization header', async () => {
+      await request(app.getHttpServer())
+        .post('/auth/logout')
+        .expect(401);
+    });
+
+    it('should logout and revoke all tokens', async () => {
+      authService.revokeAllUserTokens.mockResolvedValue(undefined);
+
+      const response = await request(app.getHttpServer())
+        .post('/auth/logout')
+        .set('Authorization', 'Bearer valid-token')
+        .expect(200);
+
+      expect(response.body).toEqual({ success: true });
+      expect(authService.revokeAllUserTokens).toHaveBeenCalledWith(mockUser.id);
     });
   });
 });

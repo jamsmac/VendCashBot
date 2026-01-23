@@ -44,14 +44,27 @@ export class CollectionQueryDto {
   @IsOptional()
   sortOrder?: 'ASC' | 'DESC';
 
-  @ApiProperty({ description: 'Page number', required: false })
+  @ApiProperty({
+    description: 'Page number (starts from 1)',
+    required: false,
+    minimum: 1,
+    default: 1,
+    example: 1,
+  })
   @Type(() => Number)
   @IsNumber()
   @Min(1)
   @IsOptional()
   page?: number;
 
-  @ApiProperty({ description: 'Items per page', required: false })
+  @ApiProperty({
+    description: 'Items per page (max 100)',
+    required: false,
+    minimum: 1,
+    maximum: 100,
+    default: 20,
+    example: 20,
+  })
   @Type(() => Number)
   @IsNumber()
   @Min(1)

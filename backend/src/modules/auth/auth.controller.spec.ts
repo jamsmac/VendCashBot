@@ -23,6 +23,7 @@ describe('AuthController', () => {
 
   const mockLoginResponse = {
     accessToken: 'mock-jwt-token',
+    refreshToken: 'mock-refresh-token',
     user: mockUser,
   };
 
@@ -35,7 +36,8 @@ describe('AuthController', () => {
           useValue: {
             validateTelegramAuth: jest.fn(),
             login: jest.fn(),
-            refreshToken: jest.fn(),
+            refreshTokens: jest.fn(),
+            revokeAllUserTokens: jest.fn(),
           },
         },
       ],
@@ -60,7 +62,7 @@ describe('AuthController', () => {
       hash: 'valid-hash',
     };
 
-    it('should authenticate user via Telegram and return access token', async () => {
+    it('should authenticate user via Telegram and return tokens', async () => {
       authService.validateTelegramAuth.mockResolvedValue(mockUser);
       authService.login.mockResolvedValue(mockLoginResponse);
 
@@ -146,26 +148,28 @@ describe('AuthController', () => {
   describe('refresh', () => {
     const mockRefreshResponse = {
       accessToken: 'new-mock-jwt-token',
+      refreshToken: 'new-mock-refresh-token',
     };
 
-    it('should refresh the access token', async () => {
-      const mockRequest = { user: mockUser };
-      authService.refreshToken.mockResolvedValue(mockRefreshResponse);
+    it('should refresh tokens using refresh token', async () => {
+      const refreshTokenValue = 'existing-refresh-token';
+      authService.refreshTokens.mockResolvedValue(mockRefreshResponse);
 
-      const result = await controller.refresh(mockRequest);
+      const result = await controller.refresh({ refreshToken: refreshTokenValue });
 
-      expect(authService.refreshToken).toHaveBeenCalledWith(mockUser.id);
+      expect(authService.refreshTokens).toHaveBeenCalledWith(refreshTokenValue);
       expect(result).toEqual(mockRefreshResponse);
     });
+  });
 
-    it('should use user id from request', async () => {
-      const differentUser = { ...mockUser, id: 'different-user-id' };
-      const mockRequest = { user: differentUser };
-      authService.refreshToken.mockResolvedValue(mockRefreshResponse);
+  describe('logout', () => {
+    it('should revoke all user tokens', async () => {
+      authService.revokeAllUserTokens.mockResolvedValue(undefined);
 
-      await controller.refresh(mockRequest);
+      const result = await controller.logout(mockUser);
 
-      expect(authService.refreshToken).toHaveBeenCalledWith('different-user-id');
+      expect(authService.revokeAllUserTokens).toHaveBeenCalledWith(mockUser.id);
+      expect(result).toEqual({ success: true });
     });
   });
 });

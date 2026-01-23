@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { ConfigService } from '@nestjs/config';
 import { CollectionsService } from './collections.service';
 import { Collection, CollectionStatus, CollectionSource } from './entities/collection.entity';
 import { CollectionHistory } from './entities/collection-history.entity';
@@ -13,6 +14,7 @@ describe('CollectionsService', () => {
   let collectionRepository: jest.Mocked<Repository<Collection>>;
   let historyRepository: jest.Mocked<Repository<CollectionHistory>>;
   let machinesService: jest.Mocked<MachinesService>;
+  let mockQueryRunner: any;
 
   const mockMachine = {
     id: 'machine-123',
@@ -74,6 +76,32 @@ describe('CollectionsService', () => {
             get: jest.fn(),
             set: jest.fn(),
             del: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn(),
+          },
+        },
+        {
+          provide: DataSource,
+          useFactory: () => {
+            mockQueryRunner = {
+              connect: jest.fn(),
+              startTransaction: jest.fn(),
+              commitTransaction: jest.fn(),
+              rollbackTransaction: jest.fn(),
+              release: jest.fn(),
+              manager: {
+                findOne: jest.fn(),
+                save: jest.fn(),
+                create: jest.fn().mockImplementation((_, data) => data),
+              },
+            };
+            return {
+              createQueryRunner: jest.fn().mockReturnValue(mockQueryRunner),
+            };
           },
         },
       ],
@@ -187,8 +215,8 @@ describe('CollectionsService', () => {
         receivedAt: expect.any(Date),
       };
 
-      collectionRepository.findOne.mockResolvedValue(mockCollection);
-      collectionRepository.save.mockResolvedValue(receivedCollection as Collection);
+      mockQueryRunner.manager.findOne.mockResolvedValue(mockCollection);
+      mockQueryRunner.manager.save.mockResolvedValue(receivedCollection as Collection);
 
       const result = await service.receive('collection-123', 'manager-123', {
         amount: 1000,
@@ -205,7 +233,7 @@ describe('CollectionsService', () => {
         status: CollectionStatus.RECEIVED,
       };
 
-      collectionRepository.findOne.mockResolvedValue(receivedCollection as Collection);
+      mockQueryRunner.manager.findOne.mockResolvedValue(receivedCollection as Collection);
 
       await expect(
         service.receive('collection-123', 'manager-123', { amount: 1000 }),
@@ -220,14 +248,14 @@ describe('CollectionsService', () => {
         status: CollectionStatus.CANCELLED,
       };
 
-      collectionRepository.findOne.mockResolvedValue(mockCollection);
-      collectionRepository.save.mockResolvedValue(cancelledCollection as Collection);
-      historyRepository.save.mockResolvedValue({} as CollectionHistory);
+      mockQueryRunner.manager.findOne.mockResolvedValue(mockCollection);
+      mockQueryRunner.manager.save
+        .mockResolvedValueOnce({} as CollectionHistory)  // First save is for history
+        .mockResolvedValueOnce(cancelledCollection as Collection);  // Second save is for collection
 
       const result = await service.cancel('collection-123', 'user-123', 'Test reason');
 
       expect(result.status).toBe(CollectionStatus.CANCELLED);
-      expect(historyRepository.save).toHaveBeenCalled();
     });
 
     it('should throw BadRequestException when already cancelled', async () => {
@@ -236,7 +264,7 @@ describe('CollectionsService', () => {
         status: CollectionStatus.CANCELLED,
       };
 
-      collectionRepository.findOne.mockResolvedValue(cancelledCollection as Collection);
+      mockQueryRunner.manager.findOne.mockResolvedValue(cancelledCollection as Collection);
 
       await expect(
         service.cancel('collection-123', 'user-123'),

@@ -20,6 +20,22 @@ services:
       timeout: 5s
       retries: 5
 
+  # Redis Cache & Session Storage
+  redis:
+    image: redis:7-alpine
+    container_name: vendcash-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Backend API + Telegram Bot
   backend:
     build:
@@ -30,6 +46,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -38,6 +56,8 @@ services:
       DB_USERNAME: ${DB_USERNAME:-vendcash}
       DB_PASSWORD: ${DB_PASSWORD:-vendcash123}
       DB_DATABASE: ${DB_DATABASE:-vendcash}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       ADMIN_TELEGRAM_ID: ${ADMIN_TELEGRAM_ID}
@@ -73,3 +93,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:

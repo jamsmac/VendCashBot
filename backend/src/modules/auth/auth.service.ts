@@ -1,9 +1,12 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, LessThan } from 'typeorm';
 import * as crypto from 'crypto';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
+import { RefreshToken } from './entities/refresh-token.entity';
 
 export interface TelegramAuthData {
   id: number;
@@ -27,6 +30,8 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    @InjectRepository(RefreshToken)
+    private readonly refreshTokenRepository: Repository<RefreshToken>,
   ) {}
 
   async validateTelegramAuth(authData: TelegramAuthData): Promise<User> {
@@ -93,15 +98,29 @@ export class AuthService {
     return calculatedHash === hash;
   }
 
-  async login(user: User): Promise<{ accessToken: string; user: User }> {
+  async login(user: User): Promise<{ accessToken: string; refreshToken: string; user: User }> {
     const payload: JwtPayload = {
       sub: user.id,
       telegramId: user.telegramId,
       role: user.role,
     };
 
+    const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
+
+    // Generate refresh token
+    const refreshTokenValue = crypto.randomBytes(64).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30); // 30 days expiry
+
+    await this.refreshTokenRepository.save({
+      token: refreshTokenValue,
+      userId: user.id,
+      expiresAt,
+    });
+
     return {
-      accessToken: this.jwtService.sign(payload),
+      accessToken,
+      refreshToken: refreshTokenValue,
       user,
     };
   }
@@ -114,20 +133,40 @@ export class AuthService {
     return user;
   }
 
-  async refreshToken(userId: string): Promise<{ accessToken: string }> {
-    const user = await this.usersService.findById(userId);
-    if (!user || !user.isActive) {
-      throw new UnauthorizedException('User not found or inactive');
+  async refreshTokens(refreshTokenValue: string): Promise<{ accessToken: string; refreshToken: string }> {
+    const token = await this.refreshTokenRepository.findOne({
+      where: { token: refreshTokenValue, isRevoked: false },
+      relations: ['user'],
+    });
+
+    if (!token || token.expiresAt < new Date()) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    const payload: JwtPayload = {
-      sub: user.id,
-      telegramId: user.telegramId,
-      role: user.role,
-    };
+    if (!token.user?.isActive) {
+      throw new UnauthorizedException('User inactive');
+    }
 
-    return {
-      accessToken: this.jwtService.sign(payload),
-    };
+    // Revoke old token
+    token.isRevoked = true;
+    await this.refreshTokenRepository.save(token);
+
+    // Issue new tokens
+    const { accessToken, refreshToken } = await this.login(token.user);
+    return { accessToken, refreshToken };
+  }
+
+  async revokeAllUserTokens(userId: string): Promise<void> {
+    await this.refreshTokenRepository.update(
+      { userId, isRevoked: false },
+      { isRevoked: true },
+    );
+  }
+
+  async cleanupExpiredTokens(): Promise<number> {
+    const result = await this.refreshTokenRepository.delete({
+      expiresAt: LessThan(new Date()),
+    });
+    return result.affected || 0;
   }
 }

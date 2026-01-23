@@ -5,11 +5,15 @@ import {
   Body,
   UseGuards,
   Request,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService, TelegramAuthData } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { User } from '../users/entities/user.entity';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -42,10 +46,19 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refresh access token using refresh token' })
+  async refresh(@Body() body: { refreshToken: string }) {
+    return this.authService.refreshTokens(body.refreshToken);
+  }
+
+  @Post('logout')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Refresh access token' })
-  async refresh(@Request() req: any) {
-    return this.authService.refreshToken(req.user.id);
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Logout and revoke all refresh tokens' })
+  async logout(@CurrentUser() user: User) {
+    await this.authService.revokeAllUserTokens(user.id);
+    return { success: true };
   }
 }
