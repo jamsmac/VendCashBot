@@ -5,6 +5,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { Repository, Between, LessThan, MoreThan } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
@@ -19,6 +20,8 @@ import { CollectionQueryDto } from './dto/collection-query.dto';
 
 @Injectable()
 export class CollectionsService {
+  private readonly duplicateCheckMinutes: number;
+
   constructor(
     @InjectRepository(Collection)
     private readonly collectionRepository: Repository<Collection>,
@@ -26,7 +29,10 @@ export class CollectionsService {
     private readonly historyRepository: Repository<CollectionHistory>,
     private readonly machinesService: MachinesService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.duplicateCheckMinutes = this.configService.get<number>('app.duplicateCheckMinutes') || 30;
+  }
 
   // Invalidate reports cache when collection data changes
   private async invalidateReportsCache(): Promise<void> {
@@ -46,14 +52,15 @@ export class CollectionsService {
     // Verify machine exists
     await this.machinesService.findByIdOrFail(dto.machineId);
 
-    // Check for duplicates (same machine within 30 minutes)
-    const thirtyMinutesAgo = new Date(dto.collectedAt.getTime() - 30 * 60 * 1000);
-    const thirtyMinutesAfter = new Date(dto.collectedAt.getTime() + 30 * 60 * 1000);
+    // Check for duplicates (same machine within configured time window)
+    const windowMs = this.duplicateCheckMinutes * 60 * 1000;
+    const windowBefore = new Date(dto.collectedAt.getTime() - windowMs);
+    const windowAfter = new Date(dto.collectedAt.getTime() + windowMs);
 
     const duplicate = await this.collectionRepository.findOne({
       where: {
         machineId: dto.machineId,
-        collectedAt: Between(thirtyMinutesAgo, thirtyMinutesAfter),
+        collectedAt: Between(windowBefore, windowAfter),
         status: CollectionStatus.COLLECTED,
       },
     });
@@ -61,7 +68,7 @@ export class CollectionsService {
     if (duplicate && !dto.skipDuplicateCheck) {
       throw new BadRequestException({
         code: 'DUPLICATE_COLLECTION',
-        message: 'Collection for this machine exists within 30 minutes',
+        message: `Collection for this machine exists within ${this.duplicateCheckMinutes} minutes`,
         existingCollectionId: duplicate.id,
       });
     }
@@ -304,13 +311,14 @@ export class CollectionsService {
   }
 
   async checkDuplicate(machineId: string, collectedAt: Date): Promise<Collection | null> {
-    const thirtyMinutesAgo = new Date(collectedAt.getTime() - 30 * 60 * 1000);
-    const thirtyMinutesAfter = new Date(collectedAt.getTime() + 30 * 60 * 1000);
+    const windowMs = this.duplicateCheckMinutes * 60 * 1000;
+    const windowBefore = new Date(collectedAt.getTime() - windowMs);
+    const windowAfter = new Date(collectedAt.getTime() + windowMs);
 
     return this.collectionRepository.findOne({
       where: {
         machineId,
-        collectedAt: Between(thirtyMinutesAgo, thirtyMinutesAfter),
+        collectedAt: Between(windowBefore, windowAfter),
       },
       relations: ['machine', 'operator'],
     });

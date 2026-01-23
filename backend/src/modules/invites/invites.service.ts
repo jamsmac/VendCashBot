@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { Repository, IsNull } from 'typeorm';
 import { Invite } from './entities/invite.entity';
 import { UserRole } from '../users/entities/user.entity';
@@ -10,6 +11,7 @@ export class InvitesService {
   constructor(
     @InjectRepository(Invite)
     private readonly inviteRepository: Repository<Invite>,
+    private readonly configService: ConfigService,
   ) {}
 
   private generateCode(): string {
@@ -21,11 +23,12 @@ export class InvitesService {
       throw new BadRequestException('Cannot create invite for admin role');
     }
 
+    const expirationHours = this.configService.get<number>('app.inviteExpirationHours') || 24;
     const invite = this.inviteRepository.create({
       code: this.generateCode(),
       role,
       createdById,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      expiresAt: new Date(Date.now() + expirationHours * 60 * 60 * 1000),
     });
 
     return this.inviteRepository.save(invite);

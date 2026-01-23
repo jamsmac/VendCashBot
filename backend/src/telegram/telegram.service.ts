@@ -273,15 +273,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (ctx.session.step === 'entering_amount' && ctx.session.pendingCollectionId && ctx.user) {
         const amountStr = ctx.message.text.replace(/\s/g, '').replace(/,/g, '');
         const amount = parseInt(amountStr, 10);
-        const MAX_AMOUNT = 1_000_000_000; // 1 billion max
+        const maxAmount = this.configService.get<number>('app.maxCollectionAmount') || 1_000_000_000;
 
         if (isNaN(amount) || amount <= 0) {
           await ctx.reply('Введите корректную сумму (число > 0):');
           return;
         }
 
-        if (amount > MAX_AMOUNT) {
-          await ctx.reply(`Сумма не может превышать ${MAX_AMOUNT.toLocaleString('ru-RU')} сум`);
+        if (amount > maxAmount) {
+          await ctx.reply(`Сумма не может превышать ${maxAmount.toLocaleString('ru-RU')} сум`);
           return;
         }
 
