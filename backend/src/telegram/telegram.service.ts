@@ -182,13 +182,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.reply(
         `╭─────────────────────╮\n` +
-        `│  🎉  *РЕГИСТРАЦИЯ*\n` +
+        `│  🎉  <b>РЕГИСТРАЦИЯ</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `Добро пожаловать в *VendCash*!\n\n` +
+        `Добро пожаловать в <b>VendCash</b>!\n\n` +
         `📋  Ваша роль: ${roleBadge}\n\n` +
-        `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+        `────────────────────\n` +
         `✏️  Введите ваше имя:`,
-        { parse_mode: 'Markdown' },
+        { parse_mode: 'HTML' },
       );
     });
 
@@ -275,12 +275,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
           await ctx.reply(
             `╭─────────────────────╮\n` +
-            `│  ✅  *ПРИНЯТО*\n` +
+            `│  ✅  <b>ПРИНЯТО</b>\n` +
             `╰─────────────────────╯\n\n` +
-            `💰  *${amount.toLocaleString('ru-RU')}* сум\n\n` +
+            `💰  <b>${amount.toLocaleString('ru-RU')}</b> сум\n\n` +
             `Инкассация успешно принята!`,
             {
-              parse_mode: 'Markdown',
+              parse_mode: 'HTML',
               reply_markup: new InlineKeyboard()
                 .text('📥 Ещё приём', 'pending_collections')
                 .text('🏠 Меню', 'main_menu'),
@@ -359,13 +359,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
         await ctx.reply(
           `╭─────────────────────╮\n` +
-          `│  ➕  *НОВЫЙ АВТОМАТ*\n` +
+          `│  ➕  <b>НОВЫЙ АВТОМАТ</b>\n` +
           `╰─────────────────────╯\n\n` +
-          `📍 Шаг *2* из 2\n\n` +
-          `📟  Код: \`${code}\`\n\n` +
+          `📍 Шаг <b>2</b> из 2\n\n` +
+          `📟  Код: <code>${code}</code>\n\n` +
           `Введите название автомата:`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: new InlineKeyboard().text('✖️ Отмена', 'main_menu'),
           },
         );
@@ -392,19 +392,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
           ctx.session.step = 'idle';
           ctx.session.newMachineCode = undefined;
+          const safeMachineName = this.escapeHtml(machine.name);
 
           await ctx.reply(
             `╭─────────────────────╮\n` +
-            `│  ✅  *СОЗДАНО*\n` +
+            `│  ✅  <b>СОЗДАНО</b>\n` +
             `╰─────────────────────╯\n\n` +
-            `📟  Код: \`${machine.code}\`\n` +
-            `📝  Название: ${machine.name}\n\n` +
-            `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
-            `⏳  *Ожидает подтверждения*\n\n` +
+            `📟  Код: <code>${machine.code}</code>\n` +
+            `📝  Название: ${safeMachineName}\n\n` +
+            `────────────────────\n` +
+            `⏳  <b>Ожидает подтверждения</b>\n\n` +
             `Админ получит уведомление\n` +
             `и проверит данные.`,
             {
-              parse_mode: 'Markdown',
+              parse_mode: 'HTML',
               reply_markup: this.getMainMenu(ctx.user),
             },
           );
@@ -465,11 +466,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           await ctx.reply(
             '❌ Неверный формат\n\n' +
             'Введите в формате:\n' +
-            '• *ЧЧ:ММ* (время сегодня)\n' +
-            '• *ДД.ММ.ГГГГ* (дата)\n' +
-            '• *ДД.ММ.ГГГГ ЧЧ:ММ* (дата и время)',
+            '• <b>ЧЧ:ММ</b> (время сегодня)\n' +
+            '• <b>ДД.ММ.ГГГГ</b> (дата)\n' +
+            '• <b>ДД.ММ.ГГГГ ЧЧ:ММ</b> (дата и время)',
             {
-              parse_mode: 'Markdown',
+              parse_mode: 'HTML',
               reply_markup: new InlineKeyboard().text('◀️ Отмена', 'main_menu'),
             },
           );
@@ -543,15 +544,16 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             welcome_text: 'Описание',
           };
 
+          const safeNewText = this.escapeHtml(newText.length > 100 ? newText.slice(0, 100) + '...' : newText);
           await ctx.reply(
             `╭─────────────────────╮\n` +
-            `│  ✅  *СОХРАНЕНО*\n` +
+            `│  ✅  <b>СОХРАНЕНО</b>\n` +
             `╰─────────────────────╯\n\n` +
             `📝  ${textNames[textKey] || textKey}\n\n` +
             `Новое значение:\n` +
-            `_${newText.length > 100 ? newText.slice(0, 100) + '...' : newText}_`,
+            `<i>${safeNewText}</i>`,
             {
-              parse_mode: 'Markdown',
+              parse_mode: 'HTML',
               reply_markup: new InlineKeyboard()
                 .text('👁 Превью', 'preview_welcome')
                 .text('📝 К текстам', 'settings_texts'),
@@ -587,9 +589,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           ctx.session.step = 'idle';
 
           await ctx.reply(
-            `✅ *Изображение обновлено!*`,
+            `✅ <b>Изображение обновлено!</b>`,
             {
-              parse_mode: 'Markdown',
+              parse_mode: 'HTML',
               reply_markup: new InlineKeyboard()
                 .text('👁 Предпросмотр', 'preview_welcome')
                 .row()
@@ -619,10 +621,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           ctx.session.step = 'idle';
 
           await ctx.reply(
-            `✅ *Картинка установлена!*\n\n` +
+            `✅ <b>Картинка установлена!</b>\n\n` +
             `Изображение сохранено из Telegram.`,
             {
-              parse_mode: 'Markdown',
+              parse_mode: 'HTML',
               reply_markup: new InlineKeyboard()
                 .text('👁 Предпросмотр', 'preview_welcome')
                 .row()
@@ -666,12 +668,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  🔍  *ПОИСК*\n` +
+        `│  🔍  <b>ПОИСК</b>\n` +
         `╰─────────────────────╯\n\n` +
         `Введите код или название\n` +
-        `автомата _(мин. 2 символа)_`,
+        `автомата <i>(мин. 2 символа)</i>`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard().text('◀️ Назад', 'main_menu'),
         },
       );
@@ -686,13 +688,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  ➕  *НОВЫЙ АВТОМАТ*\n` +
+        `│  ➕  <b>НОВЫЙ АВТОМАТ</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `📍 Шаг *1* из 2\n\n` +
-        `Введите код _(серийный номер)_\n` +
+        `📍 Шаг <b>1</b> из 2\n\n` +
+        `Введите код <i>(серийный номер)</i>\n` +
         `автомата:`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard().text('✖️ Отмена', 'main_menu'),
         },
       );
@@ -779,14 +781,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const machine = await this.machinesService.approve(machineId, ctx.user.id);
 
         await ctx.answerCallbackQuery('Подтверждено ✓');
+        const safeMachineName = this.escapeHtml(machine.name);
         await ctx.editMessageText(
           `╭─────────────────────╮\n` +
-          `│  ✅  *ПОДТВЕРЖДЕНО*\n` +
+          `│  ✅  <b>ПОДТВЕРЖДЕНО</b>\n` +
           `╰─────────────────────╯\n\n` +
-          `📟  \`${machine.code}\`\n` +
-          `📝  ${machine.name}`,
+          `📟  <code>${machine.code}</code>\n` +
+          `📝  ${safeMachineName}`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: new InlineKeyboard().text('🔍 Модерация', 'pending_machines'),
           },
         );
@@ -819,14 +822,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         );
 
         await ctx.answerCallbackQuery('Отклонено ✗');
+        const safeMachineName = this.escapeHtml(machine.name);
         await ctx.editMessageText(
           `╭─────────────────────╮\n` +
-          `│  ❌  *ОТКЛОНЕНО*\n` +
+          `│  ❌  <b>ОТКЛОНЕНО</b>\n` +
           `╰─────────────────────╯\n\n` +
-          `📟  \`${machine.code}\`\n` +
-          `📝  ${machine.name}`,
+          `📟  <code>${machine.code}</code>\n` +
+          `📝  ${safeMachineName}`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: new InlineKeyboard().text('🔍 Модерация', 'pending_machines'),
           },
         );
@@ -848,12 +852,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (machines.length === 0) {
         await ctx.editMessageText(
           `╭─────────────────────╮\n` +
-          `│  📦  *НОВЫЙ СБОР*\n` +
+          `│  📦  <b>НОВЫЙ СБОР</b>\n` +
           `╰─────────────────────╯\n\n` +
           `Нет доступных автоматов\n\n` +
           `Создайте через поиск`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
               .text('🔍 Поиск', 'search_machine')
               .text('🏠 Меню', 'main_menu'),
@@ -879,11 +883,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  📦  *НОВЫЙ СБОР*\n` +
+        `│  📦  <b>НОВЫЙ СБОР</b>\n` +
         `╰─────────────────────╯\n\n` +
         `Выберите автомат:`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: keyboard,
         },
       );
@@ -1175,15 +1179,16 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         ctx.session.selectedMachineId = undefined;
         ctx.session.collectionTime = undefined;
 
+        const safeMachineName = machine ? this.escapeHtml(machine.name) : '';
         await ctx.editMessageText(
           `╭─────────────────────╮\n` +
-          `│  ✅  *ГОТОВО*\n` +
+          `│  ✅  <b>ГОТОВО</b>\n` +
           `╰─────────────────────╯\n\n` +
-          `🏧  ${machine?.name}\n` +
-          `🔢  \`#${collection.id.slice(0, 8)}\`\n\n` +
+          `🏧  ${safeMachineName}\n` +
+          `🔢  <code>#${collection.id.slice(0, 8)}</code>\n\n` +
           `Сбор успешно зарегистрирован!`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
               .text('📦 Ещё сбор', 'collect')
               .text('🏠 Меню', 'main_menu'),
@@ -1204,11 +1209,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (collections.length === 0) {
         await ctx.editMessageText(
           `╭─────────────────────╮\n` +
-          `│  📋  *МОИ СБОРЫ*\n` +
+          `│  📋  <b>МОИ СБОРЫ</b>\n` +
           `╰─────────────────────╯\n\n` +
           `За сегодня нет сборов`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
               .text('📦 Новый сбор', 'collect')
               .text('🏠 Меню', 'main_menu'),
@@ -1225,14 +1230,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  📋  *МОИ СБОРЫ*\n` +
+        `│  📋  <b>МОИ СБОРЫ</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `📅 Сегодня: *${collections.length}*\n\n` +
+        `📅 Сегодня: <b>${collections.length}</b>\n\n` +
         `${lines.join('\n')}\n\n` +
-        `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+        `────────────────────\n` +
         `✅ принят  ⏳ ожидает`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('📦 Ещё сбор', 'collect')
             .text('🏠 Меню', 'main_menu'),
@@ -1250,11 +1255,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (pending.length === 0) {
         await ctx.editMessageText(
           `╭─────────────────────╮\n` +
-          `│  📥  *ПРИЁМ*\n` +
+          `│  📥  <b>ПРИЁМ</b>\n` +
           `╰─────────────────────╯\n\n` +
           `✅ Нет ожидающих инкассаций`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: new InlineKeyboard().text('🏠 Меню', 'main_menu'),
           },
         );
@@ -1270,12 +1275,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  📥  *ПРИЁМ*\n` +
+        `│  📥  <b>ПРИЁМ</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `Ожидают: *${pending.length}*\n\n` +
+        `Ожидают: <b>${pending.length}</b>\n\n` +
         `Нажмите для приёма:`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: keyboard,
         },
       );
@@ -1393,11 +1398,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (pending.length === 0) {
         await ctx.editMessageText(
           `╭─────────────────────╮\n` +
-          `│  🔍  *МОДЕРАЦИЯ*\n` +
+          `│  🔍  <b>МОДЕРАЦИЯ</b>\n` +
           `╰─────────────────────╯\n\n` +
           `✅ Нет автоматов на проверке`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: new InlineKeyboard().text('🏠 Меню', 'main_menu'),
           },
         );
@@ -1412,12 +1417,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  🔍  *МОДЕРАЦИЯ*\n` +
+        `│  🔍  <b>МОДЕРАЦИЯ</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `На проверке: *${pending.length}*\n\n` +
+        `На проверке: <b>${pending.length}</b>\n\n` +
         `Нажмите для просмотра:`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: keyboard,
         },
       );
@@ -1440,22 +1445,22 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      const creatorInfo = machine.createdBy
-        ? `👤  ${machine.createdBy.name}`
-        : '👤  Неизвестно';
+      const safeCreatorName = machine.createdBy ? this.escapeHtml(machine.createdBy.name) : 'Неизвестно';
+      const safeMachineName = this.escapeHtml(machine.name);
+      const safeLocation = machine.location ? this.escapeHtml(machine.location) : '—';
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  🔍  *ПРОВЕРКА*\n` +
+        `│  🔍  <b>ПРОВЕРКА</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `📟  Код: \`${machine.code}\`\n` +
-        `📝  ${machine.name}\n` +
-        `📍  ${machine.location || '—'}\n\n` +
-        `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
-        `${creatorInfo}\n` +
+        `📟  Код: <code>${machine.code}</code>\n` +
+        `📝  ${safeMachineName}\n` +
+        `📍  ${safeLocation}\n\n` +
+        `────────────────────\n` +
+        `👤  ${safeCreatorName}\n` +
         `📅  ${this.formatDateTime(machine.createdAt)}`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('✅ Подтвердить', `admin_approve_${machine.id}`)
             .text('❌ Отклонить', `admin_reject_${machine.id}`)
@@ -1473,12 +1478,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const webUrl = this.configService.get('frontendUrl');
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  🌐  *ВЕБ-ПАНЕЛЬ*\n` +
+        `│  🌐  <b>ВЕБ-ПАНЕЛЬ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `Откройте для просмотра\n` +
         `отчётов и аналитики:`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .url('🚀 Открыть', webUrl)
             .row()
@@ -1496,46 +1501,46 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       if (ctx.user.role === UserRole.OPERATOR) {
         helpContent =
-          `🟢 *Оператор*\n\n` +
-          `📦  *Новый сбор*\n` +
+          `🟢 <b>Оператор</b>\n\n` +
+          `📦  <b>Новый сбор</b>\n` +
           `Регистрация инкассации\n\n` +
-          `🔍  *Поиск*\n` +
+          `🔍  <b>Поиск</b>\n` +
           `Найти автомат по коду\n` +
           `или названию\n\n` +
-          `📋  *Мои сборы*\n` +
+          `📋  <b>Мои сборы</b>\n` +
           `История за сегодня\n\n` +
-          `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+          `────────────────────\n` +
           `💡 Не нашли автомат?\n` +
           `Создайте новый через поиск`;
       } else if (ctx.user.role === UserRole.MANAGER) {
         helpContent =
-          `🔵 *Менеджер*\n\n` +
-          `📥  *Принять*\n` +
+          `🔵 <b>Менеджер</b>\n\n` +
+          `📥  <b>Принять</b>\n` +
           `Приём инкассаций\n\n` +
-          `🔍  *Поиск*\n` +
+          `🔍  <b>Поиск</b>\n` +
           `Найти автомат\n\n` +
-          `🌐  *Веб-панель*\n` +
+          `🌐  <b>Веб-панель</b>\n` +
           `Отчёты и аналитика`;
       } else {
         helpContent =
-          `🟣 *Администратор*\n\n` +
-          `📥  *Принять*\n` +
+          `🟣 <b>Администратор</b>\n\n` +
+          `📥  <b>Принять</b>\n` +
           `Приём инкассаций\n\n` +
-          `🔍  *Модерация*\n` +
+          `🔍  <b>Модерация</b>\n` +
           `Проверка новых автоматов\n\n` +
-          `👥  *Пригласить*\n` +
+          `👥  <b>Пригласить</b>\n` +
           `Добавить сотрудника\n\n` +
-          `⚙️  *Настройки*\n` +
+          `⚙️  <b>Настройки</b>\n` +
           `Настройки бота`;
       }
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  ❔  *ПОМОЩЬ*\n` +
+        `│  ❔  <b>ПОМОЩЬ</b>\n` +
         `╰─────────────────────╯\n\n` +
         helpContent,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('⚙️ Аккаунт', 'settings')
             .text('🏠 Меню', 'main_menu'),
@@ -1576,14 +1581,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  ⚠️  *ВНИМАНИЕ*\n` +
+        `│  ⚠️  <b>ВНИМАНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `После деактивации:\n\n` +
         `• Потеряете доступ\n` +
         `• Нужно новое приглашение\n` +
         `• Данные сохранятся`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('🚫 Да, выйти', 'do_deactivate')
             .text('◀️ Отмена', 'settings'),
@@ -1601,12 +1606,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
         await ctx.editMessageText(
           `╭─────────────────────╮\n` +
-          `│  👋  *ДО СВИДАНИЯ*\n` +
+          `│  👋  <b>ДО СВИДАНИЯ</b>\n` +
           `╰─────────────────────╯\n\n` +
           `Аккаунт деактивирован\n\n` +
           `Для восстановления\n` +
           `обратитесь к админу`,
-          { parse_mode: 'Markdown' },
+          { parse_mode: 'HTML' },
         );
       } catch (error: any) {
         await ctx.answerCallbackQuery(`Ошибка: ${error.message}`);
@@ -1623,11 +1628,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  ⚙️  *НАСТРОЙКИ*\n` +
+        `│  ⚙️  <b>НАСТРОЙКИ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `Управление ботом:`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('🖼 Картинка', 'settings_image')
             .text('📝 Тексты', 'settings_texts')
@@ -1655,13 +1660,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  🖼  *КАРТИНКА*\n` +
+        `│  🖼  <b>КАРТИНКА</b>\n` +
         `╰─────────────────────╯\n\n` +
         `Статус: ${imageStatus}\n\n` +
         `Показывается при входе\n` +
         `без приглашения`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('📷 Изменить', 'change_welcome_image')
             .text('🗑 Сброс', 'reset_welcome_image')
@@ -1684,13 +1689,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  📝  *ТЕКСТЫ*\n` +
+        `│  📝  <b>ТЕКСТЫ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `Редактирование текстов бота:\n\n` +
         `🏷  Заголовок: ${welcomeTitle ? '✅' : '⚪️'}\n` +
         `📄  Описание: ${welcomeText ? '✅' : '⚪️'}`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('🏷 Заголовок', 'edit_text_welcome_title')
             .text('📄 Описание', 'edit_text_welcome_text')
@@ -1720,22 +1725,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       };
 
       const currentValue = await this.settingsService.get(textKey);
-      const preview = currentValue
-        ? currentValue.length > 100
-          ? currentValue.slice(0, 100) + '...'
-          : currentValue
-        : '_не задан_';
+      const safePreview = currentValue
+        ? this.escapeHtml(currentValue.length > 100 ? currentValue.slice(0, 100) + '...' : currentValue)
+        : '<i>не задан</i>';
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  ✏️  *РЕДАКТОР*\n` +
+        `│  ✏️  <b>РЕДАКТОР</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `📝  *${textNames[textKey] || textKey}*\n\n` +
-        `Текущее значение:\n${preview}\n\n` +
-        `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+        `📝  <b>${textNames[textKey] || textKey}</b>\n\n` +
+        `Текущее значение:\n${safePreview}\n\n` +
+        `────────────────────\n` +
         `Введите новый текст:`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('🗑 Очистить', `clear_text_${textKey}`)
             .row()
@@ -1762,12 +1765,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
         await ctx.editMessageText(
           `╭─────────────────────╮\n` +
-          `│  ✅  *ОЧИЩЕНО*\n` +
+          `│  ✅  <b>ОЧИЩЕНО</b>\n` +
           `╰─────────────────────╯\n\n` +
           `Текст сброшен на значение\n` +
           `по умолчанию`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: new InlineKeyboard().text('◀️ К текстам', 'settings_texts'),
           },
         );
@@ -1790,12 +1793,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
         await ctx.editMessageText(
           `╭─────────────────────╮\n` +
-          `│  ✅  *СБРОШЕНО*\n` +
+          `│  ✅  <b>СБРОШЕНО</b>\n` +
           `╰─────────────────────╯\n\n` +
           `Все тексты сброшены\n` +
           `на значения по умолчанию`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: new InlineKeyboard().text('◀️ К текстам', 'settings_texts'),
           },
         );
@@ -1816,13 +1819,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  🖼  *КАРТИНКА*\n` +
+        `│  🖼  <b>КАРТИНКА</b>\n` +
         `╰─────────────────────╯\n\n` +
         `Выберите способ:\n\n` +
         `📷  Отправьте фото\n` +
         `🔗  Или ссылку (https://...)`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: new InlineKeyboard().text('✖️ Отмена', 'bot_settings'),
         },
       );
@@ -1856,10 +1859,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         await ctx.answerCallbackQuery('Сброшено');
 
         await ctx.editMessageText(
-          `✅ *Картинка сброшена*\n\n` +
+          `✅ <b>Картинка сброшена</b>\n\n` +
           `Теперь используется картинка по умолчанию.`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
               .text('👁 Предпросмотр', 'preview_welcome')
               .row()
@@ -1908,11 +1911,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    const safeMachineName = this.escapeHtml(machine.name);
+    const safeCreatorName = this.escapeHtml(creator.name);
+    const safeUsername = creator.telegramUsername ? this.escapeHtml(creator.telegramUsername) : 'нет';
+
     const message =
-      `🆕 *Новый автомат ожидает подтверждения*\n\n` +
-      `📟 Код: \`${machine.code}\`\n` +
-      `📝 Название: ${machine.name}\n` +
-      `👤 Создал: ${creator.name} (@${creator.telegramUsername || 'нет'})\n` +
+      `🆕 <b>Новый автомат ожидает подтверждения</b>\n\n` +
+      `📟 Код: <code>${machine.code}</code>\n` +
+      `📝 Название: ${safeMachineName}\n` +
+      `👤 Создал: ${safeCreatorName} (@${safeUsername})\n` +
       `📅 Дата: ${this.formatDateTime(machine.createdAt)}`;
 
     const keyboard = new InlineKeyboard()
@@ -1921,7 +1928,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
     try {
       await this.bot.api.sendMessage(adminTelegramId, message, {
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
         reply_markup: keyboard,
       });
     } catch (error) {
@@ -2003,7 +2010,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private formatCard(title: string, content: string, footer?: string): string {
     let card = `╭─────────────────────╮\n│  ${title}\n╰─────────────────────╯\n\n${content}`;
     if (footer) {
-      card += `\n\n┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n${footer}`;
+      card += `\n\n────────────────────\n${footer}`;
     }
     return card;
   }
