@@ -167,10 +167,26 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       // Validate invite
       const inviteCode = payload.replace('invite_', '');
+
+      // Check for empty invite code
+      if (!inviteCode || inviteCode.length === 0) {
+        await ctx.reply('❌ Неверная ссылка приглашения.');
+        return;
+      }
+
       const validation = await this.invitesService.validateInvite(inviteCode);
 
       if (!validation.valid) {
-        await ctx.reply(`❌ ${validation.error || 'Ссылка недействительна.'}`);
+        // Translate error messages to Russian
+        let errorMsg = 'Ссылка недействительна.';
+        if (validation.error === 'Invite not found') {
+          errorMsg = 'Приглашение не найдено.';
+        } else if (validation.error === 'Invite already used') {
+          errorMsg = 'Приглашение уже использовано.';
+        } else if (validation.error === 'Invite has expired') {
+          errorMsg = 'Срок действия приглашения истёк.';
+        }
+        await ctx.reply(`❌ ${errorMsg}`);
         return;
       }
 
@@ -207,6 +223,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         if (!invite || invite.isUsed || invite.isExpired) {
           await ctx.reply('❌ Ошибка регистрации. Запросите новую ссылку.');
           ctx.session.step = 'idle';
+          ctx.session.inviteCode = undefined;
           return;
         }
 
@@ -244,7 +261,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             },
           );
         } catch (error: any) {
-          await ctx.reply(`❌ Ошибка регистрации: ${error.message}`);
+          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+          await ctx.reply(`❌ Ошибка регистрации: ${safeError}`);
+          ctx.session.step = 'idle';
+          ctx.session.inviteCode = undefined;
         }
         return;
       }
@@ -1382,8 +1402,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           },
         );
       } catch (error: any) {
-        // Escape error message to prevent Markdown issues
-        const safeError = this.escapeMarkdown(error.message || 'Неизвестная ошибка');
+        // Escape error message to prevent HTML issues
+        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
         await ctx.reply(`❌ Ошибка: ${safeError}`);
       }
     });
@@ -2005,19 +2025,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       default:
         return '⚪️ Пользователь';
     }
-  }
-
-  private formatCard(title: string, content: string, footer?: string): string {
-    let card = `╭─────────────────────╮\n│  ${title}\n╰─────────────────────╯\n\n${content}`;
-    if (footer) {
-      card += `\n\n────────────────────\n${footer}`;
-    }
-    return card;
-  }
-
-  private escapeMarkdown(text: string): string {
-    // Escape special Markdown characters: _ * ` [
-    return text.replace(/([_*`\[])/g, '\\$1');
   }
 
   private escapeHtml(text: string): string {
