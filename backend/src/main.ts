@@ -87,7 +87,13 @@ async function bootstrap() {
     await app.listen(port, '0.0.0.0');
     appLogger.log(`VendCash API running on port ${port}`);
   } catch (error) {
-    appLogger.error('Failed to start application:', error);
+    appLogger.error('Failed to start application:');
+    appLogger.error(`Error name: ${error?.name}`);
+    appLogger.error(`Error message: ${error?.message}`);
+    appLogger.error(`Error stack: ${error?.stack}`);
+    if (error?.errors) {
+      appLogger.error(`Nested errors: ${JSON.stringify(error.errors, null, 2)}`);
+    }
     process.exit(1);
   }
 }
