@@ -1,5 +1,0 @@
-# Use Node.js provider - let Nixpacks handle everything
-providers = ["node"]
-
-[start]
-cmd = "node dist/main.js"
