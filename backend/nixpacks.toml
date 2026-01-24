@@ -1,9 +1,5 @@
-# Let Nixpacks auto-detect Node.js from package.json
-[phases.install]
-cmds = ["npm ci"]
-
-[phases.build]
-cmds = ["npm run build"]
+# Use Node.js provider - let Nixpacks handle everything
+providers = ["node"]
 
 [start]
 cmd = "node dist/main.js"
