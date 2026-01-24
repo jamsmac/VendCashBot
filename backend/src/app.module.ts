@@ -51,7 +51,7 @@ import configuration from './config/configuration';
         password: configService.get('database.password'),
         database: configService.get('database.database'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: false, // Disabled - schema managed via SQL
+        synchronize: true, // Temporarily enabled for initial setup
         logging: configService.get('nodeEnv') === 'development',
       }),
       inject: [ConfigService],
