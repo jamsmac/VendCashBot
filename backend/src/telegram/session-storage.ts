@@ -9,7 +9,6 @@ const logger = new Logger('SessionStorage');
 export interface SessionData {
   step:
     | 'idle'
-    | 'registering'
     | 'selecting_machine'
     | 'selecting_date'
     | 'entering_custom_date'
@@ -20,7 +19,6 @@ export interface SessionData {
     | 'creating_machine_name'
     | 'setting_welcome_image'
     | 'editing_text';
-  inviteCode?: string;
   selectedMachineId?: string;
   collectionTime?: Date;
   pendingCollectionId?: string;

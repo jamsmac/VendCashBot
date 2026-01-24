@@ -200,85 +200,58 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      // Start registration
-      ctx.session.step = 'registering';
-      ctx.session.inviteCode = inviteCode;
+      // Auto-register with Telegram name
+      if (!ctx.from) {
+        await ctx.reply('❌ Ошибка: не удалось получить данные пользователя.');
+        return;
+      }
 
-      const roleBadge = validation.role === UserRole.OPERATOR ? '🟢 Оператор' : '🔵 Менеджер';
+      const name = ctx.from.first_name + (ctx.from.last_name ? ` ${ctx.from.last_name}` : '');
+      const roleBadge = this.getRoleBadge(validation.role!);
 
-      await ctx.reply(
-        `╭─────────────────────╮\n` +
-        `│  🎉  <b>РЕГИСТРАЦИЯ</b>\n` +
-        `╰─────────────────────╯\n\n` +
-        `Добро пожаловать в <b>VendCash</b>!\n\n` +
-        `📋  Ваша роль: ${roleBadge}\n\n` +
-        `────────────────────\n` +
-        `✏️  Введите ваше имя:`,
-        { parse_mode: 'HTML' },
-      );
+      try {
+        const invite = await this.invitesService.findByCode(inviteCode);
+        if (!invite || invite.isUsed || invite.isExpired) {
+          await ctx.reply('❌ Ошибка регистрации. Запросите новую ссылку.');
+          return;
+        }
+
+        // Create user
+        const user = await this.usersService.create({
+          telegramId: ctx.from.id,
+          telegramUsername: ctx.from.username,
+          telegramFirstName: ctx.from.first_name,
+          name: name,
+          role: invite.role,
+        });
+
+        // Mark invite as used
+        await this.invitesService.markAsUsed(invite.id, user.id);
+        ctx.user = user;
+
+        const safeName = this.escapeHtml(user.name);
+
+        await ctx.reply(
+          `╭─────────────────────╮\n` +
+          `│  ✅  <b>ДОБРО ПОЖАЛОВАТЬ</b>\n` +
+          `╰─────────────────────╯\n\n` +
+          `👤  <b>${safeName}</b>\n` +
+          `${roleBadge}\n\n` +
+          `Выберите действие:`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: this.getMainMenu(user),
+          },
+        );
+      } catch (error: any) {
+        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+        await ctx.reply(`❌ Ошибка регистрации: ${safeError}`);
+      }
     });
 
     // Handle text messages
     this.bot.on('message:text', async (ctx) => {
       // Registration - name input
-      if (ctx.session.step === 'registering' && ctx.session.inviteCode) {
-        const name = ctx.message.text.trim();
-
-        if (name.length < 2 || name.length > 50) {
-          await ctx.reply('Имя должно быть от 2 до 50 символов. Попробуйте ещё раз:');
-          return;
-        }
-
-        const invite = await this.invitesService.findByCode(ctx.session.inviteCode);
-        if (!invite || invite.isUsed || invite.isExpired) {
-          await ctx.reply('❌ Ошибка регистрации. Запросите новую ссылку.');
-          ctx.session.step = 'idle';
-          ctx.session.inviteCode = undefined;
-          return;
-        }
-
-        try {
-          // Create user
-          const user = await this.usersService.create({
-            telegramId: ctx.from.id,
-            telegramUsername: ctx.from.username,
-            telegramFirstName: ctx.from.first_name,
-            name: name,
-            role: invite.role,
-          });
-
-          // Mark invite as used
-          await this.invitesService.markAsUsed(invite.id, user.id);
-
-          ctx.session.step = 'idle';
-          ctx.session.inviteCode = undefined;
-          ctx.user = user;
-
-          const roleBadge = this.getRoleBadge(user.role);
-          const safeName = this.escapeHtml(user.name);
-
-          await ctx.reply(
-            `╭─────────────────────╮\n` +
-            `│  ✅  <b>УСПЕШНО</b>\n` +
-            `╰─────────────────────╯\n\n` +
-            `Добро пожаловать!\n\n` +
-            `👤  <b>${safeName}</b>\n` +
-            `${roleBadge}\n\n` +
-            `Выберите действие:`,
-            {
-              parse_mode: 'HTML',
-              reply_markup: this.getMainMenu(user),
-            },
-          );
-        } catch (error: any) {
-          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
-          await ctx.reply(`❌ Ошибка регистрации: ${safeError}`);
-          ctx.session.step = 'idle';
-          ctx.session.inviteCode = undefined;
-        }
-        return;
-      }
-
       // Amount input for receiving collection
       if (ctx.session.step === 'entering_amount' && ctx.session.pendingCollectionId && ctx.user) {
         const amountStr = ctx.message.text.replace(/\s/g, '').replace(/,/g, '');
@@ -1458,29 +1431,24 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const botInfo = await this.bot.api.getMe();
         const link = `https://t.me/${botInfo.username}?start=invite_${invite.code}`;
 
-        // Send as a new message (not edit) for easy forwarding
-        await ctx.deleteMessage().catch(() => {});
-
-        await ctx.reply(
+        await ctx.editMessageText(
           `╭─────────────────────╮\n` +
-          `│  📨  <b>ПРИГЛАШЕНИЕ</b>\n` +
+          `│  ✅  <b>ПРИГЛАШЕНИЕ</b>\n` +
           `╰─────────────────────╯\n\n` +
           `${roleBadge}\n` +
-          `⏰  Действует <b>24 часа</b>\n\n` +
+          `⏰  Действует 24 часа\n\n` +
           `────────────────────\n` +
-          `👇 Перешлите это сообщение\n` +
-          `или нажмите кнопку:`,
+          `📋  <b>Ссылка:</b>\n` +
+          `<code>${link}</code>\n\n` +
+          `<i>Нажмите на ссылку чтобы\nскопировать и отправьте\nсотруднику</i>`,
           {
             parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
-              .url('🚀 Открыть', link)
-              .row()
-              .text('🔄 Новая', `create_invite_${ctx.match[1]}`)
+              .text('🔄 Ещё', `create_invite_${ctx.match[1]}`)
               .text('🏠 Меню', 'main_menu'),
           },
         );
       } catch (error: any) {
-        // Escape error message to prevent HTML issues
         const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
         await ctx.reply(`❌ Ошибка: ${safeError}`);
       }
