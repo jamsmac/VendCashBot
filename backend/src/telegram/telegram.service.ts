@@ -1731,7 +1731,29 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
 
-      const webUrl = this.configService.get('frontendUrl');
+      const webUrl = this.configService.get<string>('frontendUrl');
+
+      // Check if URL is valid and not localhost in production
+      const isValidUrl = webUrl &&
+        webUrl.startsWith('http') &&
+        !webUrl.includes('localhost');
+
+      if (!isValidUrl) {
+        await ctx.editMessageText(
+          `╭─────────────────────╮\n` +
+          `│  🌐  <b>ВЕБ-ПАНЕЛЬ</b>\n` +
+          `╰─────────────────────╯\n\n` +
+          `⚠️ Веб-панель не настроена.\n\n` +
+          `<i>Администратору нужно\nустановить FRONTEND_URL\nв настройках сервера.</i>`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: new InlineKeyboard()
+              .text('🏠 Меню', 'main_menu'),
+          },
+        );
+        return;
+      }
+
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
         `│  🌐  <b>ВЕБ-ПАНЕЛЬ</b>\n` +
