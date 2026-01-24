@@ -1458,12 +1458,16 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `${roleBadge}\n` +
           `⏰  Действует <b>24 часа</b>\n\n` +
           `────────────────────\n` +
-          `👇 Перешлите это сообщение\n` +
-          `или нажмите кнопку:`,
+          `🔗 <b>Ссылка для активации:</b>\n` +
+          `${link}\n\n` +
+          `<i>Перешлите это сообщение\n` +
+          `или скопируйте ссылку</i>`,
           {
             parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
-              .url('🚀 Открыть', link)
+              .url('🚀 Активировать', link)
+              .row()
+              .text('📤 Переслать', `share_invite_${invite.id}`)
               .row()
               .text('🔄 Новая', `create_invite_${ctx.match[1]}`)
               .text('🏠 Меню', 'main_menu'),
@@ -1569,6 +1573,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const expiresIn = Math.max(0, Math.ceil((invite.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60)));
       const creatorName = invite.createdBy ? this.escapeHtml(invite.createdBy.name) : 'Неизвестно';
 
+      const botInfo = await this.bot.api.getMe();
+      const link = `https://t.me/${botInfo.username}?start=invite_${invite.code}`;
+
       let message =
         `╭─────────────────────╮\n` +
         `│  📨  <b>ПРИГЛАШЕНИЕ</b>\n` +
@@ -1582,6 +1589,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       if (!invite.isUsed && !invite.isExpired) {
         message += `⏰ Истекает через: <b>${expiresIn}ч</b>\n`;
+        message += `\n🔗 <b>Ссылка:</b>\n${link}`;
       }
 
       if (invite.isUsed && invite.usedBy) {
@@ -1591,7 +1599,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
 
       const keyboard = new InlineKeyboard();
-      if (!invite.isUsed) {
+      if (!invite.isUsed && !invite.isExpired) {
+        keyboard.url('🚀 Активировать', link).row();
+        keyboard.text('📤 Переслать', `share_invite_${invite.id}`).text('🗑️ Удалить', `delete_invite_${invite.id}`).row();
+      } else if (!invite.isUsed) {
         keyboard.text('🗑️ Удалить', `delete_invite_${invite.id}`).row();
       }
       keyboard.text('◀️ Назад', 'list_invites').text('🏠 Меню', 'main_menu');
@@ -1631,6 +1642,55 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             .text('◀️ Назад', 'list_invites'),
         });
       }
+    });
+
+    // Admin: Share invite - sends a forwardable message
+    this.bot.callbackQuery(/^share_invite_(.+)$/, async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
+      await ctx.answerCallbackQuery();
+
+      const inviteId = ctx.match[1];
+      if (!isValidUUID(inviteId)) {
+        await ctx.reply('❌ Неверный ID приглашения');
+        return;
+      }
+
+      const invites = await this.invitesService.findAll();
+      const invite = invites.find(i => i.id === inviteId);
+
+      if (!invite) {
+        await ctx.reply('❌ Приглашение не найдено');
+        return;
+      }
+
+      if (invite.isUsed || invite.isExpired) {
+        await ctx.reply('❌ Приглашение уже использовано или истекло');
+        return;
+      }
+
+      const botInfo = await this.bot.api.getMe();
+      const link = `https://t.me/${botInfo.username}?start=invite_${invite.code}`;
+      const roleBadge = invite.role === UserRole.OPERATOR ? '🟢 Оператор' : '🔵 Менеджер';
+      const expiresIn = Math.max(0, Math.ceil((invite.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60)));
+
+      // Send a clean, forwardable message
+      await ctx.reply(
+        `╭─────────────────────╮\n` +
+        `│  📨  <b>ПРИГЛАШЕНИЕ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `Вас приглашают присоединиться\n` +
+        `к системе VendCash!\n\n` +
+        `${roleBadge}\n` +
+        `⏰ Действует: <b>${expiresIn}ч</b>\n\n` +
+        `────────────────────\n` +
+        `🔗 <b>Нажмите для активации:</b>\n` +
+        `${link}`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: new InlineKeyboard()
+            .url('🚀 Активировать', link),
+        },
+      );
     });
 
     // Noop callback for pagination indicator
