@@ -1431,6 +1431,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const botInfo = await this.bot.api.getMe();
         const link = `https://t.me/${botInfo.username}?start=invite_${invite.code}`;
 
+        // Create share URL for easy forwarding
+        const shareText = `Приглашение в VendCash (${roleBadge})`;
+        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(shareText)}`;
+
         await ctx.editMessageText(
           `╭─────────────────────╮\n` +
           `│  ✅  <b>ПРИГЛАШЕНИЕ</b>\n` +
@@ -1439,11 +1443,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `⏰  Действует 24 часа\n\n` +
           `────────────────────\n` +
           `📋  <b>Ссылка:</b>\n` +
-          `<code>${link}</code>\n\n` +
-          `<i>Нажмите на ссылку чтобы\nскопировать и отправьте\nсотруднику</i>`,
+          `<code>${link}</code>`,
           {
             parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
+              .url('📤 Переслать', shareUrl)
+              .row()
               .text('🔄 Ещё', `create_invite_${ctx.match[1]}`)
               .text('🏠 Меню', 'main_menu'),
           },
