@@ -252,57 +252,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     // Handle text messages
     this.bot.on('message:text', async (ctx) => {
       // Registration - name input
-      // Amount input for new collection (operator)
-      if (ctx.session.step === 'entering_collection_amount' && ctx.session.selectedMachineId && ctx.session.collectionTime && ctx.user) {
-        const amountStr = ctx.message.text.replace(/\s/g, '').replace(/,/g, '');
-        const amount = parseInt(amountStr, 10);
-        const maxAmount = this.configService.get<number>('app.maxCollectionAmount') || 1_000_000_000;
-
-        if (isNaN(amount) || amount <= 0) {
-          await ctx.reply('Введите корректную сумму (число > 0):');
-          return;
-        }
-
-        if (amount > maxAmount) {
-          await ctx.reply(`Сумма не может превышать ${maxAmount.toLocaleString('ru-RU')} сум`);
-          return;
-        }
-
-        ctx.session.collectionAmount = amount;
-        ctx.session.step = 'confirming';
-
-        const machine = await this.machinesService.findById(ctx.session.selectedMachineId);
-        if (!machine) {
-          await ctx.reply('❌ Автомат не найден');
-          ctx.session.step = 'idle';
-          return;
-        }
-
-        const timeStr = this.formatDateTime(ctx.session.collectionTime);
-        const safeMachineName = this.escapeHtml(machine.name);
-        const isHistorical = ctx.session.collectionTime.toDateString() !== new Date().toDateString();
-
-        await ctx.reply(
-          `╭─────────────────────╮\n` +
-          `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
-          `╰─────────────────────╯\n\n` +
-          `🏧  <b>${safeMachineName}</b>\n` +
-          `📟  <code>${machine.code}</code>\n` +
-          `📍  ${machine.location || '—'}\n\n` +
-          `⏰  ${timeStr}\n` +
-          `${isHistorical ? '📆  <i>(исторические данные)</i>\n' : ''}` +
-          `💰  <b>${amount.toLocaleString('ru-RU')}</b> сум\n\n` +
-          `Подтвердить сбор?`,
-          {
-            parse_mode: 'HTML',
-            reply_markup: new InlineKeyboard()
-              .text('✅ Да', 'confirm_collection')
-              .text('✖️ Отмена', 'main_menu'),
-          },
-        );
-        return;
-      }
-
       // Amount input for receiving collection
       if (ctx.session.step === 'entering_amount' && ctx.session.pendingCollectionId && ctx.user) {
         const amountStr = ctx.message.text.replace(/\s/g, '').replace(/,/g, '');
@@ -561,24 +510,22 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         }
 
         ctx.session.collectionTime = parsedDate;
-        ctx.session.step = 'entering_collection_amount';
+        ctx.session.step = 'confirming';
 
         const timeStr = this.formatDateTime(parsedDate);
         const isHistorical = parsedDate.toDateString() !== new Date().toDateString();
         const safeMachineName = this.escapeHtml(machine.name);
 
         await ctx.reply(
-          `╭─────────────────────╮\n` +
-          `│  💰  <b>СУММА</b>\n` +
-          `╰─────────────────────╯\n\n` +
-          `🏧  <b>${safeMachineName}</b>\n` +
-          `⏰  ${timeStr}\n` +
-          `${isHistorical ? '📆  <i>(исторические данные)</i>\n' : ''}\n` +
-          `Введите сумму сбора <i>(сум)</i>:`,
+          `🏧 <b>${safeMachineName}</b>\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n` +
+          `⏰ Время: <b>${timeStr}</b>\n` +
+          `${isHistorical ? '📆 <i>(исторические данные)</i>\n' : ''}\n` +
+          `Подтвердить сбор?`,
           {
             parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
-              .text('✖️ Отмена', 'main_menu'),
+              .text('✅ Подтвердить', 'confirm_collection')
+              .text('❌ Отмена', 'main_menu'),
           },
         );
         return;
@@ -717,9 +664,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
       ctx.session.step = 'idle';
-      ctx.session.selectedMachineId = undefined;
-      ctx.session.collectionTime = undefined;
-      ctx.session.collectionAmount = undefined;
       const roleBadge = this.getRoleBadge(ctx.user.role);
       const safeName = this.escapeHtml(ctx.user.name);
       await ctx.editMessageText(
@@ -1044,21 +988,24 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       ctx.session.selectedMachineId = machine.id;
       ctx.session.collectionTime = new Date();
-      ctx.session.step = 'entering_collection_amount';
+      ctx.session.step = 'confirming';
 
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
       const safeMachineName = this.escapeHtml(machine.name);
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  💰  <b>СУММА</b>\n` +
+        `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `🏧  <b>${safeMachineName}</b>\n` +
+        `📟  <code>${machine.code}</code>\n` +
+        `📍  ${machine.location || '—'}\n\n` +
         `⏰  ${timeStr}\n\n` +
-        `Введите сумму сбора <i>(сум)</i>:`,
+        `Подтвердить сбор?`,
         {
           parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
+            .text('✅ Да', 'confirm_collection')
             .text('✖️ Отмена', 'main_menu'),
         },
       );
@@ -1106,22 +1053,25 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       ctx.session.selectedMachineId = machine.id;
       ctx.session.collectionTime = yesterday;
-      ctx.session.step = 'entering_collection_amount';
+      ctx.session.step = 'confirming';
 
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
       const safeMachineName = this.escapeHtml(machine.name);
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  💰  <b>СУММА</b>\n` +
+        `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `🏧  <b>${safeMachineName}</b>\n` +
+        `📟  <code>${machine.code}</code>\n` +
+        `📍  ${machine.location || '—'}\n\n` +
         `⏰  ${timeStr}\n` +
         `📆  <i>вчера</i>\n\n` +
-        `Введите сумму сбора <i>(сум)</i>:`,
+        `Подтвердить сбор?`,
         {
           parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
+            .text('✅ Да', 'confirm_collection')
             .text('✖️ Отмена', 'main_menu'),
         },
       );
@@ -1162,21 +1112,24 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       ctx.session.selectedMachineId = machine.id;
       ctx.session.collectionTime = new Date();
-      ctx.session.step = 'entering_collection_amount';
+      ctx.session.step = 'confirming';
 
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
       const safeMachineName = this.escapeHtml(machine.name);
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  💰  <b>СУММА</b>\n` +
+        `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `🏧  <b>${safeMachineName}</b>\n` +
+        `📟  <code>${machine.code}</code>\n` +
+        `📍  ${machine.location || '—'}\n\n` +
         `⏰  ${timeStr}\n\n` +
-        `Введите сумму сбора <i>(сум)</i>:`,
+        `Подтвердить сбор?`,
         {
           parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
+            .text('✅ Да', 'confirm_collection')
             .text('✖️ Отмена', 'main_menu'),
         },
       );
@@ -1200,21 +1153,24 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       ctx.session.selectedMachineId = machine.id;
       ctx.session.collectionTime = new Date();
-      ctx.session.step = 'entering_collection_amount';
+      ctx.session.step = 'confirming';
 
       const timeStr = this.formatDateTime(ctx.session.collectionTime);
       const safeMachineName = this.escapeHtml(machine.name);
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  💰  <b>СУММА</b>\n` +
+        `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `🏧  <b>${safeMachineName}</b>\n` +
+        `📟  <code>${machine.code}</code>\n` +
+        `📍  ${machine.location || '—'}\n\n` +
         `⏰  ${timeStr}\n\n` +
-        `Введите сумму сбора <i>(сум)</i>:`,
+        `Подтвердить сбор?`,
         {
           parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
+            .text('✅ Да', 'confirm_collection')
             .text('✖️ Отмена', 'main_menu'),
         },
       );
@@ -1222,7 +1178,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
     // Confirm collection
     this.bot.callbackQuery('confirm_collection', async (ctx) => {
-      if (!ctx.user || !ctx.session.selectedMachineId || !ctx.session.collectionTime || !ctx.session.collectionAmount) {
+      if (!ctx.user || !ctx.session.selectedMachineId || !ctx.session.collectionTime) {
         await ctx.answerCallbackQuery('⚠️ Сессия истекла, начните заново');
         if (ctx.user) {
           await ctx.editMessageText('⚠️ Сессия истекла. Вернитесь в главное меню.', {
@@ -1238,19 +1194,16 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           {
             machineId: ctx.session.selectedMachineId,
             collectedAt: ctx.session.collectionTime,
-            amount: ctx.session.collectionAmount,
             skipDuplicateCheck: true,
           },
           ctx.user.id,
         );
 
         const machine = await this.machinesService.findById(ctx.session.selectedMachineId);
-        const amount = ctx.session.collectionAmount;
 
         ctx.session.step = 'idle';
         ctx.session.selectedMachineId = undefined;
         ctx.session.collectionTime = undefined;
-        ctx.session.collectionAmount = undefined;
 
         const safeMachineName = machine ? this.escapeHtml(machine.name) : '';
         await ctx.editMessageText(
@@ -1258,7 +1211,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `│  ✅  <b>ГОТОВО</b>\n` +
           `╰─────────────────────╯\n\n` +
           `🏧  ${safeMachineName}\n` +
-          `💰  <b>${amount.toLocaleString('ru-RU')}</b> сум\n` +
           `🔢  <code>#${collection.id.slice(0, 8)}</code>\n\n` +
           `Сбор успешно зарегистрирован!`,
           {
@@ -1307,8 +1259,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const time = this.formatTime(c.collectedAt);
         const status = c.status === 'collected' ? '⏳' : c.status === 'received' ? '✅' : '❌';
         const safeMachineName = this.escapeHtml(c.machine.name);
-        const amountStr = c.amount ? ` — ${c.amount.toLocaleString('ru-RU')}` : '';
-        return `${status}  ${time}  ${safeMachineName}${amountStr}`;
+        return `${status}  ${time}  ${safeMachineName}`;
       });
 
       const keyboard = new InlineKeyboard();
@@ -1428,7 +1379,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const time = this.formatDateTime(collection.collectedAt);
       const safeMachineName = this.escapeHtml(collection.machine.name);
       const safeOperatorName = this.escapeHtml(collection.operator.name);
-      const operatorAmount = collection.amount ? `\n💵  <i>Оператор указал: ${collection.amount.toLocaleString('ru-RU')}</i>` : '';
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
@@ -1436,7 +1386,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `╰─────────────────────╯\n\n` +
         `🏧  <b>${safeMachineName}</b>\n` +
         `⏰  ${time}\n` +
-        `👤  ${safeOperatorName}${operatorAmount}\n\n` +
+        `👤  ${safeOperatorName}\n\n` +
         `────────────────────\n` +
         `✏️ Введите сумму <i>(сум)</i>:`,
         {
