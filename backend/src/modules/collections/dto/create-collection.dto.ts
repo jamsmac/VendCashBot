@@ -1,4 +1,4 @@
-import { IsUUID, IsDate, IsOptional, IsString, IsBoolean, IsEnum } from 'class-validator';
+import { IsUUID, IsDate, IsOptional, IsString, IsBoolean, IsEnum, IsNumber, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { CollectionSource } from '../entities/collection.entity';
@@ -12,6 +12,13 @@ export class CreateCollectionDto {
   @Type(() => Date)
   @IsDate()
   collectedAt: Date;
+
+  @ApiProperty({ description: 'Amount in UZS', required: false })
+  @IsNumber()
+  @Min(0)
+  @Max(1000000000)
+  @IsOptional()
+  amount?: number;
 
   @ApiProperty({ description: 'Notes', required: false })
   @IsString()

@@ -78,6 +78,7 @@ export class CollectionsService {
       machineId: dto.machineId,
       operatorId,
       collectedAt: dto.collectedAt,
+      amount: dto.amount,
       source: dto.source || CollectionSource.REALTIME,
       notes: dto.notes,
     });

@@ -12,6 +12,7 @@ export interface SessionData {
     | 'selecting_machine'
     | 'selecting_date'
     | 'entering_custom_date'
+    | 'entering_collection_amount'
     | 'confirming'
     | 'entering_amount'
     | 'searching_machine'
@@ -21,6 +22,7 @@ export interface SessionData {
     | 'editing_text';
   selectedMachineId?: string;
   collectionTime?: Date;
+  collectionAmount?: number;
   pendingCollectionId?: string;
   searchQuery?: string;
   newMachineCode?: string;
