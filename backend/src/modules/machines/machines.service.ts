@@ -47,7 +47,7 @@ export class MachinesService {
 
     const machine = this.machineRepository.create({
       ...createMachineDto,
-      status: MachineStatus.PENDING,
+      status: MachineStatus.APPROVED,
       createdById: userId,
     });
     return this.machineRepository.save(machine);
