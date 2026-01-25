@@ -12,11 +12,13 @@ export interface SessionData {
     | 'selecting_machine'
     | 'selecting_date'
     | 'entering_custom_date'
+    | 'awaiting_location'
     | 'confirming'
     | 'entering_amount'
     | 'searching_machine'
     | 'creating_machine_code'
     | 'creating_machine_name'
+    | 'setting_machine_location'
     | 'setting_welcome_image'
     | 'editing_text';
   selectedMachineId?: string;
@@ -24,6 +26,7 @@ export interface SessionData {
   pendingCollectionId?: string;
   searchQuery?: string;
   newMachineCode?: string;
+  newMachineName?: string;
   editingTextKey?: string;
 }
 

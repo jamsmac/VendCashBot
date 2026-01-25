@@ -1,4 +1,4 @@
-import { IsString, IsOptional, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsOptional, MinLength, MaxLength, IsNumber, Min, Max } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateMachineDto {
@@ -19,4 +19,18 @@ export class CreateMachineDto {
   @IsOptional()
   @MaxLength(500)
   location?: string;
+
+  @ApiProperty({ description: 'Latitude', required: false })
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  @IsOptional()
+  latitude?: number;
+
+  @ApiProperty({ description: 'Longitude', required: false })
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  @IsOptional()
+  longitude?: number;
 }

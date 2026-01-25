@@ -372,9 +372,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `╭─────────────────────╮\n` +
           `│  ➕  <b>НОВЫЙ АВТОМАТ</b>\n` +
           `╰─────────────────────╯\n\n` +
-          `📍 Шаг <b>2</b> из 2\n\n` +
+          `📍 Шаг <b>2</b> из 3\n\n` +
           `📟  Код: <code>${code}</code>\n\n` +
-          `Введите название автомата:`,
+          `Введите название места:`,
           {
             parse_mode: 'HTML',
             reply_markup: new InlineKeyboard().text('✖️ Отмена', 'main_menu'),
@@ -383,7 +383,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      // Creating machine - name input
+      // Creating machine - name input, then request location
       if (ctx.session.step === 'creating_machine_name' && ctx.user && ctx.session.newMachineCode) {
         const name = ctx.message.text.trim();
 
@@ -392,40 +392,25 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           return;
         }
 
-        try {
-          const machine = await this.machinesService.createByOperator(
-            { code: ctx.session.newMachineCode, name },
-            ctx.user.id,
-          );
+        ctx.session.newMachineName = name;
+        ctx.session.step = 'setting_machine_location';
 
-          // Notify admin
-          await this.notifyAdminNewMachine(machine, ctx.user);
+        const safeName = this.escapeHtml(name);
 
-          ctx.session.step = 'idle';
-          ctx.session.newMachineCode = undefined;
-          const safeMachineName = this.escapeHtml(machine.name);
-
-          await ctx.reply(
-            `╭─────────────────────╮\n` +
-            `│  ✅  <b>СОЗДАНО</b>\n` +
-            `╰─────────────────────╯\n\n` +
-            `📟  Код: <code>${machine.code}</code>\n` +
-            `📝  Название: ${safeMachineName}\n\n` +
-            `────────────────────\n` +
-            `⏳  <b>Ожидает подтверждения</b>\n\n` +
-            `Админ получит уведомление\n` +
-            `и проверит данные.`,
-            {
-              parse_mode: 'HTML',
-              reply_markup: this.getMainMenu(ctx.user),
-            },
-          );
-        } catch (error: any) {
-          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
-          await ctx.reply(`❌ Ошибка: ${safeError}`);
-          ctx.session.step = 'idle';
-          ctx.session.newMachineCode = undefined;
-        }
+        await ctx.reply(
+          `╭─────────────────────╮\n` +
+          `│  ➕  <b>НОВЫЙ АВТОМАТ</b>\n` +
+          `╰─────────────────────╯\n\n` +
+          `📍 Шаг <b>3</b> из 3\n\n` +
+          `📟  Код: <code>${ctx.session.newMachineCode}</code>\n` +
+          `📝  Название: ${safeName}\n\n` +
+          `🗺 Отправьте локацию автомата\n` +
+          `<i>Нажмите 📎 → Геопозиция</i>`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: new InlineKeyboard().text('✖️ Отмена', 'main_menu'),
+          },
+        );
         return;
       }
 
@@ -659,6 +644,116 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
     });
 
+    // Handle location messages (for collection from operator)
+    this.bot.on('message:location', async (ctx) => {
+      // Operator: sending location for collection
+      if (ctx.session.step === 'awaiting_location' && ctx.session.selectedMachineId && ctx.user) {
+        const { latitude, longitude } = ctx.message.location;
+
+        const machine = await this.machinesService.findById(ctx.session.selectedMachineId);
+        if (!machine) {
+          await ctx.reply('❌ Автомат не найден');
+          ctx.session.step = 'idle';
+          ctx.session.selectedMachineId = undefined;
+          return;
+        }
+
+        try {
+          const collection = await this.collectionsService.create(
+            {
+              machineId: ctx.session.selectedMachineId,
+              collectedAt: new Date(),
+              latitude,
+              longitude,
+            },
+            ctx.user.id,
+          );
+
+          ctx.session.step = 'idle';
+          ctx.session.selectedMachineId = undefined;
+
+          const safeMachineName = this.escapeHtml(machine.name);
+          const timeStr = this.formatDateTime(collection.collectedAt);
+
+          await ctx.reply(
+            `╭─────────────────────╮\n` +
+            `│  ✅  <b>СБОР ОТПРАВЛЕН</b>\n` +
+            `╰─────────────────────╯\n\n` +
+            `🏧  ${safeMachineName}\n` +
+            `⏰  ${timeStr}\n` +
+            `📍  Локация получена\n` +
+            `🔢  <code>#${collection.id.slice(0, 8)}</code>\n\n` +
+            `Ожидайте приёма менеджером.`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: new InlineKeyboard()
+                .text('📦 Ещё сбор', 'collect')
+                .text('🏠 Меню', 'main_menu'),
+            },
+          );
+        } catch (error: any) {
+          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+          await ctx.reply(`❌ Ошибка: ${safeError}`);
+          ctx.session.step = 'idle';
+          ctx.session.selectedMachineId = undefined;
+        }
+        return;
+      }
+
+      // Manager/Admin: setting machine location
+      if (ctx.session.step === 'setting_machine_location' && ctx.session.newMachineCode && ctx.session.newMachineName && ctx.user) {
+        const { latitude, longitude } = ctx.message.location;
+
+        try {
+          const machine = await this.machinesService.createByOperator(
+            {
+              code: ctx.session.newMachineCode,
+              name: ctx.session.newMachineName,
+              latitude,
+              longitude,
+            },
+            ctx.user.id,
+          );
+
+          // Notify admin if not admin creating
+          if (ctx.user.role !== UserRole.ADMIN) {
+            await this.notifyAdminNewMachine(machine, ctx.user);
+          }
+
+          ctx.session.step = 'idle';
+          ctx.session.newMachineCode = undefined;
+          ctx.session.newMachineName = undefined;
+
+          const safeMachineName = this.escapeHtml(machine.name);
+          const statusMsg = ctx.user.role === UserRole.ADMIN
+            ? '✅  <b>Автомат создан</b>'
+            : '⏳  <b>Ожидает подтверждения</b>';
+
+          await ctx.reply(
+            `╭─────────────────────╮\n` +
+            `│  ✅  <b>СОЗДАНО</b>\n` +
+            `╰─────────────────────╯\n\n` +
+            `📟  Код: <code>${machine.code}</code>\n` +
+            `📝  Название: ${safeMachineName}\n` +
+            `📍  Локация сохранена\n\n` +
+            `────────────────────\n` +
+            `${statusMsg}`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: this.getMainMenu(ctx.user),
+            },
+          );
+        } catch (error: any) {
+          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+          await ctx.reply(`❌ Ошибка: ${safeError}`);
+          ctx.session.step = 'idle';
+          ctx.session.newMachineCode = undefined;
+          ctx.session.newMachineName = undefined;
+        }
+        return;
+      }
+    });
+
     // Callback query handlers
     this.bot.callbackQuery('main_menu', async (ctx) => {
       if (!ctx.user) return;
@@ -757,10 +852,32 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
 
       ctx.session.selectedMachineId = machine.id;
-      ctx.session.step = 'selecting_date';
       const safeMachineName = this.escapeHtml(machine.name);
 
-      // Show date selection options
+      // Operator flow: request location immediately
+      if (ctx.user.role === UserRole.OPERATOR) {
+        ctx.session.step = 'awaiting_location';
+
+        await ctx.editMessageText(
+          `╭─────────────────────╮\n` +
+          `│  📦  <b>НОВЫЙ СБОР</b>\n` +
+          `╰─────────────────────╯\n\n` +
+          `🏧  <b>${safeMachineName}</b>\n` +
+          `📟  <code>${machine.code}</code>\n\n` +
+          `📍 Отправьте вашу геолокацию\n` +
+          `<i>Нажмите кнопку 📎 → Геопозиция</i>`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: new InlineKeyboard()
+              .text('✖️ Отмена', 'main_menu'),
+          },
+        );
+        return;
+      }
+
+      // Manager/Admin: show date selection
+      ctx.session.step = 'selecting_date';
+
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
         `│  📦  <b>НОВЫЙ СБОР</b>\n` +
@@ -920,7 +1037,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.step = 'selecting_machine';
     });
 
-    // Machine selection - show date options
+    // Machine selection - operator sends location, manager/admin selects date
     this.bot.callbackQuery(/^machine_(.+)$/, async (ctx) => {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
@@ -937,10 +1054,32 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
 
       ctx.session.selectedMachineId = machine.id;
-      ctx.session.step = 'selecting_date';
       const safeMachineName = this.escapeHtml(machine.name);
 
-      // Show date selection options
+      // Operator flow: request location immediately
+      if (ctx.user.role === UserRole.OPERATOR) {
+        ctx.session.step = 'awaiting_location';
+
+        await ctx.editMessageText(
+          `╭─────────────────────╮\n` +
+          `│  📦  <b>НОВЫЙ СБОР</b>\n` +
+          `╰─────────────────────╯\n\n` +
+          `🏧  <b>${safeMachineName}</b>\n` +
+          `📟  <code>${machine.code}</code>\n\n` +
+          `📍 Отправьте вашу геолокацию\n` +
+          `<i>Нажмите кнопку 📎 → Геопозиция</i>`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: new InlineKeyboard()
+              .text('✖️ Отмена', 'main_menu'),
+          },
+        );
+        return;
+      }
+
+      // Manager/Admin flow: show date selection
+      ctx.session.step = 'selecting_date';
+
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
         `│  📦  <b>НОВЫЙ СБОР</b>\n` +

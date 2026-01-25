@@ -1,4 +1,4 @@
-import { IsUUID, IsDate, IsOptional, IsString, IsBoolean, IsEnum } from 'class-validator';
+import { IsUUID, IsDate, IsOptional, IsString, IsBoolean, IsEnum, IsNumber, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { CollectionSource } from '../entities/collection.entity';
@@ -12,6 +12,20 @@ export class CreateCollectionDto {
   @Type(() => Date)
   @IsDate()
   collectedAt: Date;
+
+  @ApiProperty({ description: 'Latitude', required: false })
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  @IsOptional()
+  latitude?: number;
+
+  @ApiProperty({ description: 'Longitude', required: false })
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  @IsOptional()
+  longitude?: number;
 
   @ApiProperty({ description: 'Notes', required: false })
   @IsString()

@@ -78,6 +78,8 @@ export class CollectionsService {
       machineId: dto.machineId,
       operatorId,
       collectedAt: dto.collectedAt,
+      latitude: dto.latitude,
+      longitude: dto.longitude,
       source: dto.source || CollectionSource.REALTIME,
       notes: dto.notes,
     });
