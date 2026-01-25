@@ -2,9 +2,9 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Repository, IsNull, MoreThan } from 'typeorm';
+import { randomBytes } from 'crypto';
 import { Invite } from './entities/invite.entity';
 import { UserRole } from '../users/entities/user.entity';
-import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class InvitesService {
@@ -15,7 +15,8 @@ export class InvitesService {
   ) {}
 
   private generateCode(): string {
-    return uuidv4().substring(0, 8);
+    // 16 bytes = 32 hex characters, much more entropy than 8 chars
+    return randomBytes(16).toString('hex');
   }
 
   async create(createdById: string, role: UserRole): Promise<Invite> {

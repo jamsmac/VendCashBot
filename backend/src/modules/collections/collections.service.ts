@@ -137,9 +137,10 @@ export class CollectionsService {
           const saved = await queryRunner.manager.save(collection);
           results.collections.push(saved);
           results.created++;
-        } catch (error: any) {
+        } catch (error: unknown) {
           results.failed++;
-          results.errors.push({ index: i, error: error.message });
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          results.errors.push({ index: i, error: message });
         }
       }
 

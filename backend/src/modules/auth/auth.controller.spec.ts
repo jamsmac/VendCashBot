@@ -125,18 +125,14 @@ describe('AuthController', () => {
   });
 
   describe('me', () => {
-    it('should return the current user from request', async () => {
-      const mockRequest = { user: mockUser };
-
-      const result = await controller.me(mockRequest);
+    it('should return the current user', async () => {
+      const result = await controller.me(mockUser);
 
       expect(result).toEqual(mockUser);
     });
 
     it('should return user with all properties', async () => {
-      const mockRequest = { user: mockUser };
-
-      const result = await controller.me(mockRequest);
+      const result = await controller.me(mockUser);
 
       expect(result.id).toBe(mockUser.id);
       expect(result.telegramId).toBe(mockUser.telegramId);

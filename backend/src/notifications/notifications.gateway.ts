@@ -10,10 +10,12 @@ import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { Collection } from '../modules/collections/entities/collection.entity';
+import { Machine } from '../modules/machines/entities/machine.entity';
 
 export interface NotificationPayload {
   type: 'collection_created' | 'collection_received' | 'collection_cancelled' | 'machine_approved' | 'machine_rejected';
-  data: any;
+  data: Collection | Machine;
   timestamp: Date;
 }
 
@@ -84,7 +86,8 @@ export class NotificationsGateway
 
       this.logger.log(`Client connected: ${client.id} (user: ${payload.sub}, role: ${payload.role})`);
     } catch (error) {
-      this.logger.error(`Connection error: ${error.message}`);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Connection error: ${message}`);
       client.disconnect();
     }
   }
@@ -103,7 +106,7 @@ export class NotificationsGateway
   }
 
   // Notify all connected managers and admins about new collection
-  notifyNewCollection(collection: any) {
+  notifyNewCollection(collection: Collection): void {
     const payload: NotificationPayload = {
       type: 'collection_created',
       data: collection,
@@ -115,7 +118,7 @@ export class NotificationsGateway
   }
 
   // Notify operator when their collection is received
-  notifyCollectionReceived(collection: any, operatorId: string) {
+  notifyCollectionReceived(collection: Collection, operatorId: string): void {
     const payload: NotificationPayload = {
       type: 'collection_received',
       data: collection,
@@ -128,7 +131,7 @@ export class NotificationsGateway
   }
 
   // Notify about cancelled collection
-  notifyCollectionCancelled(collection: any, operatorId: string) {
+  notifyCollectionCancelled(collection: Collection, operatorId: string): void {
     const payload: NotificationPayload = {
       type: 'collection_cancelled',
       data: collection,
@@ -140,7 +143,7 @@ export class NotificationsGateway
   }
 
   // Notify about machine approval
-  notifyMachineApproved(machine: any, creatorId: string) {
+  notifyMachineApproved(machine: Machine, creatorId: string): void {
     const payload: NotificationPayload = {
       type: 'machine_approved',
       data: machine,
@@ -152,7 +155,7 @@ export class NotificationsGateway
   }
 
   // Notify about machine rejection
-  notifyMachineRejected(machine: any, creatorId: string) {
+  notifyMachineRejected(machine: Machine, creatorId: string): void {
     const payload: NotificationPayload = {
       type: 'machine_rejected',
       data: machine,
@@ -163,7 +166,7 @@ export class NotificationsGateway
   }
 
   // Broadcast to all connected clients
-  broadcast(event: string, data: any) {
+  broadcast(event: string, data: NotificationPayload): void {
     this.server.emit(event, data);
   }
 

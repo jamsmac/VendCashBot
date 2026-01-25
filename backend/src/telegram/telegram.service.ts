@@ -16,6 +16,13 @@ type MyContext = Context & SessionFlavor<SessionData> & { user?: User };
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isValidUUID = (str: string): boolean => UUID_REGEX.test(str);
 
+// Helper to extract error message from unknown error type
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return 'Неизвестная ошибка';
+};
+
 @Injectable()
 export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TelegramService.name);
@@ -243,8 +250,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             reply_markup: this.getMainMenu(user),
           },
         );
-      } catch (error: any) {
-        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+      } catch (error: unknown) {
+        const safeError = this.escapeHtml(getErrorMessage(error));
         await ctx.reply(`❌ Ошибка регистрации: ${safeError}`);
       }
     });
@@ -289,8 +296,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 .text('🏠 Меню', 'main_menu'),
             },
           );
-        } catch (error: any) {
-          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+        } catch (error: unknown) {
+          const safeError = this.escapeHtml(getErrorMessage(error));
           await ctx.reply(`❌ Ошибка: ${safeError}`);
           ctx.session.step = 'idle';
           ctx.session.pendingCollectionId = undefined;
@@ -558,8 +565,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 .text('📝 К текстам', 'settings_texts'),
             },
           );
-        } catch (error: any) {
-          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+        } catch (error: unknown) {
+          const safeError = this.escapeHtml(getErrorMessage(error));
           await ctx.reply(`❌ Ошибка: ${safeError}`);
           ctx.session.step = 'idle';
           ctx.session.editingTextKey = undefined;
@@ -600,8 +607,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 .text('◀️ В настройки', 'bot_settings'),
             },
           );
-        } catch (error: any) {
-          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+        } catch (error: unknown) {
+          const safeError = this.escapeHtml(getErrorMessage(error));
           await ctx.reply(`❌ Ошибка: ${safeError}`);
           ctx.session.step = 'idle';
         }
@@ -635,8 +642,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 .text('◀️ В настройки', 'bot_settings'),
             },
           );
-        } catch (error: any) {
-          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+        } catch (error: unknown) {
+          const safeError = this.escapeHtml(getErrorMessage(error));
           await ctx.reply(`❌ Ошибка: ${safeError}`);
           ctx.session.step = 'idle';
         }
@@ -691,8 +698,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 .text('🏠 Меню', 'main_menu'),
             },
           );
-        } catch (error: any) {
-          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+        } catch (error: unknown) {
+          const safeError = this.escapeHtml(getErrorMessage(error));
           await ctx.reply(`❌ Ошибка: ${safeError}`);
           ctx.session.step = 'idle';
           ctx.session.selectedMachineId = undefined;
@@ -737,8 +744,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
               reply_markup: this.getMainMenu(ctx.user),
             },
           );
-        } catch (error: any) {
-          const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+        } catch (error: unknown) {
+          const safeError = this.escapeHtml(getErrorMessage(error));
           await ctx.reply(`❌ Ошибка: ${safeError}`);
           ctx.session.step = 'idle';
           ctx.session.newMachineCode = undefined;
@@ -962,8 +969,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
         // Notify creator
         await this.notifyCreatorMachineApproved(machine);
-      } catch (error: any) {
-        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+      } catch (error: unknown) {
+        const safeError = this.escapeHtml(getErrorMessage(error));
         await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
       }
     });
@@ -1004,8 +1011,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
         // Notify creator
         await this.notifyCreatorMachineRejected(machine);
-      } catch (error: any) {
-        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+      } catch (error: unknown) {
+        const safeError = this.escapeHtml(getErrorMessage(error));
         await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
       }
     });
@@ -1384,8 +1391,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
               .text('🏠 Меню', 'main_menu'),
           },
         );
-      } catch (error: any) {
-        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+      } catch (error: unknown) {
+        const safeError = this.escapeHtml(getErrorMessage(error));
         await ctx.editMessageText(`❌ Ошибка: ${safeError}`);
       }
     });
@@ -1617,8 +1624,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
               .text('🏠 Меню', 'main_menu'),
           },
         );
-      } catch (error: any) {
-        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+      } catch (error: unknown) {
+        const safeError = this.escapeHtml(getErrorMessage(error));
         await ctx.reply(`❌ Ошибка: ${safeError}`);
       }
     });
@@ -1771,8 +1778,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
               .text('🏠 Меню', 'main_menu'),
           },
         );
-      } catch (error: any) {
-        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+      } catch (error: unknown) {
+        const safeError = this.escapeHtml(getErrorMessage(error));
         await ctx.editMessageText(`❌ Ошибка: ${safeError}`, {
           reply_markup: new InlineKeyboard()
             .text('◀️ Назад', 'list_invites'),
@@ -1957,8 +1964,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             reply_markup: keyboard,
           },
         );
-      } catch (error: any) {
-        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+      } catch (error: unknown) {
+        const safeError = this.escapeHtml(getErrorMessage(error));
         await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
       }
     });
@@ -2239,8 +2246,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `обратитесь к админу`,
           { parse_mode: 'HTML' },
         );
-      } catch (error: any) {
-        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+      } catch (error: unknown) {
+        const safeError = this.escapeHtml(getErrorMessage(error));
         await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
       }
     });
@@ -2401,8 +2408,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             reply_markup: new InlineKeyboard().text('◀️ К текстам', 'settings_texts'),
           },
         );
-      } catch (error: any) {
-        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+      } catch (error: unknown) {
+        const safeError = this.escapeHtml(getErrorMessage(error));
         await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
       }
     });
@@ -2430,8 +2437,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             reply_markup: new InlineKeyboard().text('◀️ К текстам', 'settings_texts'),
           },
         );
-      } catch (error: any) {
-        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+      } catch (error: unknown) {
+        const safeError = this.escapeHtml(getErrorMessage(error));
         await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
       }
     });
@@ -2498,8 +2505,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
               .text('◀️ В настройки', 'bot_settings'),
           },
         );
-      } catch (error: any) {
-        const safeError = this.escapeHtml(error.message || 'Неизвестная ошибка');
+      } catch (error: unknown) {
+        const safeError = this.escapeHtml(getErrorMessage(error));
         await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
       }
     });

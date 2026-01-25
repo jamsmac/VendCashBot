@@ -13,7 +13,7 @@ export class Invite {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true, length: 20 })
+  @Column({ unique: true, length: 64 })
   code: string;
 
   @Column({ type: 'enum', enum: UserRole })

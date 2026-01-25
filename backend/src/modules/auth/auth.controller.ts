@@ -4,7 +4,6 @@ import {
   Get,
   Body,
   UseGuards,
-  Request,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -41,8 +40,8 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current user' })
-  async me(@Request() req: any) {
-    return req.user;
+  async me(@CurrentUser() user: User): Promise<User> {
+    return user;
   }
 
   @Post('refresh')
