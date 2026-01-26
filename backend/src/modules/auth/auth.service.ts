@@ -32,7 +32,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
-  ) {}
+  ) { }
 
   async validateTelegramAuth(authData: TelegramAuthData): Promise<User> {
     // Verify Telegram auth data
@@ -75,16 +75,20 @@ export class AuthService {
   private verifyTelegramAuth(authData: TelegramAuthData): boolean {
     const botToken = this.configService.get('telegram.botToken');
     if (!botToken) {
+      console.error('[Auth] No bot token configured');
       return false;
     }
 
     const { hash, ...data } = authData;
 
-    // Create data check string
+    // Create data check string - IMPORTANT: filter out undefined/null values
     const dataCheckArr = Object.keys(data)
+      .filter((key) => data[key as keyof typeof data] !== undefined && data[key as keyof typeof data] !== null)
       .sort()
       .map((key) => `${key}=${data[key as keyof typeof data]}`)
       .join('\n');
+
+    console.log('[Auth] Data check string:', dataCheckArr);
 
     // Create secret key from bot token
     const secretKey = crypto.createHash('sha256').update(botToken).digest();
@@ -94,6 +98,10 @@ export class AuthService {
       .createHmac('sha256', secretKey)
       .update(dataCheckArr)
       .digest('hex');
+
+    console.log('[Auth] Received hash:', hash);
+    console.log('[Auth] Calculated hash:', calculatedHash);
+    console.log('[Auth] Hash match:', calculatedHash === hash);
 
     return calculatedHash === hash;
   }
