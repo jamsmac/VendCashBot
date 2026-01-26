@@ -13,7 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 export class LoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger('HTTP');
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const ctx = context.switchToHttp();
     const request = ctx.getRequest();
     const response = ctx.getResponse();
@@ -25,7 +25,6 @@ export class LoggingInterceptor implements NestInterceptor {
     response.setHeader?.('X-Request-ID', requestId);
 
     const { method, url, ip } = request;
-    const userAgent = request.get?.('user-agent') || '';
     const userId = request.user?.id || 'anon';
 
     const now = Date.now();

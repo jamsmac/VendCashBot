@@ -8,11 +8,12 @@ import { CollectionsService } from './collections.service';
 import { Collection, CollectionStatus, CollectionSource } from './entities/collection.entity';
 import { CollectionHistory } from './entities/collection-history.entity';
 import { MachinesService } from '../machines/machines.service';
+import { TelegramService } from '../../telegram/telegram.service';
 
 describe('CollectionsService', () => {
   let service: CollectionsService;
   let collectionRepository: jest.Mocked<Repository<Collection>>;
-  let historyRepository: jest.Mocked<Repository<CollectionHistory>>;
+  let _historyRepository: jest.Mocked<Repository<CollectionHistory>>;
   let machinesService: jest.Mocked<MachinesService>;
   let mockQueryRunner: any;
 
@@ -71,6 +72,12 @@ describe('CollectionsService', () => {
           },
         },
         {
+          provide: TelegramService,
+          useValue: {
+            notifyManagersAboutNewCollection: jest.fn(),
+          },
+        },
+        {
           provide: CACHE_MANAGER,
           useValue: {
             get: jest.fn(),
@@ -109,7 +116,7 @@ describe('CollectionsService', () => {
 
     service = module.get<CollectionsService>(CollectionsService);
     collectionRepository = module.get(getRepositoryToken(Collection));
-    historyRepository = module.get(getRepositoryToken(CollectionHistory));
+    _historyRepository = module.get(getRepositoryToken(CollectionHistory));
     machinesService = module.get(MachinesService);
   });
 

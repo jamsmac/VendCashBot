@@ -1,0 +1,29 @@
+# Dependencies
+node_modules
+
+# Build output (we build inside Docker)
+dist
+
+# Git
+.git
+.gitignore
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test files
+coverage/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Development files
+*.md

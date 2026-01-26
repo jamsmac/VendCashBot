@@ -1,6 +1,7 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Bot, InlineKeyboard, session, Context, SessionFlavor } from 'grammy';
+import { limit } from '@grammyjs/ratelimiter';
 import { UsersService } from '../modules/users/users.service';
 import { InvitesService } from '../modules/invites/invites.service';
 import { MachinesService } from '../modules/machines/machines.service';
@@ -33,9 +34,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     private readonly usersService: UsersService,
     private readonly invitesService: InvitesService,
     private readonly machinesService: MachinesService,
+    @Inject(forwardRef(() => CollectionsService))
     private readonly collectionsService: CollectionsService,
     private readonly settingsService: SettingsService,
-  ) {}
+  ) { }
 
   async onModuleInit() {
     const token = this.configService.get('telegram.botToken');
@@ -66,6 +68,23 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       // Log other errors
       this.logger.error(`Error while handling update ${ctx.update.update_id}:`, error);
     });
+
+    // Rate limiting middleware - prevent spam
+    this.bot.use(
+      limit({
+        timeFrame: 2000, // 2 seconds
+        limit: 3, // max 3 messages per timeFrame
+        onLimitExceeded: async (ctx) => {
+          try {
+            await ctx.reply('⏳ Слишком много запросов. Подождите немного.');
+          } catch {
+            // User may have blocked the bot - ignore
+          }
+        },
+        keyGenerator: (ctx) => ctx.from?.id?.toString() || 'anonymous',
+      }),
+    );
+    this.logger.log('Telegram rate limiting: enabled (3 req/2s)');
 
     // Session middleware - use Redis if available, otherwise in-memory
     const { storage, type } = createSessionStorage(this.configService);
@@ -137,6 +156,54 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     if (this.bot) {
       await this.bot.stop();
       this.logger.log('Telegram bot stopped');
+    }
+  }
+
+  /**
+   * Send a message to a specific Telegram user
+   * Used for notifications (e.g., new collection alerts)
+   */
+  async sendMessage(telegramId: number | string, text: string, parseMode: 'HTML' | 'Markdown' = 'HTML'): Promise<boolean> {
+    if (!this.bot) {
+      this.logger.warn('Cannot send message: bot not initialized');
+      return false;
+    }
+    try {
+      await this.bot.api.sendMessage(telegramId, text, { parse_mode: parseMode });
+      return true;
+    } catch (error) {
+      const message = getErrorMessage(error);
+      // Don't log "blocked by user" as error
+      if (message.includes('bot was blocked') || message.includes('Forbidden')) {
+        this.logger.debug(`Could not send message to ${telegramId}: ${message}`);
+      } else {
+        this.logger.error(`Failed to send message to ${telegramId}: ${message}`);
+      }
+      return false;
+    }
+  }
+
+  /**
+   * Notify managers about a new collection
+   */
+  async notifyManagersAboutNewCollection(
+    machineName: string,
+    operatorName: string,
+    collectedAt: Date,
+  ): Promise<void> {
+    const managers = await this.usersService.findAllActive([UserRole.MANAGER, UserRole.ADMIN]);
+
+    const message =
+      `🆕 <b>Новая инкассация!</b>\n\n` +
+      `📍 Автомат: <b>${machineName}</b>\n` +
+      `👤 Оператор: ${operatorName}\n` +
+      `🕐 Время: ${collectedAt.toLocaleString('ru-RU', { timeZone: 'Asia/Tashkent' })}\n\n` +
+      `<i>Ожидает приёма в системе.</i>`;
+
+    for (const manager of managers) {
+      if (manager.telegramId) {
+        await this.sendMessage(manager.telegramId, message);
+      }
     }
   }
 
@@ -362,8 +429,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           const safeExistingName = this.escapeHtml(existing.name);
           await ctx.reply(
             `⚠️ Автомат с кодом "${this.escapeHtml(code)}" уже существует:\n` +
-              `${safeExistingName}\n\n` +
-              'Введите другой код или вернитесь в меню:',
+            `${safeExistingName}\n\n` +
+            'Введите другой код или вернитесь в меню:',
             {
               parse_mode: 'HTML',
               reply_markup: new InlineKeyboard().text('◀️ В меню', 'main_menu'),
@@ -448,8 +515,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           const minutes = parseInt(fullMatch[5], 10);
 
           if (day >= 1 && day <= 31 && month >= 0 && month <= 11 &&
-              year >= 2020 && year <= 2030 &&
-              hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+            year >= 2020 && year <= 2030 &&
+            hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
             parsedDate = new Date(year, month, day, hours, minutes, 0, 0);
           }
         }
@@ -462,7 +529,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           const year = parseInt(dateOnlyMatch[3], 10);
 
           if (day >= 1 && day <= 31 && month >= 0 && month <= 11 &&
-              year >= 2020 && year <= 2030) {
+            year >= 2020 && year <= 2030) {
             const now = new Date();
             parsedDate = new Date(year, month, day, now.getHours(), now.getMinutes(), 0, 0);
           }
@@ -871,7 +938,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const safeName = this.escapeHtml(machine.name);
         await ctx.editMessageText(
           `⚠️ Автомат "${safeName}" ещё не подтверждён администратором.\n\n` +
-            'Дождитесь подтверждения или выберите другой автомат.',
+          'Дождитесь подтверждения или выберите другой автомат.',
           {
             parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
@@ -1717,8 +1784,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const status = invite.isUsed
         ? '✅ Использовано'
         : invite.isExpired
-        ? '⏰ Истекло'
-        : '🟡 Активно';
+          ? '⏰ Истекло'
+          : '🟡 Активно';
 
       const expiresIn = Math.max(0, Math.ceil((invite.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60)));
       const creatorName = invite.createdBy ? this.escapeHtml(invite.createdBy.name) : 'Неизвестно';
@@ -2590,9 +2657,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await this.bot.api.sendMessage(
         creator.telegramId,
         `✅ Ваш автомат подтверждён!\n\n` +
-          `📟 Код: <code>${machine.code}</code>\n` +
-          `📝 Название: ${safeMachineName}\n\n` +
-          `Теперь вы можете использовать его для инкассаций.`,
+        `📟 Код: <code>${machine.code}</code>\n` +
+        `📝 Название: ${safeMachineName}\n\n` +
+        `Теперь вы можете использовать его для инкассаций.`,
         { parse_mode: 'HTML' },
       );
     } catch (error) {
@@ -2614,9 +2681,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await this.bot.api.sendMessage(
         creator.telegramId,
         `❌ Ваш автомат отклонён\n\n` +
-          `📟 Код: <code>${machine.code}</code>\n` +
-          `📝 Название: ${safeMachineName}\n\n` +
-          `Причина: ${safeReason}`,
+        `📟 Код: <code>${machine.code}</code>\n` +
+        `📝 Название: ${safeMachineName}\n\n` +
+        `Причина: ${safeReason}`,
         { parse_mode: 'HTML' },
       );
     } catch (error) {

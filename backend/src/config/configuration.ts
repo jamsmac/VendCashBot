@@ -1,16 +1,13 @@
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Validate required environment variables in production
-function requireEnv(name: string, defaultValue?: string): string {
-  const value = process.env[name] || defaultValue;
-  if (!value && isProduction) {
-    throw new Error(`Environment variable ${name} is required in production`);
-  }
-  return value || '';
+// Helper for environment variables (used by warnIfDefault and for explicit env access)
+function getEnv(name: string, defaultValue?: string): string {
+  return process.env[name] || defaultValue || '';
 }
 
 // Warn about insecure defaults in development
-function warnIfDefault(name: string, value: string, defaultValue: string): string {
+function warnIfDefault(name: string, defaultValue: string): string {
+  const value = getEnv(name, defaultValue);
   if (value === defaultValue && !isProduction) {
     console.warn(`⚠️  Warning: Using default value for ${name}. Set it in .env for security.`);
   }
@@ -18,10 +15,15 @@ function warnIfDefault(name: string, value: string, defaultValue: string): strin
 }
 
 export default () => {
-  // Critical: JWT secret must be set in production
+  // Critical: JWT secret must be set and strong in production
   const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret && isProduction) {
-    throw new Error('JWT_SECRET is required in production environment');
+  if (isProduction) {
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET is required in production environment');
+    }
+    if (jwtSecret.length < 32) {
+      throw new Error('JWT_SECRET must be at least 32 characters long for security');
+    }
   }
 
   // Critical: Telegram bot token must always be set
@@ -37,11 +39,7 @@ export default () => {
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '5432', 10),
       username: process.env.DB_USERNAME || 'vendcash',
-      password: warnIfDefault(
-        'DB_PASSWORD',
-        process.env.DB_PASSWORD || 'vendcash',
-        'vendcash',
-      ),
+      password: warnIfDefault('DB_PASSWORD', 'vendcash'),
       database: process.env.DB_DATABASE || 'vendcash',
     },
     redis: {

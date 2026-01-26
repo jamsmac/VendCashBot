@@ -1,0 +1,42 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Git
+.git
+.gitignore
+
+# Environment files - NEVER include in image
+.env
+.env.*
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Test files
+coverage/
+.nyc_output/
+test/
+*.spec.ts
+*.e2e-spec.ts
+jest*.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Documentation
+*.md
+!README.md
+
+# Development config
+.eslintrc.js
+.prettierrc
+tsconfig.build.json
+nest-cli.json

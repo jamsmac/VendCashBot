@@ -1,4 +1,4 @@
-import { IsArray, ValidateNested, IsOptional, IsString, IsNumber, IsUUID, IsEnum, IsDateString, Min, ArrayMaxSize } from 'class-validator';
+import { IsArray, ValidateNested, IsOptional, IsString, IsNumber, IsUUID, IsEnum, IsDateString, Min, Max, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { CollectionSource } from '../entities/collection.entity';
@@ -21,6 +21,7 @@ class BulkCollectionItemDto {
   @ApiProperty({ description: 'Amount in UZS', required: false })
   @IsNumber()
   @Min(0)
+  @Max(1000000000, { message: 'Amount cannot exceed 1,000,000,000 UZS' })
   @IsOptional()
   amount?: number;
 

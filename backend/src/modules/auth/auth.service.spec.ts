@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UnauthorizedException } from '@nestjs/common';
-import { AuthService, TelegramAuthData } from './auth.service';
+import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
@@ -13,7 +13,7 @@ describe('AuthService', () => {
   let service: AuthService;
   let usersService: jest.Mocked<UsersService>;
   let jwtService: jest.Mocked<JwtService>;
-  let configService: jest.Mocked<ConfigService>;
+  let _configService: jest.Mocked<ConfigService>;
   let refreshTokenRepository: jest.Mocked<Repository<RefreshToken>>;
 
   const mockUser: User = {
@@ -78,7 +78,7 @@ describe('AuthService', () => {
     service = module.get<AuthService>(AuthService);
     usersService = module.get(UsersService);
     jwtService = module.get(JwtService);
-    configService = module.get(ConfigService);
+    _configService = module.get(ConfigService);
     refreshTokenRepository = module.get(getRepositoryToken(RefreshToken));
   });
 

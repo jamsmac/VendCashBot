@@ -194,10 +194,19 @@ describe('CollectionsController', () => {
   });
 
   describe('findOne', () => {
-    it('should return a collection by ID', async () => {
+    it('should return a collection by ID for operator who owns it', async () => {
       collectionsService.findByIdOrFail.mockResolvedValue(mockCollection);
 
-      const result = await controller.findOne('collection-123');
+      const result = await controller.findOne('collection-123', mockUser);
+
+      expect(collectionsService.findByIdOrFail).toHaveBeenCalledWith('collection-123');
+      expect(result).toEqual(mockCollection);
+    });
+
+    it('should return a collection by ID for manager', async () => {
+      collectionsService.findByIdOrFail.mockResolvedValue(mockCollection);
+
+      const result = await controller.findOne('collection-123', mockManagerUser);
 
       expect(collectionsService.findByIdOrFail).toHaveBeenCalledWith('collection-123');
       expect(result).toEqual(mockCollection);

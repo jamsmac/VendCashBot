@@ -1,5 +1,5 @@
-import { Controller, Get } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Controller, Get, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import {
   HealthCheckService,
@@ -9,6 +9,10 @@ import {
   DiskHealthIndicator,
 } from '@nestjs/terminus';
 import { Public } from '../common/decorators/public.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { UserRole } from '../modules/users/entities/user.entity';
 
 @ApiTags('Health')
 @Controller('health')
@@ -21,10 +25,16 @@ export class HealthController {
     private disk: DiskHealthIndicator,
   ) {}
 
+  /**
+   * Detailed health check - restricted to admins only
+   * Exposes memory usage and database status
+   */
   @Get()
-  @Public()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
   @HealthCheck()
-  @ApiOperation({ summary: 'Health check' })
+  @ApiOperation({ summary: 'Detailed health check (admin only)' })
   check() {
     return this.health.check([
       // Database connectivity check

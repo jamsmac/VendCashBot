@@ -3,15 +3,18 @@ import {
   NotFoundException,
   BadRequestException,
   Inject,
+  Logger,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Repository, Between, LessThan, MoreThan, DataSource } from 'typeorm';
+import { Repository, Between, DataSource } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { Collection, CollectionStatus, CollectionSource } from './entities/collection.entity';
 import { CollectionHistory } from './entities/collection-history.entity';
 import { MachinesService } from '../machines/machines.service';
+import { TelegramService } from '../../telegram/telegram.service';
 import { CreateCollectionDto } from './dto/create-collection.dto';
 import { ReceiveCollectionDto } from './dto/receive-collection.dto';
 import { EditCollectionDto } from './dto/edit-collection.dto';
@@ -20,6 +23,7 @@ import { CollectionQueryDto } from './dto/collection-query.dto';
 
 @Injectable()
 export class CollectionsService {
+  private readonly logger = new Logger(CollectionsService.name);
   private readonly duplicateCheckMinutes: number;
 
   constructor(
@@ -28,6 +32,8 @@ export class CollectionsService {
     @InjectRepository(CollectionHistory)
     private readonly historyRepository: Repository<CollectionHistory>,
     private readonly machinesService: MachinesService,
+    @Inject(forwardRef(() => TelegramService))
+    private readonly telegramService: TelegramService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
@@ -86,7 +92,27 @@ export class CollectionsService {
 
     const saved = await this.collectionRepository.save(collection);
     await this.invalidateReportsCache();
+
+    // Notify managers about new collection (async, don't block)
+    this.notifyManagersAsync(saved.id).catch((err) => {
+      this.logger.warn(`Failed to notify managers: ${err.message}`);
+    });
+
     return saved;
+  }
+
+  /**
+   * Notify managers about a new collection asynchronously
+   */
+  private async notifyManagersAsync(collectionId: string): Promise<void> {
+    const collection = await this.findByIdOrFail(collectionId);
+    if (collection.machine && collection.operator) {
+      await this.telegramService.notifyManagersAboutNewCollection(
+        collection.machine.name,
+        collection.operator.name,
+        collection.collectedAt,
+      );
+    }
   }
 
   async bulkCreate(dto: BulkCreateCollectionDto, operatorId: string): Promise<{
@@ -249,6 +275,10 @@ export class CollectionsService {
         throw new BadRequestException('Collection is not in collected status');
       }
 
+      // Store old values for audit logging
+      const oldStatus = collection.status;
+      const oldAmount = collection.amount;
+
       collection.managerId = managerId;
       collection.amount = dto.amount;
       collection.receivedAt = new Date();
@@ -258,6 +288,28 @@ export class CollectionsService {
       }
 
       const saved = await queryRunner.manager.save(collection);
+
+      // Create audit records for receive operation
+      const historyStatus = queryRunner.manager.create(CollectionHistory, {
+        collectionId: id,
+        changedById: managerId,
+        fieldName: 'status',
+        oldValue: oldStatus,
+        newValue: CollectionStatus.RECEIVED,
+        reason: 'Collection received by manager',
+      });
+      await queryRunner.manager.save(historyStatus);
+
+      const historyAmount = queryRunner.manager.create(CollectionHistory, {
+        collectionId: id,
+        changedById: managerId,
+        fieldName: 'amount',
+        oldValue: oldAmount?.toString() || undefined,
+        newValue: dto.amount.toString(),
+        reason: 'Initial amount set on receive',
+      });
+      await queryRunner.manager.save(historyAmount);
+
       await queryRunner.commitTransaction();
       await this.invalidateReportsCache();
       return saved;

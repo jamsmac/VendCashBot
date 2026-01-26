@@ -7,6 +7,7 @@ import {
   Param,
   Query,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CollectionsService } from './collections.service';
@@ -51,11 +52,19 @@ export class CollectionsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get collection by ID' })
-  async findOne(@Param('id') id: string) {
-    return this.collectionsService.findByIdOrFail(id);
+  async findOne(@Param('id') id: string, @CurrentUser() user: User) {
+    const collection = await this.collectionsService.findByIdOrFail(id);
+
+    // IDOR protection: operators can only view their own collections
+    if (user.role === UserRole.OPERATOR && collection.operatorId !== user.id) {
+      throw new ForbiddenException('You can only view your own collections');
+    }
+
+    return collection;
   }
 
   @Get(':id/history')
+  @Roles(UserRole.MANAGER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Get collection change history' })
   async getHistory(@Param('id') id: string) {
     return this.collectionsService.getHistory(id);

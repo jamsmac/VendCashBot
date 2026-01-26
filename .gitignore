@@ -8,10 +8,14 @@ dist/
 build/
 *.tsbuildinfo
 
-# Environment files
+# Environment files - CRITICAL: Never commit secrets!
 .env
 .env.local
 .env.*.local
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
 
 # Logs
 logs/

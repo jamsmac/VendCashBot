@@ -365,7 +365,6 @@ describe('MachinesController', () => {
 
   describe('activate', () => {
     it('should activate a machine', async () => {
-      const inactiveMachine = { ...mockMachine, isActive: false };
       const activatedMachine = { ...mockMachine, isActive: true };
       machinesService.activate.mockResolvedValue(activatedMachine as Machine);
 

@@ -86,4 +86,14 @@ export class UsersService {
       order: { createdAt: 'DESC' },
     });
   }
+
+  /**
+   * Find all active users with specified roles
+   * Used for notifications
+   */
+  async findAllActive(roles: UserRole[]): Promise<User[]> {
+    return this.userRepository.find({
+      where: roles.map((role) => ({ role, isActive: true })),
+    });
+  }
 }
