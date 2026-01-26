@@ -6,14 +6,12 @@ import NotificationBell from './NotificationBell'
 import {
   LayoutDashboard,
   ClipboardList,
-  Clock,
   BarChart3,
   Settings,
   Users,
   LogOut,
   Menu,
   X,
-  History,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -31,13 +29,10 @@ export default function Layout() {
   }
 
   const isAdmin = user?.role === 'admin'
-  const isManager = user?.role === 'manager' || isAdmin
 
   const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Главная' },
-    { to: '/collections/pending', icon: Clock, label: 'Ожидают приёма' },
     { to: '/collections', icon: ClipboardList, label: 'Инкассации' },
-    ...(isManager ? [{ to: '/collections/history', icon: History, label: 'Ввод истории' }] : []),
     { to: '/reports', icon: BarChart3, label: 'Отчёты' },
     ...(isAdmin ? [{ to: '/machines', icon: Settings, label: 'Автоматы' }] : []),
     ...(isAdmin ? [{ to: '/users', icon: Users, label: 'Сотрудники' }] : []),
@@ -67,9 +62,8 @@ export default function Layout() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-full w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-200 lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed top-0 left-0 z-50 h-full w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-200 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
       >
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <span className="font-bold text-xl text-primary-600 dark:text-primary-400">VendCash</span>
@@ -91,10 +85,9 @@ export default function Layout() {
               to={item.to}
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                  isActive
-                    ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${isActive
+                  ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`
               }
             >

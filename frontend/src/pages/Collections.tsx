@@ -1,223 +1,89 @@
-import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { collectionsApi, Collection, CollectionQuery } from '../api/collections'
-import { machinesApi } from '../api/machines'
-import { format } from 'date-fns'
-import { Filter, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
-import ReceiveModal from '../components/ReceiveModal'
-import toast from 'react-hot-toast'
+import { History } from 'lucide-react'
+import CollectionsList from './collections/CollectionsList'
+import PendingCollections from './collections/PendingCollections'
+import BankDeposits from './collections/BankDeposits'
+import { useQuery } from '@tanstack/react-query'
+import { collectionsApi } from '../api/collections'
+
+type Tab = 'list' | 'pending' | 'finance'
 
 export default function Collections() {
-  const [query, setQuery] = useState<CollectionQuery>({ page: 1, limit: 20 })
-  const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null)
-  const [showFilters, setShowFilters] = useState(false)
+  const [activeTab, setActiveTab] = useState<Tab>('list')
 
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ['collections', query],
-    queryFn: () => collectionsApi.getAll(query),
+  // Fetch pending count for the badge
+  const { data: pending } = useQuery({
+    queryKey: ['pending-count'],
+    queryFn: collectionsApi.getPending,
+    refetchInterval: 30000,
   })
-
-  const { data: machines } = useQuery({
-    queryKey: ['machines'],
-    queryFn: () => machinesApi.getAll(),
-  })
-
-  const handleReceive = async (amount: number, notes?: string) => {
-    if (!selectedCollection) return
-    try {
-      await collectionsApi.receive(selectedCollection.id, { amount, notes })
-      toast.success('Инкассация принята!')
-      setSelectedCollection(null)
-      refetch()
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Ошибка')
-    }
-  }
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'collected':
-        return <span className="badge badge-warning">⏳ Ожидает</span>
-      case 'received':
-        return <span className="badge badge-success">✅ Принято</span>
-      case 'cancelled':
-        return <span className="badge badge-danger">❌ Отменено</span>
-      default:
-        return null
-    }
-  }
-
-  const totalPages = Math.ceil((data?.total || 0) / (query.limit || 20))
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Инкассации</h1>
         <Link to="/collections/history" className="btn btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" />
+          <History className="w-4 h-4" />
           Ввод истории
         </Link>
       </div>
 
-      {/* Filters */}
-      <div className="card p-4">
-        <div className="flex flex-wrap items-center gap-4">
+      {/* Tabs */}
+      <div className="border-b border-gray-200 dark:border-gray-700">
+        <nav className="flex space-x-8" aria-label="Tabs">
           <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="btn btn-secondary flex items-center gap-2"
+            onClick={() => setActiveTab('list')}
+            className={`
+              whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+              ${activeTab === 'list'
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }
+            `}
           >
-            <Filter className="w-4 h-4" />
-            Фильтры
+            Журнал операций
           </button>
 
-          <select
-            className="input w-auto"
-            value={query.status || ''}
-            onChange={(e) => setQuery({ ...query, status: e.target.value || undefined, page: 1 })}
+          <button
+            onClick={() => setActiveTab('pending')}
+            className={`
+              whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center gap-2
+              ${activeTab === 'pending'
+                ? 'border-yellow-500 text-yellow-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }
+            `}
           >
-            <option value="">Все статусы</option>
-            <option value="collected">Ожидают</option>
-            <option value="received">Принято</option>
-            <option value="cancelled">Отменено</option>
-          </select>
-
-          {showFilters && (
-            <>
-              <select
-                className="input w-auto"
-                value={query.machineId || ''}
-                onChange={(e) =>
-                  setQuery({ ...query, machineId: e.target.value || undefined, page: 1 })
-                }
-              >
-                <option value="">Все автоматы</option>
-                {machines?.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-
-              <input
-                type="date"
-                className="input w-auto"
-                value={query.from || ''}
-                onChange={(e) => setQuery({ ...query, from: e.target.value || undefined, page: 1 })}
-              />
-              <span>—</span>
-              <input
-                type="date"
-                className="input w-auto"
-                value={query.to || ''}
-                onChange={(e) => setQuery({ ...query, to: e.target.value || undefined, page: 1 })}
-              />
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Время</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Автомат</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Оператор</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Сумма</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Статус</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Действия</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                    Загрузка...
-                  </td>
-                </tr>
-              ) : data?.data.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                    Нет данных
-                  </td>
-                </tr>
-              ) : (
-                data?.data.map((collection) => (
-                  <tr key={collection.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm">
-                      <div>{format(new Date(collection.collectedAt), 'dd.MM.yyyy')}</div>
-                      <div className="text-gray-500">
-                        {format(new Date(collection.collectedAt), 'HH:mm:ss')}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{collection.machine.name}</div>
-                      <div className="text-sm text-gray-500">{collection.machine.code}</div>
-                    </td>
-                    <td className="px-4 py-3 text-sm">{collection.operator.name}</td>
-                    <td className="px-4 py-3 text-sm font-medium">
-                      {collection.amount
-                        ? `${Number(collection.amount).toLocaleString('ru-RU')} сум`
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-3">{getStatusBadge(collection.status)}</td>
-                    <td className="px-4 py-3">
-                      {collection.status === 'collected' && (
-                        <button
-                          onClick={() => setSelectedCollection(collection)}
-                          className="text-primary-600 hover:text-primary-800 font-medium text-sm"
-                        >
-                          Принять
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
-            <div className="text-sm text-gray-500">
-              Всего: {data?.total || 0}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setQuery({ ...query, page: (query.page || 1) - 1 })}
-                disabled={query.page === 1}
-                className="btn btn-secondary p-2"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-sm">
-                {query.page} / {totalPages}
+            Ожидают приёма
+            {(pending?.length || 0) > 0 && (
+              <span className="bg-yellow-100 text-yellow-800 text-xs py-0.5 px-2 rounded-full">
+                {pending?.length}
               </span>
-              <button
-                onClick={() => setQuery({ ...query, page: (query.page || 1) + 1 })}
-                disabled={query.page === totalPages}
-                className="btn btn-secondary p-2"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('finance')}
+            className={`
+              whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+              ${activeTab === 'finance'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }
+            `}
+          >
+            Касса и Банк
+          </button>
+        </nav>
       </div>
 
-      {/* Receive Modal */}
-      {selectedCollection && (
-        <ReceiveModal
-          collection={selectedCollection}
-          onClose={() => setSelectedCollection(null)}
-          onSubmit={handleReceive}
-        />
-      )}
+      {/* Content */}
+      <div className="min-h-[400px]">
+        {activeTab === 'list' && <CollectionsList />}
+        {activeTab === 'pending' && <PendingCollections />}
+        {activeTab === 'finance' && <BankDeposits />}
+      </div>
     </div>
   )
 }

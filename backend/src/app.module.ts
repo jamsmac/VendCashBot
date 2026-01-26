@@ -17,6 +17,7 @@ import { TelegramModule } from './telegram/telegram.module';
 import { HealthModule } from './health/health.module';
 import { CacheModule } from './cache/cache.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { FinanceModule } from './modules/finance/finance.module';
 import configuration from './config/configuration';
 
 @Module({
@@ -69,6 +70,7 @@ import configuration from './config/configuration';
     HealthModule,
     CacheModule,
     NotificationsModule,
+    FinanceModule,
   ],
   providers: [
     {
@@ -81,4 +83,4 @@ import configuration from './config/configuration';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }
