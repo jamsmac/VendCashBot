@@ -8,11 +8,9 @@ RUN npm ci
 
 COPY . .
 
-ARG VITE_API_URL
-ARG VITE_TELEGRAM_BOT_USERNAME
-
-ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_TELEGRAM_BOT_USERNAME=$VITE_TELEGRAM_BOT_USERNAME
+# Production environment variables for Railway
+ENV VITE_API_URL=https://backend-production-0df0d.up.railway.app/api
+ENV VITE_TELEGRAM_BOT_USERNAME=vendhubcashbot
 
 RUN npm run build
 
