@@ -1315,26 +1315,252 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       );
     });
 
-    // Date selection: Custom date
+    // Date selection: Custom date - show calendar
     this.bot.callbackQuery(/^date_custom_(.+)$/, async (ctx) => {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
 
       const machineId = ctx.match[1];
-      ctx.session.selectedMachineId = machineId;
-      ctx.session.step = 'entering_custom_date';
+      const now = new Date();
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
-        `│  📆  <b>ДАТА</b>\n` +
+        `│  📆  <b>КАЛЕНДАРЬ</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `Введите дату и время:\n\n` +
-        `<i>Примеры:</i>\n` +
-        `• 15.01.2026 14:30\n` +
-        `• 20.01.2026`,
+        `Выберите дату сбора:`,
         {
           parse_mode: 'HTML',
-          reply_markup: new InlineKeyboard().text('✖️ Отмена', `machine_${machineId}`),
+          reply_markup: this.buildCalendar(machineId, now.getFullYear(), now.getMonth()),
+        },
+      );
+    });
+
+    // Calendar: Previous month
+    this.bot.callbackQuery(/^cal_prev_(.+)_(\d+)_(\d+)$/, async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      let year = parseInt(ctx.match[2], 10);
+      let month = parseInt(ctx.match[3], 10) - 1;
+
+      if (month < 0) {
+        month = 11;
+        year--;
+      }
+
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  📆  <b>КАЛЕНДАРЬ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `Выберите дату сбора:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: this.buildCalendar(machineId, year, month),
+        },
+      );
+    });
+
+    // Calendar: Next month
+    this.bot.callbackQuery(/^cal_next_(.+)_(\d+)_(\d+)$/, async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      let year = parseInt(ctx.match[2], 10);
+      let month = parseInt(ctx.match[3], 10) + 1;
+
+      // Don't allow going to future months
+      const now = new Date();
+      const selectedMonth = new Date(year, month, 1);
+      if (selectedMonth > now) {
+        await ctx.answerCallbackQuery('Нельзя выбрать будущий месяц');
+        return;
+      }
+
+      if (month > 11) {
+        month = 0;
+        year++;
+      }
+
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  📆  <b>КАЛЕНДАРЬ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `Выберите дату сбора:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: this.buildCalendar(machineId, year, month),
+        },
+      );
+    });
+
+    // Calendar: Day selected - show time selection
+    this.bot.callbackQuery(/^cal_day_(.+)_(\d+)_(\d+)_(\d+)$/, async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      const year = parseInt(ctx.match[2], 10);
+      const month = parseInt(ctx.match[3], 10);
+      const day = parseInt(ctx.match[4], 10);
+
+      const selectedDate = new Date(year, month, day);
+      const dateStr = selectedDate.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tashkent' });
+
+      // Quick time buttons for common times
+      const keyboard = new InlineKeyboard();
+
+      // Morning times
+      keyboard
+        .text('08:00', `cal_time_${machineId}_${year}_${month}_${day}_8_0`)
+        .text('09:00', `cal_time_${machineId}_${year}_${month}_${day}_9_0`)
+        .text('10:00', `cal_time_${machineId}_${year}_${month}_${day}_10_0`)
+        .text('11:00', `cal_time_${machineId}_${year}_${month}_${day}_11_0`)
+        .row();
+
+      // Midday times
+      keyboard
+        .text('12:00', `cal_time_${machineId}_${year}_${month}_${day}_12_0`)
+        .text('13:00', `cal_time_${machineId}_${year}_${month}_${day}_13_0`)
+        .text('14:00', `cal_time_${machineId}_${year}_${month}_${day}_14_0`)
+        .text('15:00', `cal_time_${machineId}_${year}_${month}_${day}_15_0`)
+        .row();
+
+      // Afternoon times
+      keyboard
+        .text('16:00', `cal_time_${machineId}_${year}_${month}_${day}_16_0`)
+        .text('17:00', `cal_time_${machineId}_${year}_${month}_${day}_17_0`)
+        .text('18:00', `cal_time_${machineId}_${year}_${month}_${day}_18_0`)
+        .text('19:00', `cal_time_${machineId}_${year}_${month}_${day}_19_0`)
+        .row();
+
+      // Evening times
+      keyboard
+        .text('20:00', `cal_time_${machineId}_${year}_${month}_${day}_20_0`)
+        .text('21:00', `cal_time_${machineId}_${year}_${month}_${day}_21_0`)
+        .text('22:00', `cal_time_${machineId}_${year}_${month}_${day}_22_0`)
+        .text('23:00', `cal_time_${machineId}_${year}_${month}_${day}_23_0`)
+        .row();
+
+      keyboard
+        .text('◀️ К календарю', `date_custom_${machineId}`)
+        .text('✖️ Отмена', `machine_${machineId}`);
+
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  ⏰  <b>ВРЕМЯ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `📅  <b>${dateStr}</b>\n\n` +
+        `Выберите время:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: keyboard,
+        },
+      );
+    });
+
+    // Calendar: Time selected - confirm collection
+    this.bot.callbackQuery(/^cal_time_(.+)_(\d+)_(\d+)_(\d+)_(\d+)_(\d+)$/, async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      const year = parseInt(ctx.match[2], 10);
+      const month = parseInt(ctx.match[3], 10);
+      const day = parseInt(ctx.match[4], 10);
+      const hour = parseInt(ctx.match[5], 10);
+      const minute = parseInt(ctx.match[6], 10);
+
+      const machine = await this.machinesService.findById(machineId);
+      if (!machine) {
+        await ctx.editMessageText('❌ Автомат не найден');
+        return;
+      }
+
+      const collectionTime = new Date(year, month, day, hour, minute);
+
+      // Check for duplicates
+      const duplicate = await this.collectionsService.checkDuplicate(machineId, collectionTime);
+      if (duplicate) {
+        const time = this.formatTime(duplicate.collectedAt);
+        await ctx.editMessageText(
+          `⚠️ Внимание!\n\nДля этого автомата уже есть сбор в ${time}.\nВы уверены, что хотите создать ещё один?`,
+          {
+            reply_markup: new InlineKeyboard()
+              .text('✅ Да, создать', `confirm_dup_cal_${machineId}_${year}_${month}_${day}_${hour}_${minute}`)
+              .text('❌ Отмена', 'main_menu'),
+          },
+        );
+        return;
+      }
+
+      ctx.session.selectedMachineId = machine.id;
+      ctx.session.collectionTime = collectionTime;
+      ctx.session.step = 'confirming';
+
+      const timeStr = this.formatDateTime(collectionTime);
+      const safeMachineName = this.escapeHtml(machine.name);
+
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `🏧  <b>${safeMachineName}</b>\n` +
+        `📟  <code>${machine.code}</code>\n` +
+        `📍  ${machine.location || '—'}\n\n` +
+        `⏰  ${timeStr}\n\n` +
+        `Подтвердить сбор?`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: new InlineKeyboard()
+            .text('✅ Да', 'confirm_collection')
+            .text('✖️ Отмена', 'main_menu'),
+        },
+      );
+    });
+
+    // Confirm duplicate from calendar
+    this.bot.callbackQuery(/^confirm_dup_cal_(.+)_(\d+)_(\d+)_(\d+)_(\d+)_(\d+)$/, async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      const year = parseInt(ctx.match[2], 10);
+      const month = parseInt(ctx.match[3], 10);
+      const day = parseInt(ctx.match[4], 10);
+      const hour = parseInt(ctx.match[5], 10);
+      const minute = parseInt(ctx.match[6], 10);
+
+      const machine = await this.machinesService.findById(machineId);
+      if (!machine) {
+        await ctx.editMessageText('❌ Автомат не найден');
+        return;
+      }
+
+      const collectionTime = new Date(year, month, day, hour, minute);
+
+      ctx.session.selectedMachineId = machine.id;
+      ctx.session.collectionTime = collectionTime;
+      ctx.session.step = 'confirming';
+
+      const timeStr = this.formatDateTime(collectionTime);
+      const safeMachineName = this.escapeHtml(machine.name);
+
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `🏧  <b>${safeMachineName}</b>\n` +
+        `📟  <code>${machine.code}</code>\n` +
+        `📍  ${machine.location || '—'}\n\n` +
+        `⏰  ${timeStr}\n\n` +
+        `Подтвердить сбор?`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: new InlineKeyboard()
+            .text('✅ Да', 'confirm_collection')
+            .text('✖️ Отмена', 'main_menu'),
         },
       );
     });
@@ -1534,6 +1760,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     // Manager: Pending collections with pagination
     this.bot.callbackQuery(/^pending_collections(?:_(\d+))?$/, async (ctx) => {
       if (!ctx.user) return;
+      // Only managers and admins can receive collections
+      if (ctx.user.role !== UserRole.MANAGER && ctx.user.role !== UserRole.ADMIN) {
+        await ctx.answerCallbackQuery('Недостаточно прав');
+        return;
+      }
       await ctx.answerCallbackQuery();
 
       const page = ctx.match[1] ? parseInt(ctx.match[1], 10) : 0;
@@ -1596,6 +1827,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     // Receive collection
     this.bot.callbackQuery(/^receive_([a-f0-9-]+)(?:_(\d+))?$/, async (ctx) => {
       if (!ctx.user) return;
+      // Only managers and admins can receive collections
+      if (ctx.user.role !== UserRole.MANAGER && ctx.user.role !== UserRole.ADMIN) {
+        await ctx.answerCallbackQuery('Недостаточно прав');
+        return;
+      }
       await ctx.answerCallbackQuery();
 
       const collectionId = ctx.match[1];
@@ -2689,6 +2925,72 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       this.logger.error('Failed to notify creator about rejection:', error);
     }
+  }
+
+  /**
+   * Build an inline calendar keyboard for date selection
+   */
+  private buildCalendar(machineId: string, year: number, month: number): InlineKeyboard {
+    const keyboard = new InlineKeyboard();
+    const today = new Date();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+
+    // Month name
+    const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+      'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+
+    // Navigation row
+    keyboard
+      .text('◀️', `cal_prev_${machineId}_${year}_${month}`)
+      .text(`${monthNames[month]} ${year}`, 'noop')
+      .text('▶️', `cal_next_${machineId}_${year}_${month}`)
+      .row();
+
+    // Day names row
+    keyboard.text('Пн').text('Вт').text('Ср').text('Чт').text('Пт').text('Сб').text('Вс').row();
+
+    // Calculate padding for first week (Monday = 0)
+    let startDay = firstDay.getDay() - 1;
+    if (startDay < 0) startDay = 6;
+
+    // Build day buttons
+    let day = 1;
+    for (let week = 0; week < 6; week++) {
+      if (day > daysInMonth) break;
+
+      for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
+        if (week === 0 && dayOfWeek < startDay) {
+          keyboard.text(' ');
+        } else if (day <= daysInMonth) {
+          const date = new Date(year, month, day);
+          const isToday = date.toDateString() === today.toDateString();
+          const isFuture = date > today;
+          const dayStr = day.toString();
+
+          if (isFuture) {
+            keyboard.text('·'); // Future dates not selectable
+          } else {
+            const label = isToday ? `[${dayStr}]` : dayStr;
+            keyboard.text(label, `cal_day_${machineId}_${year}_${month}_${day}`);
+          }
+          day++;
+        } else {
+          keyboard.text(' ');
+        }
+      }
+      keyboard.row();
+    }
+
+    // Quick buttons
+    keyboard
+      .text('🕐 Сейчас', `date_now_${machineId}`)
+      .text('📅 Сегодня', `date_today_${machineId}`)
+      .row()
+      .text('✖️ Отмена', `machine_${machineId}`);
+
+    return keyboard;
   }
 
   private formatDateTime(date: Date): string {
