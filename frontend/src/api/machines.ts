@@ -5,9 +5,27 @@ export interface Machine {
   code: string
   name: string
   location?: string
+  latitude?: number
+  longitude?: number
   isActive: boolean
   createdAt: string
   updatedAt: string
+}
+
+export interface CreateMachineData {
+  code: string
+  name: string
+  location?: string
+  latitude?: number
+  longitude?: number
+}
+
+export interface UpdateMachineData {
+  name?: string
+  location?: string
+  latitude?: number
+  longitude?: number
+  isActive?: boolean
 }
 
 export const machinesApi = {
@@ -21,12 +39,12 @@ export const machinesApi = {
     return response.data
   },
 
-  create: async (data: { code: string; name: string; location?: string }): Promise<Machine> => {
+  create: async (data: CreateMachineData): Promise<Machine> => {
     const response = await apiClient.post('/machines', data)
     return response.data
   },
 
-  update: async (id: string, data: Partial<Machine>): Promise<Machine> => {
+  update: async (id: string, data: UpdateMachineData): Promise<Machine> => {
     const response = await apiClient.patch(`/machines/${id}`, data)
     return response.data
   },

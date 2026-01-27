@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { machinesApi, Machine } from '../api/machines'
-import { Plus, Edit, X, Check, XCircle } from 'lucide-react'
+import { machinesApi, Machine, CreateMachineData, UpdateMachineData } from '../api/machines'
+import { Plus, Edit, X, Check, XCircle, MapPin } from 'lucide-react'
 import toast from 'react-hot-toast'
+import MapPicker from '../components/MapPicker'
 
 interface MachineForm {
   code: string
   name: string
-  location?: string
+  location: string
   isActive: boolean
 }
 
@@ -17,16 +18,19 @@ export default function Machines() {
   const [showModal, setShowModal] = useState(false)
   const [editingMachine, setEditingMachine] = useState<Machine | null>(null)
   const [showInactive, setShowInactive] = useState(false)
+  const [showMap, setShowMap] = useState(false)
+  const [selectedCoords, setSelectedCoords] = useState<{ lat?: number; lng?: number }>({})
 
   const { data: machines, isLoading } = useQuery({
     queryKey: ['machines', showInactive],
     queryFn: () => machinesApi.getAll(!showInactive),
   })
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<MachineForm>()
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<MachineForm>()
+  const locationValue = watch('location')
 
   const createMutation = useMutation({
-    mutationFn: machinesApi.create,
+    mutationFn: (data: CreateMachineData) => machinesApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['machines'] })
       toast.success('Автомат создан')
@@ -38,7 +42,7 @@ export default function Machines() {
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Machine> }) =>
+    mutationFn: ({ id, data }: { id: string; data: UpdateMachineData }) =>
       machinesApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['machines'] })
@@ -68,8 +72,15 @@ export default function Machines() {
         location: machine.location || '',
         isActive: machine.isActive,
       })
+      setSelectedCoords({
+        lat: machine.latitude,
+        lng: machine.longitude,
+      })
+      setShowMap(!!(machine.latitude && machine.longitude))
     } else {
       reset({ code: '', name: '', location: '', isActive: true })
+      setSelectedCoords({})
+      setShowMap(false)
     }
     setShowModal(true)
   }
@@ -77,21 +88,49 @@ export default function Machines() {
   const closeModal = () => {
     setShowModal(false)
     setEditingMachine(null)
+    setShowMap(false)
+    setSelectedCoords({})
     reset()
   }
 
+  const handleLocationSelect = useCallback((lat: number, lng: number, address?: string) => {
+    setSelectedCoords({ lat, lng })
+    if (address) {
+      setValue('location', address)
+    }
+  }, [setValue])
+
+  const handleAddressChange = useCallback((address: string) => {
+    setValue('location', address)
+  }, [setValue])
+
   const onSubmit = (data: MachineForm) => {
+    const machineData = {
+      ...data,
+      latitude: selectedCoords.lat,
+      longitude: selectedCoords.lng,
+    }
+
     if (editingMachine) {
-      updateMutation.mutate({ id: editingMachine.id, data })
+      updateMutation.mutate({
+        id: editingMachine.id,
+        data: {
+          name: machineData.name,
+          location: machineData.location,
+          latitude: machineData.latitude,
+          longitude: machineData.longitude,
+          isActive: machineData.isActive,
+        },
+      })
     } else {
-      createMutation.mutate(data)
+      createMutation.mutate(machineData)
     }
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">🏧 Автоматы</h1>
+        <h1 className="text-2xl font-bold">Автоматы</h1>
         <button onClick={() => openModal()} className="btn btn-primary flex items-center gap-2">
           <Plus className="w-4 h-4" />
           Добавить
@@ -141,12 +180,19 @@ export default function Machines() {
                 <tr key={machine.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-sm">{machine.code}</td>
                   <td className="px-4 py-3 font-medium">{machine.name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{machine.location || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500">
+                    <div className="flex items-center gap-1">
+                      {machine.latitude && machine.longitude && (
+                        <MapPin className="w-3 h-3 text-primary-500" />
+                      )}
+                      {machine.location || '—'}
+                    </div>
+                  </td>
                   <td className="px-4 py-3">
                     {machine.isActive ? (
-                      <span className="badge badge-success">✅ Активен</span>
+                      <span className="badge badge-success">Активен</span>
                     ) : (
-                      <span className="badge badge-danger">❌ Неактивен</span>
+                      <span className="badge badge-danger">Неактивен</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -188,10 +234,10 @@ export default function Machines() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
               <h2 className="font-semibold text-lg">
-                {editingMachine ? '✏️ Редактировать автомат' : '🏧 Добавить автомат'}
+                {editingMachine ? 'Редактировать автомат' : 'Добавить автомат'}
               </h2>
               <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
@@ -228,12 +274,40 @@ export default function Machines() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Адрес/Локация</label>
-                <textarea
-                  className="input min-h-[80px] resize-none"
-                  placeholder="ул. Осиё, 4"
-                  {...register('location')}
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium">Адрес/Локация</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowMap(!showMap)}
+                    className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                  >
+                    <MapPin className="w-4 h-4" />
+                    {showMap ? 'Скрыть карту' : 'Выбрать на карте'}
+                  </button>
+                </div>
+
+                {showMap ? (
+                  <MapPicker
+                    latitude={selectedCoords.lat}
+                    longitude={selectedCoords.lng}
+                    address={locationValue}
+                    onLocationSelect={handleLocationSelect}
+                    onAddressChange={handleAddressChange}
+                  />
+                ) : (
+                  <textarea
+                    className="input min-h-[80px] resize-none"
+                    placeholder="ул. Осиё, 4"
+                    {...register('location')}
+                  />
+                )}
+
+                {selectedCoords.lat && selectedCoords.lng && !showMap && (
+                  <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                    <MapPin className="w-3 h-3" />
+                    Координаты: {selectedCoords.lat.toFixed(6)}, {selectedCoords.lng.toFixed(6)}
+                  </p>
+                )}
               </div>
 
               {editingMachine && (
@@ -275,7 +349,7 @@ export default function Machines() {
                 >
                   {createMutation.isPending || updateMutation.isPending
                     ? 'Сохранение...'
-                    : '💾 Сохранить'}
+                    : 'Сохранить'}
                 </button>
               </div>
             </form>
