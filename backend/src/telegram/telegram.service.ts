@@ -390,7 +390,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         {
           parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
-            .text('📦 Новый сбор', 'start_collection')
+            .text('📦 Новый сбор', 'collect')
             .text('🏠 Меню', 'main_menu'),
         },
       );
@@ -1245,6 +1245,54 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const safeError = this.escapeHtml(getErrorMessage(error));
         await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
       }
+    });
+
+    // My collections callback
+    this.bot.callbackQuery('my_collections', async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
+
+      const today = new Date();
+      const collections = await this.collectionsService.findByOperator(ctx.user.id, today);
+
+      if (collections.length === 0) {
+        await ctx.editMessageText(
+          `╭─────────────────────╮\n` +
+          `│  📋  <b>МОИ СБОРЫ</b>\n` +
+          `╰─────────────────────╯\n\n` +
+          `Сегодня сборов нет.\n\n` +
+          `Нажмите /collect чтобы начать.`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: new InlineKeyboard()
+              .text('📦 Новый сбор', 'collect')
+              .text('🏠 Меню', 'main_menu'),
+          },
+        );
+        return;
+      }
+
+      const lines = collections.slice(0, 10).map((c) => {
+        const time = this.formatTime(c.collectedAt);
+        const machineDisplay = c.machine?.name || 'Неизвестный';
+        const statusIcon = c.status === 'received' ? '✅' : c.status === 'collected' ? '⏳' : '❌';
+        const amount = c.amount ? ` - ${c.amount.toLocaleString('ru-RU')} сум` : '';
+        return `${statusIcon} ${time}  ${machineDisplay}${amount}`;
+      });
+
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  📋  <b>МОИ СБОРЫ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `📅 Сегодня: <b>${collections.length}</b> сбор(ов)\n\n` +
+        lines.join('\n'),
+        {
+          parse_mode: 'HTML',
+          reply_markup: new InlineKeyboard()
+            .text('📦 Новый сбор', 'collect')
+            .text('🏠 Меню', 'main_menu'),
+        },
+      );
     });
 
     // Operator: Start collection
@@ -2329,7 +2377,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     });
 
     // Admin: Manage all machines with pagination
-    this.bot.callbackQuery(/^manage_machines(?:_(\d+))?$/, async (ctx) => {
+    // Admin: List machines (pagination)
+    this.bot.callbackQuery(/^list_machines(?:_(\d+))?$/, async (ctx) => {
       if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
       await ctx.answerCallbackQuery();
 
@@ -2369,11 +2418,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       // Pagination buttons
       if (totalPages > 1) {
         if (page > 0) {
-          keyboard.text('◀️', `manage_machines_${page - 1}`);
+          keyboard.text('◀️', `list_machines_${page - 1}`);
         }
         keyboard.text(`${page + 1}/${totalPages}`, 'noop');
         if (page < totalPages - 1) {
-          keyboard.text('▶️', `manage_machines_${page + 1}`);
+          keyboard.text('▶️', `list_machines_${page + 1}`);
         }
         keyboard.row();
       }
@@ -2424,7 +2473,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         keyboard.text('✅ Включить', `toggle_machine_${machine.id}_${returnPage}`);
       }
       keyboard.row();
-      keyboard.text('◀️ Назад', `manage_machines_${returnPage}`).text('🏠 Меню', 'main_menu');
+      keyboard.text('◀️ Назад', `list_machines_${returnPage}`).text('🏠 Меню', 'main_menu');
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
@@ -2487,7 +2536,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           keyboard.text('✅ Включить', `toggle_machine_${updatedMachine.id}_${returnPage}`);
         }
         keyboard.row();
-        keyboard.text('◀️ Назад', `manage_machines_${returnPage}`).text('🏠 Меню', 'main_menu');
+        keyboard.text('◀️ Назад', `list_machines_${returnPage}`).text('🏠 Меню', 'main_menu');
 
         await ctx.editMessageText(
           `╭─────────────────────╮\n` +
@@ -2511,10 +2560,44 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
     });
 
-    // Noop callback for pagination indicator
-    this.bot.callbackQuery('noop', async (ctx) => {
+
+
+    // Manage machines menu
+    this.bot.callbackQuery('manage_machines', async (ctx) => {
+      if (!ctx.user) return;
+      const isManager = ctx.user.role === UserRole.MANAGER || ctx.user.role === UserRole.ADMIN;
+      if (!isManager) return;
+
       await ctx.answerCallbackQuery();
+
+      const kb = new InlineKeyboard();
+
+      kb.text('🔍 Поиск', 'search_machine').row();
+      kb.text('📋 Список всех', 'list_machines_0').row();
+      kb.text('➕ Создать новый', 'create_new_machine').row();
+
+      if (ctx.user.role === UserRole.ADMIN) {
+        // Pending machines count
+        const pending = await this.machinesService.findPending();
+        const pendingText = pending.length > 0 ? ` (${pending.length})` : '';
+        kb.text(`📥 Модерация${pendingText}`, 'pending_machines').row();
+      }
+
+      kb.text('🏠 Меню', 'main_menu');
+
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  🗂  <b>АВТОМАТЫ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `Управление автоматами:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: kb,
+        },
+      );
     });
+
+
 
     // Admin: Pending machines with pagination
     this.bot.callbackQuery(/^pending_machines(?:_(\d+))?$/, async (ctx) => {
