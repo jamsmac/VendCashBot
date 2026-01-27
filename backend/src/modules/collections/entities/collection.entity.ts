@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Machine } from '../../machines/entities/machine.entity';
+import { MachineLocation } from '../../machines/entities/machine-location.entity';
 
 export enum CollectionStatus {
   COLLECTED = 'collected',
@@ -79,6 +80,13 @@ export class Collection {
 
   @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
   longitude: number;
+
+  @ManyToOne(() => MachineLocation, { nullable: true })
+  @JoinColumn({ name: 'location_id' })
+  location: MachineLocation;
+
+  @Column({ name: 'location_id', nullable: true })
+  locationId: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

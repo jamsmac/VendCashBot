@@ -12,6 +12,7 @@ import ExcelImport from './pages/ExcelImport'
 import Reports from './pages/Reports'
 import Machines from './pages/Machines'
 import Users from './pages/Users'
+import TelegramMapPicker from './pages/TelegramMapPicker'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore()
@@ -55,6 +56,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/telegram/map" element={<TelegramMapPicker />} />
 
       <Route
         path="/"

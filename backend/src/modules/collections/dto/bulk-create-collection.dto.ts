@@ -29,6 +29,11 @@ class BulkCollectionItemDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiProperty({ description: 'Machine location ID (for historical address)', required: false })
+  @IsUUID()
+  @IsOptional()
+  locationId?: string;
 }
 
 export class BulkCreateCollectionDto {

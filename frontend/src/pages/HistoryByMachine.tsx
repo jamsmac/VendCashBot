@@ -3,7 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { machinesApi, Machine } from '../api/machines'
 import { collectionsApi } from '../api/collections'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, MapPin } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface HistoryRow {
@@ -11,19 +11,39 @@ interface HistoryRow {
   date: string
   time: string
   amount: string
+  locationId: string
 }
 
 export default function HistoryByMachine() {
   const navigate = useNavigate()
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null)
   const [rows, setRows] = useState<HistoryRow[]>([
-    { id: crypto.randomUUID(), date: '', time: '12:00', amount: '' },
+    { id: crypto.randomUUID(), date: '', time: '12:00', amount: '', locationId: '' },
   ])
 
   const { data: machines } = useQuery({
     queryKey: ['machines'],
     queryFn: () => machinesApi.getAll(),
   })
+
+  const { data: locations } = useQuery({
+    queryKey: ['machine-locations', selectedMachine?.id],
+    queryFn: () => selectedMachine ? machinesApi.getLocations(selectedMachine.id) : Promise.resolve([]),
+    enabled: !!selectedMachine,
+  })
+
+  // Auto-select location based on date
+  const updateLocationForDate = async (rowId: string, date: string) => {
+    if (!selectedMachine || !date) return
+    try {
+      const location = await machinesApi.getLocationForDate(selectedMachine.id, date)
+      if (location) {
+        setRows(prev => prev.map(r => r.id === rowId ? { ...r, locationId: location.id } : r))
+      }
+    } catch {
+      // If no location found, keep empty
+    }
+  }
 
   const mutation = useMutation({
     mutationFn: (data: any) => collectionsApi.bulkCreate(data),
@@ -48,6 +68,7 @@ export default function HistoryByMachine() {
         date: lastRow?.date || '',
         time: '12:00',
         amount: '',
+        locationId: lastRow?.locationId || '',
       },
     ])
   }
@@ -60,6 +81,10 @@ export default function HistoryByMachine() {
 
   const updateRow = (id: string, field: keyof HistoryRow, value: string) => {
     setRows(rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
+    // Auto-select location when date changes
+    if (field === 'date' && value) {
+      updateLocationForDate(id, value)
+    }
   }
 
   const handleSubmit = () => {
@@ -78,6 +103,7 @@ export default function HistoryByMachine() {
       machineId: selectedMachine.id,
       collectedAt: `${r.date}T${r.time || '12:00'}:00`,
       amount: parseFloat(r.amount),
+      locationId: r.locationId || undefined,
     }))
 
     mutation.mutate({ collections, source: 'manual_history' })
@@ -116,6 +142,13 @@ export default function HistoryByMachine() {
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Дата</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Время</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Сумма</th>
+                {locations && locations.length > 0 && (
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-4 h-4" /> Адрес
+                    </span>
+                  </th>
+                )}
                 <th className="px-4 py-3 w-16"></th>
               </tr>
             </thead>
@@ -153,6 +186,23 @@ export default function HistoryByMachine() {
                       }}
                     />
                   </td>
+                  {locations && locations.length > 0 && (
+                    <td className="px-4 py-2">
+                      <select
+                        className="input text-sm"
+                        value={row.locationId}
+                        onChange={(e) => updateRow(row.id, 'locationId', e.target.value)}
+                      >
+                        <option value="">Текущий адрес</option>
+                        {locations.map((loc) => (
+                          <option key={loc.id} value={loc.id}>
+                            {loc.address} ({new Date(loc.validFrom).toLocaleDateString('ru-RU')}
+                            {loc.validTo ? ` - ${new Date(loc.validTo).toLocaleDateString('ru-RU')}` : ' - сейчас'})
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  )}
                   <td className="px-4 py-2">
                     <button
                       onClick={() => removeRow(row.id)}

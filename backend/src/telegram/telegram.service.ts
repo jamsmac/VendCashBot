@@ -633,6 +633,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         ctx.session.step = 'setting_machine_location';
 
         const safeName = this.escapeHtml(name);
+        const frontendUrl = this.configService.get<string>('frontendUrl');
+        const keyboard = new InlineKeyboard();
+
+        // Add Mini App button if frontend URL is configured
+        if (frontendUrl) {
+          keyboard.webApp('🗺 Выбрать на карте', `${frontendUrl}/telegram/map`).row();
+        }
+        keyboard.text('✖️ Отмена', 'main_menu');
 
         await ctx.reply(
           `╭─────────────────────╮\n` +
@@ -641,11 +649,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `📍 Шаг <b>3</b> из 3\n\n` +
           `📟  Код: <code>${ctx.session.newMachineCode}</code>\n` +
           `📝  Название: ${safeName}\n\n` +
-          `🗺 Отправьте локацию автомата\n` +
-          `<i>Нажмите 📎 → Геопозиция</i>`,
+          `🗺 Отправьте локацию автомата:\n` +
+          `• Нажмите <b>📎 → Геопозиция</b>\n` +
+          `${frontendUrl ? '• Или выберите на карте ниже' : ''}`,
           {
             parse_mode: 'HTML',
-            reply_markup: new InlineKeyboard().text('✖️ Отмена', 'main_menu'),
+            reply_markup: keyboard,
           },
         );
         return;
@@ -985,6 +994,60 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
     });
 
+    // Handle web_app_data from Telegram Mini App (map picker)
+    this.bot.on('message:web_app_data', async (ctx) => {
+      if (!ctx.user) return;
+
+      try {
+        const data = JSON.parse(ctx.message.web_app_data.data);
+        const { latitude, longitude, address } = data;
+
+        // Creating machine with map location
+        if (ctx.session.step === 'setting_machine_location' && ctx.session.newMachineCode && ctx.session.newMachineName) {
+          const machineData = {
+            code: ctx.session.newMachineCode,
+            name: ctx.session.newMachineName,
+            latitude,
+            longitude,
+            location: address,
+          };
+
+          const machine = await this.machinesService.createByOperator(machineData, ctx.user.id);
+
+          // Notify admin about new machine (if not admin creating)
+          if (ctx.user.role !== UserRole.ADMIN) {
+            await this.notifyAdminNewMachine(machine, ctx.user);
+          }
+
+          ctx.session.step = 'idle';
+          ctx.session.newMachineCode = undefined;
+          ctx.session.newMachineName = undefined;
+
+          const safeMachineName = this.escapeHtml(machine.name);
+          const safeLocation = address ? this.escapeHtml(address) : 'Координаты сохранены';
+
+          await ctx.reply(
+            `╭─────────────────────╮\n` +
+            `│  ✅  <b>АВТОМАТ СОЗДАН</b>\n` +
+            `╰─────────────────────╯\n\n` +
+            `📟  Код: <code>${machine.code}</code>\n` +
+            `📝  ${safeMachineName}\n` +
+            `📍  ${safeLocation}`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: this.getMainMenu(ctx.user),
+            },
+          );
+          return;
+        }
+
+        // Note: Operators cannot use map for collection - they must send GPS location only
+      } catch (error: unknown) {
+        const safeError = this.escapeHtml(getErrorMessage(error));
+        await ctx.reply(`❌ Ошибка: ${safeError}`);
+      }
+    });
+
     // Callback query handlers
     this.bot.callbackQuery('main_menu', async (ctx) => {
       if (!ctx.user) return;
@@ -1116,7 +1179,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.selectedMachineId = machine.id;
       const safeMachineName = this.escapeHtml(machine.name);
 
-      // Operator flow: request location immediately
+      // Operator flow: request location immediately (GPS only, no map selection)
       if (ctx.user.role === UserRole.OPERATOR) {
         ctx.session.step = 'awaiting_location';
 
@@ -1127,7 +1190,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `🏧  <b>${safeMachineName}</b>\n` +
           `📟  <code>${machine.code}</code>\n\n` +
           `📍 Отправьте вашу геолокацию\n` +
-          `<i>Нажмите кнопку 📎 → Геопозиция</i>`,
+          `<i>Нажмите 📎 → Геопозиция</i>`,
           {
             parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()

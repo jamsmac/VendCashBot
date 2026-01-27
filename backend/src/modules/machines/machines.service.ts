@@ -5,16 +5,23 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, LessThanOrEqual, MoreThanOrEqual, IsNull, Or } from 'typeorm';
 import { Machine, MachineStatus } from './entities/machine.entity';
+import { MachineLocation } from './entities/machine-location.entity';
 import { CreateMachineDto } from './dto/create-machine.dto';
 import { UpdateMachineDto } from './dto/update-machine.dto';
+import {
+  CreateMachineLocationDto,
+  UpdateMachineLocationDto,
+} from './dto/machine-location.dto';
 
 @Injectable()
 export class MachinesService {
   constructor(
     @InjectRepository(Machine)
     private readonly machineRepository: Repository<Machine>,
+    @InjectRepository(MachineLocation)
+    private readonly locationRepository: Repository<MachineLocation>,
   ) {}
 
   async create(createMachineDto: CreateMachineDto): Promise<Machine> {
@@ -192,5 +199,123 @@ export class MachinesService {
     );
 
     return qb.orderBy('machine.name', 'ASC').getMany();
+  }
+
+  // ========== Machine Locations ==========
+
+  async getLocations(machineId: string): Promise<MachineLocation[]> {
+    return this.locationRepository.find({
+      where: { machineId },
+      order: { validFrom: 'DESC' },
+    });
+  }
+
+  async getCurrentLocation(machineId: string): Promise<MachineLocation | null> {
+    return this.locationRepository.findOne({
+      where: { machineId, isCurrent: true },
+    });
+  }
+
+  async getLocationForDate(
+    machineId: string,
+    date: Date,
+  ): Promise<MachineLocation | null> {
+    const dateStr = date.toISOString().split('T')[0];
+
+    return this.locationRepository
+      .createQueryBuilder('loc')
+      .where('loc.machineId = :machineId', { machineId })
+      .andWhere('loc.validFrom <= :date', { date: dateStr })
+      .andWhere('(loc.validTo IS NULL OR loc.validTo >= :date)', { date: dateStr })
+      .orderBy('loc.validFrom', 'DESC')
+      .getOne();
+  }
+
+  async addLocation(
+    machineId: string,
+    dto: CreateMachineLocationDto,
+  ): Promise<MachineLocation> {
+    await this.findByIdOrFail(machineId);
+
+    // If this is set as current, unset other current locations
+    if (dto.isCurrent) {
+      await this.locationRepository.update(
+        { machineId, isCurrent: true },
+        { isCurrent: false },
+      );
+    }
+
+    const location = this.locationRepository.create({
+      machineId,
+      address: dto.address,
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      validFrom: new Date(dto.validFrom),
+      validTo: dto.validTo ? new Date(dto.validTo) : null,
+      isCurrent: dto.isCurrent ?? false,
+    });
+
+    return this.locationRepository.save(location);
+  }
+
+  async updateLocation(
+    locationId: string,
+    dto: UpdateMachineLocationDto,
+  ): Promise<MachineLocation> {
+    const location = await this.locationRepository.findOne({
+      where: { id: locationId },
+    });
+
+    if (!location) {
+      throw new NotFoundException('Location not found');
+    }
+
+    // If setting as current, unset other current locations
+    if (dto.isCurrent && !location.isCurrent) {
+      await this.locationRepository.update(
+        { machineId: location.machineId, isCurrent: true },
+        { isCurrent: false },
+      );
+    }
+
+    Object.assign(location, {
+      ...dto,
+      validFrom: dto.validFrom ? new Date(dto.validFrom) : location.validFrom,
+      validTo: dto.validTo ? new Date(dto.validTo) : location.validTo,
+    });
+
+    return this.locationRepository.save(location);
+  }
+
+  async deleteLocation(locationId: string): Promise<void> {
+    const location = await this.locationRepository.findOne({
+      where: { id: locationId },
+    });
+
+    if (!location) {
+      throw new NotFoundException('Location not found');
+    }
+
+    await this.locationRepository.remove(location);
+  }
+
+  async setCurrentLocation(locationId: string): Promise<MachineLocation> {
+    const location = await this.locationRepository.findOne({
+      where: { id: locationId },
+    });
+
+    if (!location) {
+      throw new NotFoundException('Location not found');
+    }
+
+    // Unset current for all locations of this machine
+    await this.locationRepository.update(
+      { machineId: location.machineId },
+      { isCurrent: false },
+    );
+
+    // Set this one as current
+    location.isCurrent = true;
+    return this.locationRepository.save(location);
   }
 }
