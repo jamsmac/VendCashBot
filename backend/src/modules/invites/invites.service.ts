@@ -12,11 +12,11 @@ export class InvitesService {
     @InjectRepository(Invite)
     private readonly inviteRepository: Repository<Invite>,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   private generateCode(): string {
-    // 16 bytes = 32 hex characters, much more entropy than 8 chars
-    return randomBytes(16).toString('hex');
+    // 4 bytes = 8 hex characters, short enough for Telegram deep links
+    return randomBytes(4).toString('hex').toUpperCase();
   }
 
   async create(createdById: string, role: UserRole): Promise<Invite> {
