@@ -1,4 +1,4 @@
-import { IsString, IsOptional, MinLength, MaxLength, IsNumber, Min, Max } from 'class-validator';
+import { IsString, IsOptional, MinLength, MaxLength, IsNumber, Min, Max, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateMachineDto {
@@ -33,4 +33,9 @@ export class CreateMachineDto {
   @Max(180)
   @IsOptional()
   longitude?: number;
+
+  @ApiProperty({ description: 'Is machine active', required: false, default: true })
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }
