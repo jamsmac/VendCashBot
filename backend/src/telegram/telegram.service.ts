@@ -1131,6 +1131,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           {
             parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
+              .text('◀️ Назад', 'search_machine')
               .text('✖️ Отмена', 'main_menu'),
           },
         );
@@ -1381,6 +1382,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           {
             parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
+              .text('◀️ Назад', 'collect')
               .text('✖️ Отмена', 'main_menu'),
           },
         );
@@ -1429,6 +1431,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           {
             reply_markup: new InlineKeyboard()
               .text('✅ Да, создать', `confirm_dup_now_${machineId}`)
+              .row()
+              .text('◀️ Назад', `machine_${machineId}`)
               .text('❌ Отмена', 'main_menu'),
           },
         );
@@ -1700,6 +1704,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           {
             reply_markup: new InlineKeyboard()
               .text('✅ Да, создать', `confirm_dup_cal_${machineId}_${year}_${month}_${day}_${hour}_${minute}`)
+              .row()
+              .text('◀️ Назад', `cal_day_${machineId}_${year}_${month}_${day}`)
               .text('❌ Отмена', 'main_menu'),
           },
         );
@@ -2173,7 +2179,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             .text('🟢 Оператор', 'create_invite_operator')
             .text('🔵 Менеджер', 'create_invite_manager')
             .row()
-            .text('◀️ Назад', 'main_menu'),
+            .text('◀️ Назад', 'invites_menu'),
         },
       );
     });
@@ -2242,6 +2248,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
               .text('👥 Создать', 'invite_user')
+              .row()
+              .text('◀️ Назад', 'invites_menu')
               .text('🏠 Меню', 'main_menu'),
           },
         );
@@ -2267,7 +2275,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         keyboard.row();
       }
 
-      keyboard.text('👥 Создать', 'invite_user').text('🏠 Меню', 'main_menu');
+      keyboard.text('👥 Создать', 'invite_user').row();
+      keyboard.text('◀️ Назад', 'invites_menu').text('🏠 Меню', 'main_menu');
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
@@ -2399,6 +2408,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
               .text('➕ Создать', 'create_new_machine')
+              .row()
+              .text('◀️ Назад', 'manage_machines')
               .text('🏠 Меню', 'main_menu'),
           },
         );
@@ -2427,7 +2438,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         keyboard.row();
       }
 
-      keyboard.text('➕ Создать', 'create_new_machine').text('🏠 Меню', 'main_menu');
+      keyboard.text('➕ Создать', 'create_new_machine').row();
+      keyboard.text('◀️ Назад', 'manage_machines').text('🏠 Меню', 'main_menu');
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
@@ -2617,7 +2629,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `✅ Нет автоматов на проверке`,
           {
             parse_mode: 'HTML',
-            reply_markup: new InlineKeyboard().text('🏠 Меню', 'main_menu'),
+            reply_markup: new InlineKeyboard()
+              .text('◀️ Назад', 'manage_machines')
+              .text('🏠 Меню', 'main_menu'),
           },
         );
         return;
@@ -2645,7 +2659,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         keyboard.row();
       }
 
-      keyboard.text('🏠 Меню', 'main_menu');
+      keyboard.text('◀️ Назад', 'manage_machines').text('🏠 Меню', 'main_menu');
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
