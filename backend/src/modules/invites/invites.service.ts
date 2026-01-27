@@ -124,4 +124,11 @@ export class InvitesService {
 
     return { valid: true, role: invite.role };
   }
+
+  async deleteUnused(): Promise<number> {
+    const result = await this.inviteRepository.delete({
+      usedById: IsNull(),
+    });
+    return result.affected || 0;
+  }
 }

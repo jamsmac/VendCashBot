@@ -2033,6 +2033,81 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       );
     });
 
+    // Admin: Invites menu
+    this.bot.callbackQuery('invites_menu', async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
+      await ctx.answerCallbackQuery();
+
+      // Count active invites
+      const invites = await this.invitesService.findAll();
+      const activeInvites = invites.filter(i => !i.isUsed && !i.isExpired);
+
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  👥  <b>ПРИГЛАШЕНИЯ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `Активных: <b>${activeInvites.length}</b>\n\n` +
+        `Выберите действие:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: new InlineKeyboard()
+            .text('➕ Создать', 'invite_user')
+            .row()
+            .text('📋 Список', 'list_invites')
+            .row()
+            .text('🗑 Удалить все', 'delete_all_invites')
+            .row()
+            .text('🏠 Меню', 'main_menu'),
+        },
+      );
+    });
+
+    // Admin: Delete all unused invites
+    this.bot.callbackQuery('delete_all_invites', async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
+      await ctx.answerCallbackQuery();
+
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  🗑  <b>УДАЛЕНИЕ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `Удалить все неиспользованные\n` +
+        `приглашения?`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: new InlineKeyboard()
+            .text('✅ Да, удалить', 'confirm_delete_invites')
+            .text('❌ Отмена', 'invites_menu'),
+        },
+      );
+    });
+
+    // Admin: Confirm delete invites
+    this.bot.callbackQuery('confirm_delete_invites', async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
+      await ctx.answerCallbackQuery();
+
+      try {
+        const deleted = await this.invitesService.deleteUnused();
+
+        await ctx.editMessageText(
+          `╭─────────────────────╮\n` +
+          `│  ✅  <b>УДАЛЕНО</b>\n` +
+          `╰─────────────────────╯\n\n` +
+          `Удалено приглашений: <b>${deleted}</b>`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: new InlineKeyboard()
+              .text('👥 К приглашениям', 'invites_menu')
+              .text('🏠 Меню', 'main_menu'),
+          },
+        );
+      } catch (error) {
+        const safeError = this.escapeHtml(getErrorMessage(error));
+        await ctx.editMessageText(`❌ Ошибка: ${safeError}`);
+      }
+    });
+
     // Admin: Invite user
     this.bot.callbackQuery('invite_user', async (ctx) => {
       if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
@@ -3002,11 +3077,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       kb.text('🔍 Поиск', 'search_machine')
         .text('➕ Создать', 'create_new_machine').row();
       kb.text('🗂 Автоматы', 'manage_machines')
-        .text('👥 Пригласить', 'invite_user').row();
-      kb.text('📋 Приглашения', 'list_invites')
-        .text('⚙️ Настройки', 'bot_settings').row();
+        .text('👥 Приглашения', 'invites_menu').row();
       kb.text('🌐 Веб-панель', 'web_panel')
-        .text('❔ Помощь', 'help').row();
+        .text('⚙️ Настройки', 'bot_settings').row();
+      kb.text('❔ Помощь', 'help').row();
     }
 
     return kb;
