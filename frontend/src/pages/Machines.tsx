@@ -1,8 +1,24 @@
 import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { machinesApi, Machine, CreateMachineData, UpdateMachineData } from '../api/machines'
-import { Plus, Edit, X, Check, XCircle, MapPin } from 'lucide-react'
+import {
+  machinesApi,
+  Machine,
+  CreateMachineData,
+  UpdateMachineData,
+  CreateMachineLocationData,
+} from '../api/machines'
+import {
+  Plus,
+  Edit,
+  X,
+  Check,
+  XCircle,
+  MapPin,
+  History,
+  Trash2,
+  Star,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 import MapPicker from '../components/MapPicker'
 
@@ -13,6 +29,13 @@ interface MachineForm {
   isActive: boolean
 }
 
+interface LocationForm {
+  address: string
+  validFrom: string
+  validTo: string
+  isCurrent: boolean
+}
+
 export default function Machines() {
   const queryClient = useQueryClient()
   const [showModal, setShowModal] = useState(false)
@@ -21,13 +44,46 @@ export default function Machines() {
   const [showMap, setShowMap] = useState(false)
   const [selectedCoords, setSelectedCoords] = useState<{ lat?: number; lng?: number }>({})
 
+  // Locations modal state
+  const [showLocationsModal, setShowLocationsModal] = useState(false)
+  const [selectedMachineForLocations, setSelectedMachineForLocations] = useState<Machine | null>(
+    null
+  )
+  const [showAddLocationForm, setShowAddLocationForm] = useState(false)
+  const [locationCoords, setLocationCoords] = useState<{ lat?: number; lng?: number }>({})
+  const [showLocationMap, setShowLocationMap] = useState(false)
+
   const { data: machines, isLoading } = useQuery({
     queryKey: ['machines', showInactive],
     queryFn: () => machinesApi.getAll(!showInactive),
   })
 
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<MachineForm>()
+  const { data: locations, isLoading: isLoadingLocations } = useQuery({
+    queryKey: ['machine-locations', selectedMachineForLocations?.id],
+    queryFn: () =>
+      selectedMachineForLocations
+        ? machinesApi.getLocations(selectedMachineForLocations.id)
+        : Promise.resolve([]),
+    enabled: !!selectedMachineForLocations,
+  })
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<MachineForm>()
   const locationValue = watch('location')
+
+  const {
+    register: registerLocation,
+    handleSubmit: handleSubmitLocation,
+    reset: resetLocation,
+    setValue: setLocationValue,
+    formState: { errors: locationErrors },
+  } = useForm<LocationForm>()
 
   const createMutation = useMutation({
     mutationFn: (data: CreateMachineData) => machinesApi.create(data),
@@ -63,6 +119,50 @@ export default function Machines() {
     },
   })
 
+  // Location mutations
+  const addLocationMutation = useMutation({
+    mutationFn: ({
+      machineId,
+      data,
+    }: {
+      machineId: string
+      data: CreateMachineLocationData
+    }) => machinesApi.addLocation(machineId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['machine-locations'] })
+      toast.success('Адрес добавлен')
+      setShowAddLocationForm(false)
+      resetLocation()
+      setLocationCoords({})
+      setShowLocationMap(false)
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка')
+    },
+  })
+
+  const deleteLocationMutation = useMutation({
+    mutationFn: (locationId: string) => machinesApi.deleteLocation(locationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['machine-locations'] })
+      toast.success('Адрес удалён')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка')
+    },
+  })
+
+  const setCurrentLocationMutation = useMutation({
+    mutationFn: (locationId: string) => machinesApi.setCurrentLocation(locationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['machine-locations'] })
+      toast.success('Текущий адрес изменён')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка')
+    },
+  })
+
   const openModal = (machine?: Machine) => {
     setEditingMachine(machine || null)
     if (machine) {
@@ -93,16 +193,57 @@ export default function Machines() {
     reset()
   }
 
-  const handleLocationSelect = useCallback((lat: number, lng: number, address?: string) => {
-    setSelectedCoords({ lat, lng })
-    if (address) {
-      setValue('location', address)
-    }
-  }, [setValue])
+  const openLocationsModal = (machine: Machine) => {
+    setSelectedMachineForLocations(machine)
+    setShowLocationsModal(true)
+    setShowAddLocationForm(false)
+    resetLocation()
+    setLocationCoords({})
+    setShowLocationMap(false)
+  }
 
-  const handleAddressChange = useCallback((address: string) => {
-    setValue('location', address)
-  }, [setValue])
+  const closeLocationsModal = () => {
+    setShowLocationsModal(false)
+    setSelectedMachineForLocations(null)
+    setShowAddLocationForm(false)
+    resetLocation()
+    setLocationCoords({})
+    setShowLocationMap(false)
+  }
+
+  const handleLocationSelect = useCallback(
+    (lat: number, lng: number, address?: string) => {
+      setSelectedCoords({ lat, lng })
+      if (address) {
+        setValue('location', address)
+      }
+    },
+    [setValue]
+  )
+
+  const handleAddressChange = useCallback(
+    (address: string) => {
+      setValue('location', address)
+    },
+    [setValue]
+  )
+
+  const handleLocationFormSelect = useCallback(
+    (lat: number, lng: number, address?: string) => {
+      setLocationCoords({ lat, lng })
+      if (address) {
+        setLocationValue('address', address)
+      }
+    },
+    [setLocationValue]
+  )
+
+  const handleLocationFormAddressChange = useCallback(
+    (address: string) => {
+      setLocationValue('address', address)
+    },
+    [setLocationValue]
+  )
 
   const onSubmit = (data: MachineForm) => {
     const machineData = {
@@ -125,6 +266,26 @@ export default function Machines() {
     } else {
       createMutation.mutate(machineData)
     }
+  }
+
+  const onSubmitLocation = (data: LocationForm) => {
+    if (!selectedMachineForLocations) return
+
+    addLocationMutation.mutate({
+      machineId: selectedMachineForLocations.id,
+      data: {
+        address: data.address,
+        latitude: locationCoords.lat,
+        longitude: locationCoords.lng,
+        validFrom: data.validFrom,
+        validTo: data.validTo || undefined,
+        isCurrent: data.isCurrent,
+      },
+    })
+  }
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('ru-RU')
   }
 
   return (
@@ -196,12 +357,20 @@ export default function Machines() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <button
                         onClick={() => openModal(machine)}
                         className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg"
+                        title="Редактировать"
                       >
                         <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => openLocationsModal(machine)}
+                        className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
+                        title="История адресов"
+                      >
+                        <History className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() =>
@@ -215,6 +384,7 @@ export default function Machines() {
                             ? 'text-red-500 hover:bg-red-50'
                             : 'text-green-500 hover:bg-green-50'
                         }`}
+                        title={machine.isActive ? 'Деактивировать' : 'Активировать'}
                       >
                         {machine.isActive ? (
                           <XCircle className="w-4 h-4" />
@@ -231,7 +401,7 @@ export default function Machines() {
         </table>
       </div>
 
-      {/* Modal */}
+      {/* Machine Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -275,7 +445,7 @@ export default function Machines() {
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium">Адрес/Локация</label>
+                  <label className="block text-sm font-medium">Текущий адрес</label>
                   <button
                     type="button"
                     onClick={() => setShowMap(!showMap)}
@@ -353,6 +523,190 @@ export default function Machines() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Locations History Modal */}
+      {showLocationsModal && selectedMachineForLocations && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
+              <div>
+                <h2 className="font-semibold text-lg">История адресов</h2>
+                <p className="text-sm text-gray-500">
+                  {selectedMachineForLocations.name} ({selectedMachineForLocations.code})
+                </p>
+              </div>
+              <button onClick={closeLocationsModal} className="p-1 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4">
+              {/* Add location form */}
+              {showAddLocationForm ? (
+                <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+                  <h3 className="font-medium mb-3">Добавить адрес</h3>
+                  <form onSubmit={handleSubmitLocation(onSubmitLocation)} className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm font-medium">Адрес</label>
+                        <button
+                          type="button"
+                          onClick={() => setShowLocationMap(!showLocationMap)}
+                          className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                        >
+                          <MapPin className="w-4 h-4" />
+                          {showLocationMap ? 'Скрыть карту' : 'Выбрать на карте'}
+                        </button>
+                      </div>
+
+                      {showLocationMap ? (
+                        <MapPicker
+                          latitude={locationCoords.lat}
+                          longitude={locationCoords.lng}
+                          onLocationSelect={handleLocationFormSelect}
+                          onAddressChange={handleLocationFormAddressChange}
+                        />
+                      ) : (
+                        <input
+                          className="input"
+                          placeholder="ул. Осиё, 4"
+                          {...registerLocation('address', { required: 'Обязательное поле' })}
+                        />
+                      )}
+                      {locationErrors.address && (
+                        <p className="text-red-500 text-sm mt-1">
+                          {locationErrors.address.message}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">
+                          Дата начала <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          className="input"
+                          {...registerLocation('validFrom', { required: 'Обязательное поле' })}
+                        />
+                        {locationErrors.validFrom && (
+                          <p className="text-red-500 text-sm mt-1">
+                            {locationErrors.validFrom.message}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Дата окончания</label>
+                        <input type="date" className="input" {...registerLocation('validTo')} />
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        {...registerLocation('isCurrent')}
+                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-sm">Текущий адрес</span>
+                    </label>
+
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddLocationForm(false)
+                          resetLocation()
+                          setLocationCoords({})
+                          setShowLocationMap(false)
+                        }}
+                        className="btn btn-secondary flex-1"
+                      >
+                        Отмена
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={addLocationMutation.isPending}
+                        className="btn btn-primary flex-1"
+                      >
+                        {addLocationMutation.isPending ? 'Сохранение...' : 'Добавить'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAddLocationForm(true)}
+                  className="mb-4 btn btn-primary flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Добавить адрес
+                </button>
+              )}
+
+              {/* Locations list */}
+              {isLoadingLocations ? (
+                <p className="text-center text-gray-500 py-4">Загрузка...</p>
+              ) : locations?.length === 0 ? (
+                <p className="text-center text-gray-500 py-4">Нет адресов</p>
+              ) : (
+                <div className="space-y-3">
+                  {locations?.map((loc) => (
+                    <div
+                      key={loc.id}
+                      className={`p-4 border rounded-lg ${
+                        loc.isCurrent ? 'border-primary-500 bg-primary-50' : ''
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            {loc.isCurrent && (
+                              <Star className="w-4 h-4 text-primary-500 fill-primary-500" />
+                            )}
+                            <p className="font-medium">{loc.address}</p>
+                          </div>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {formatDate(loc.validFrom)}
+                            {loc.validTo ? ` — ${formatDate(loc.validTo)}` : ' — по настоящее время'}
+                          </p>
+                          {loc.latitude && loc.longitude && (
+                            <p className="text-xs text-gray-400 mt-1">
+                              {loc.latitude.toFixed(6)}, {loc.longitude.toFixed(6)}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {!loc.isCurrent && (
+                            <button
+                              onClick={() => setCurrentLocationMutation.mutate(loc.id)}
+                              className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg"
+                              title="Сделать текущим"
+                            >
+                              <Star className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              if (confirm('Удалить этот адрес?')) {
+                                deleteLocationMutation.mutate(loc.id)
+                              }
+                            }}
+                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                            title="Удалить"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

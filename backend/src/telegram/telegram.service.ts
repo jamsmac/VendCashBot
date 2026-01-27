@@ -1041,50 +1041,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           return;
         }
 
-        // Operator sending location for collection via map
-        if (ctx.session.step === 'awaiting_location' && ctx.session.selectedMachineId) {
-          const machine = await this.machinesService.findById(ctx.session.selectedMachineId);
-          if (!machine) {
-            await ctx.reply('❌ Автомат не найден');
-            ctx.session.step = 'idle';
-            ctx.session.selectedMachineId = undefined;
-            return;
-          }
-
-          const collection = await this.collectionsService.create(
-            {
-              machineId: ctx.session.selectedMachineId,
-              collectedAt: new Date(),
-              latitude,
-              longitude,
-            },
-            ctx.user.id,
-          );
-
-          ctx.session.step = 'idle';
-          ctx.session.selectedMachineId = undefined;
-
-          const safeMachineName = this.escapeHtml(machine.name);
-          const timeStr = this.formatDateTime(collection.collectedAt);
-
-          await ctx.reply(
-            `╭─────────────────────╮\n` +
-            `│  ✅  <b>СБОР ОТПРАВЛЕН</b>\n` +
-            `╰─────────────────────╯\n\n` +
-            `🏧  ${safeMachineName}\n` +
-            `⏰  ${timeStr}\n` +
-            `📍  Локация с карты\n` +
-            `🔢  <code>#${collection.id.slice(0, 8)}</code>\n\n` +
-            `Ожидайте приёма менеджером.`,
-            {
-              parse_mode: 'HTML',
-              reply_markup: new InlineKeyboard()
-                .text('📦 Ещё сбор', 'collect')
-                .text('🏠 Меню', 'main_menu'),
-            },
-          );
-          return;
-        }
+        // Note: Operators cannot use map for collection - they must send GPS location only
       } catch (error: unknown) {
         const safeError = this.escapeHtml(getErrorMessage(error));
         await ctx.reply(`❌ Ошибка: ${safeError}`);
@@ -1222,18 +1179,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.selectedMachineId = machine.id;
       const safeMachineName = this.escapeHtml(machine.name);
 
-      // Operator flow: request location immediately
+      // Operator flow: request location immediately (GPS only, no map selection)
       if (ctx.user.role === UserRole.OPERATOR) {
         ctx.session.step = 'awaiting_location';
-
-        const frontendUrl = this.configService.get<string>('frontendUrl');
-        const keyboard = new InlineKeyboard();
-
-        // Add Mini App button if frontend URL is configured
-        if (frontendUrl) {
-          keyboard.webApp('🗺 Выбрать на карте', `${frontendUrl}/telegram/map`).row();
-        }
-        keyboard.text('◀️ Назад', 'search_machine').text('✖️ Отмена', 'main_menu');
 
         await ctx.editMessageText(
           `╭─────────────────────╮\n` +
@@ -1241,12 +1189,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `╰─────────────────────╯\n\n` +
           `🏧  <b>${safeMachineName}</b>\n` +
           `📟  <code>${machine.code}</code>\n\n` +
-          `📍 Отправьте вашу геолокацию:\n` +
-          `• Нажмите <b>📎 → Геопозиция</b>\n` +
-          `${frontendUrl ? '• Или выберите на карте ниже' : ''}`,
+          `📍 Отправьте вашу геолокацию\n` +
+          `<i>Нажмите 📎 → Геопозиция</i>`,
           {
             parse_mode: 'HTML',
-            reply_markup: keyboard,
+            reply_markup: new InlineKeyboard()
+              .text('◀️ Назад', 'search_machine')
+              .text('✖️ Отмена', 'main_menu'),
           },
         );
         return;
