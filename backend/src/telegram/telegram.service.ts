@@ -3067,7 +3067,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       kb.text('📦 Новый сбор', 'collect')
         .text('📥 Принять', 'pending_collections').row();
       kb.text('🔍 Поиск', 'search_machine')
-        .text('➕ Создать', 'create_new_machine').row();
+        .text('🗂 Автоматы', 'manage_machines').row();
       kb.text('🌐 Веб-панель', 'web_panel')
         .text('❔ Помощь', 'help').row();
     } else {
@@ -3075,12 +3075,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       kb.text('📦 Новый сбор', 'collect')
         .text('📥 Принять', 'pending_collections').row();
       kb.text('🔍 Поиск', 'search_machine')
-        .text('➕ Создать', 'create_new_machine').row();
-      kb.text('🗂 Автоматы', 'manage_machines')
-        .text('👥 Приглашения', 'invites_menu').row();
-      kb.text('🌐 Веб-панель', 'web_panel')
+        .text('🗂 Автоматы', 'manage_machines').row();
+      kb.text('👥 Приглашения', 'invites_menu')
         .text('⚙️ Настройки', 'bot_settings').row();
-      kb.text('❔ Помощь', 'help').row();
+      kb.text('🌐 Веб-панель', 'web_panel')
+        .text('❔ Помощь', 'help').row();
     }
 
     return kb;
