@@ -41,6 +41,16 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function ManagerRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuthStore()
+
+  if (user?.role !== 'admin' && user?.role !== 'manager') {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  return <>{children}</>
+}
+
 export default function App() {
   return (
     <Routes>
@@ -66,9 +76,9 @@ export default function App() {
         <Route
           path="machines"
           element={
-            <AdminRoute>
+            <ManagerRoute>
               <Machines />
-            </AdminRoute>
+            </ManagerRoute>
           }
         />
         <Route

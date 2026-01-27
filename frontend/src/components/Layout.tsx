@@ -29,12 +29,13 @@ export default function Layout() {
   }
 
   const isAdmin = user?.role === 'admin'
+  const isManager = user?.role === 'manager' || isAdmin
 
   const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Главная' },
     { to: '/collections', icon: ClipboardList, label: 'Инкассации' },
     { to: '/reports', icon: BarChart3, label: 'Отчёты' },
-    ...(isAdmin ? [{ to: '/machines', icon: Settings, label: 'Автоматы' }] : []),
+    ...(isManager ? [{ to: '/machines', icon: Settings, label: 'Автоматы' }] : []),
     ...(isAdmin ? [{ to: '/users', icon: Users, label: 'Сотрудники' }] : []),
   ]
 
