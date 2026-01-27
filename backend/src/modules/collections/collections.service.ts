@@ -262,17 +262,27 @@ export class CollectionsService {
     await queryRunner.startTransaction();
 
     try {
+      // First lock the row without relations (FOR UPDATE doesn't work with LEFT JOIN)
+      const lockedCollection = await queryRunner.manager.findOne(Collection, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!lockedCollection) {
+        throw new NotFoundException('Collection not found');
+      }
+      if (lockedCollection.status !== CollectionStatus.COLLECTED) {
+        throw new BadRequestException('Collection is not in collected status');
+      }
+
+      // Now load with relations for the response
       const collection = await queryRunner.manager.findOne(Collection, {
         where: { id },
         relations: ['machine', 'operator', 'manager'],
-        lock: { mode: 'pessimistic_write' },
       });
 
       if (!collection) {
         throw new NotFoundException('Collection not found');
-      }
-      if (collection.status !== CollectionStatus.COLLECTED) {
-        throw new BadRequestException('Collection is not in collected status');
       }
 
       // Store old values for audit logging
@@ -327,10 +337,16 @@ export class CollectionsService {
     await queryRunner.startTransaction();
 
     try {
+      // First lock the row without relations
+      await queryRunner.manager.findOne(Collection, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      // Now load with relations
       const collection = await queryRunner.manager.findOne(Collection, {
         where: { id },
         relations: ['machine', 'operator', 'manager'],
-        lock: { mode: 'pessimistic_write' },
       });
 
       if (!collection) {
