@@ -144,8 +144,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     // Start bot in background (don't await - it blocks until bot stops)
     this.bot.start({
       drop_pending_updates: true,
-      onStart: () => {
+      onStart: async () => {
         this.logger.log('Telegram bot started successfully');
+
+        // Register bot commands for menu button
+        await this.bot.api.setMyCommands([
+          { command: 'start', description: '🏠 Главное меню' },
+          { command: 'collect', description: '📦 Новый сбор' },
+          { command: 'mycollections', description: '📋 Мои сборы за сегодня' },
+          { command: 'pending', description: '📥 Ожидают приёма' },
+          { command: 'help', description: '❓ Помощь' },
+        ]).catch(err => this.logger.warn('Failed to set bot commands:', err));
+
+        this.logger.log('Bot commands registered');
       },
     }).catch((error) => {
       this.logger.error('Failed to start Telegram bot:', error);
@@ -321,6 +332,158 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const safeError = this.escapeHtml(getErrorMessage(error));
         await ctx.reply(`❌ Ошибка регистрации: ${safeError}`);
       }
+    });
+
+    // /collect - Quick start new collection
+    this.bot.command('collect', async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.reply(
+        `╭─────────────────────╮\n` +
+        `│  📦  <b>НОВЫЙ СБОР</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `Выберите способ:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: new InlineKeyboard()
+            .text('📍 Рядом со мной', 'nearby_machines')
+            .row()
+            .text('🔍 Поиск', 'search_machine')
+            .text('➕ Новый автомат', 'create_new_machine')
+            .row()
+            .text('🏠 Меню', 'main_menu'),
+        },
+      );
+    });
+
+    // /mycollections - Show today's collections
+    this.bot.command('mycollections', async (ctx) => {
+      if (!ctx.user) return;
+      const today = new Date();
+      const collections = await this.collectionsService.findByOperator(ctx.user.id, today);
+
+      if (collections.length === 0) {
+        await ctx.reply(
+          `╭─────────────────────╮\n` +
+          `│  📋  <b>МОИ СБОРЫ</b>\n` +
+          `╰─────────────────────╯\n\n` +
+          `Сегодня сборов нет.\n\n` +
+          `Нажмите /collect чтобы начать.`,
+          { parse_mode: 'HTML' },
+        );
+        return;
+      }
+
+      const lines = collections.slice(0, 10).map((c) => {
+        const time = this.formatTime(c.collectedAt);
+        const machineDisplay = c.machine?.name || 'Неизвестный';
+        const statusIcon = c.status === 'received' ? '✅' : c.status === 'collected' ? '⏳' : '❌';
+        const amount = c.amount ? ` - ${c.amount.toLocaleString('ru-RU')} сум` : '';
+        return `${statusIcon} ${time}  ${machineDisplay}${amount}`;
+      });
+
+      await ctx.reply(
+        `╭─────────────────────╮\n` +
+        `│  📋  <b>МОИ СБОРЫ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `📅 Сегодня: <b>${collections.length}</b> сбор(ов)\n\n` +
+        lines.join('\n'),
+        {
+          parse_mode: 'HTML',
+          reply_markup: new InlineKeyboard()
+            .text('📦 Новый сбор', 'start_collection')
+            .text('🏠 Меню', 'main_menu'),
+        },
+      );
+    });
+
+    // /pending - Show pending collections (manager/admin only)
+    this.bot.command('pending', async (ctx) => {
+      if (!ctx.user) return;
+      if (ctx.user.role !== UserRole.MANAGER && ctx.user.role !== UserRole.ADMIN) {
+        await ctx.reply('❌ Эта команда доступна только менеджерам.');
+        return;
+      }
+
+      const pending = await this.collectionsService.findPending();
+
+      if (pending.length === 0) {
+        await ctx.reply(
+          `╭─────────────────────╮\n` +
+          `│  📥  <b>ПРИЁМ</b>\n` +
+          `╰─────────────────────╯\n\n` +
+          `Нет ожидающих инкассаций! 🎉`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: new InlineKeyboard().text('🏠 Меню', 'main_menu'),
+          },
+        );
+        return;
+      }
+
+      const keyboard = new InlineKeyboard();
+      pending.slice(0, 8).forEach((c) => {
+        const time = this.formatTime(c.collectedAt);
+        const displayName = c.machine.name.length > 18 ? c.machine.name.slice(0, 16) + '..' : c.machine.name;
+        keyboard.text(`⏳ ${time}  ${displayName}`, `receive_${c.id}_0`).row();
+      });
+      if (pending.length > 8) {
+        keyboard.text(`📋 Все (${pending.length})`, 'pending_collections_0').row();
+      }
+      keyboard.text('🏠 Меню', 'main_menu');
+
+      await ctx.reply(
+        `╭─────────────────────╮\n` +
+        `│  📥  <b>ПРИЁМ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `Ожидают: <b>${pending.length}</b>\n\n` +
+        `Выберите для приёма:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: keyboard,
+        },
+      );
+    });
+
+    // /help - Show help
+    this.bot.command('help', async (ctx) => {
+      const isManager = ctx.user?.role === UserRole.MANAGER || ctx.user?.role === UserRole.ADMIN;
+      const isAdmin = ctx.user?.role === UserRole.ADMIN;
+
+      let helpText =
+        `╭─────────────────────╮\n` +
+        `│  ❓  <b>ПОМОЩЬ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `<b>Команды:</b>\n\n` +
+        `/start — Главное меню\n` +
+        `/collect — Новый сбор\n` +
+        `/mycollections — Мои сборы сегодня\n`;
+
+      if (isManager) {
+        helpText += `/pending — Приём инкассаций\n`;
+      }
+
+      helpText += `\n<b>Как работать:</b>\n\n` +
+        `1️⃣ Нажмите /collect\n` +
+        `2️⃣ Выберите автомат\n` +
+        `3️⃣ Укажите время сбора\n` +
+        `4️⃣ Подтвердите\n\n`;
+
+      if (isManager) {
+        helpText += `<b>Для менеджеров:</b>\n\n` +
+          `📥 Принимайте инкассации\n` +
+          `💰 Указывайте суммы\n\n`;
+      }
+
+      if (isAdmin) {
+        helpText += `<b>Для админов:</b>\n\n` +
+          `👥 Приглашайте сотрудников\n` +
+          `✅ Подтверждайте автоматы\n`;
+      }
+
+      await ctx.reply(helpText, {
+        parse_mode: 'HTML',
+        reply_markup: new InlineKeyboard().text('🏠 Меню', 'main_menu'),
+      });
     });
 
     // Handle text messages
