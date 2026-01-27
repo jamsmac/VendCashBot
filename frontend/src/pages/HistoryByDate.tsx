@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { machinesApi } from '../api/machines'
+import { machinesApi, MachineLocation } from '../api/machines'
 import { collectionsApi } from '../api/collections'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, MapPin } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface HistoryRow {
@@ -11,6 +11,8 @@ interface HistoryRow {
   machineId: string
   time: string
   amount: string
+  locationId: string
+  locations: MachineLocation[]
 }
 
 export default function HistoryByDate() {
@@ -18,13 +20,50 @@ export default function HistoryByDate() {
   const [selectedDate, setSelectedDate] = useState('')
   const [defaultTime, setDefaultTime] = useState('14:00')
   const [rows, setRows] = useState<HistoryRow[]>([
-    { id: crypto.randomUUID(), machineId: '', time: defaultTime, amount: '' },
+    { id: crypto.randomUUID(), machineId: '', time: defaultTime, amount: '', locationId: '', locations: [] },
   ])
 
   const { data: machines } = useQuery({
     queryKey: ['machines'],
     queryFn: () => machinesApi.getAll(),
   })
+
+  // Load locations when machine is selected
+  const loadLocationsForRow = async (rowId: string, machineId: string) => {
+    if (!machineId) {
+      setRows(prev => prev.map(r => r.id === rowId ? { ...r, locations: [], locationId: '' } : r))
+      return
+    }
+    try {
+      const locs = await machinesApi.getLocations(machineId)
+      // Auto-select location for current date if available
+      let autoLocationId = ''
+      if (selectedDate && locs.length > 0) {
+        const locForDate = await machinesApi.getLocationForDate(machineId, selectedDate)
+        if (locForDate) {
+          autoLocationId = locForDate.id
+        }
+      }
+      setRows(prev => prev.map(r => r.id === rowId ? { ...r, locations: locs, locationId: autoLocationId } : r))
+    } catch {
+      setRows(prev => prev.map(r => r.id === rowId ? { ...r, locations: [], locationId: '' } : r))
+    }
+  }
+
+  // Update locations for all rows when date changes
+  useEffect(() => {
+    if (selectedDate) {
+      rows.forEach(row => {
+        if (row.machineId && row.locations.length > 0) {
+          machinesApi.getLocationForDate(row.machineId, selectedDate).then(loc => {
+            if (loc) {
+              setRows(prev => prev.map(r => r.id === row.id ? { ...r, locationId: loc.id } : r))
+            }
+          }).catch(() => {})
+        }
+      })
+    }
+  }, [selectedDate])
 
   const mutation = useMutation({
     mutationFn: (data: any) => collectionsApi.bulkCreate(data),
@@ -60,6 +99,8 @@ export default function HistoryByDate() {
         machineId: '',
         time: newTime,
         amount: '',
+        locationId: '',
+        locations: [],
       },
     ])
   }
@@ -70,8 +111,12 @@ export default function HistoryByDate() {
     }
   }
 
-  const updateRow = (id: string, field: keyof HistoryRow, value: string) => {
+  const updateRow = (id: string, field: keyof Omit<HistoryRow, 'locations'>, value: string) => {
     setRows(rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
+    // Load locations when machine changes
+    if (field === 'machineId') {
+      loadLocationsForRow(id, value)
+    }
   }
 
   const handleSubmit = () => {
@@ -90,6 +135,7 @@ export default function HistoryByDate() {
       machineId: r.machineId,
       collectedAt: `${selectedDate}T${r.time || '12:00'}:00`,
       amount: parseFloat(r.amount),
+      locationId: r.locationId || undefined,
     }))
 
     mutation.mutate({ collections, source: 'manual_history' })
@@ -129,6 +175,11 @@ export default function HistoryByDate() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Автомат</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <MapPin className="w-4 h-4" /> Адрес
+                  </span>
+                </th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 w-32">Время</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 w-40">Сумма</th>
                 <th className="px-4 py-3 w-16"></th>
@@ -152,6 +203,27 @@ export default function HistoryByDate() {
                           </option>
                         ))}
                     </select>
+                  </td>
+                  <td className="px-4 py-2">
+                    {row.locations.length > 0 ? (
+                      <select
+                        className="input text-sm"
+                        value={row.locationId}
+                        onChange={(e) => updateRow(row.id, 'locationId', e.target.value)}
+                      >
+                        <option value="">Текущий адрес</option>
+                        {row.locations.map((loc) => (
+                          <option key={loc.id} value={loc.id}>
+                            {loc.address} ({new Date(loc.validFrom).toLocaleDateString('ru-RU')}
+                            {loc.validTo ? ` - ${new Date(loc.validTo).toLocaleDateString('ru-RU')}` : ' - сейчас'})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-gray-400 text-sm">
+                        {row.machineId ? 'Нет истории' : '-'}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-2">
                     <input

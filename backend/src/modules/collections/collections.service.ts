@@ -158,6 +158,7 @@ export class CollectionsService {
             managerId: item.amount ? operatorId : undefined,
             source: dto.source || CollectionSource.MANUAL_HISTORY,
             notes: item.notes,
+            locationId: item.locationId,
           });
 
           const saved = await queryRunner.manager.save(collection);
