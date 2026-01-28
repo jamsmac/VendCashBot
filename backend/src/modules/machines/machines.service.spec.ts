@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { MachinesService } from './machines.service';
 import { Machine, MachineStatus } from './entities/machine.entity';
+import { MachineLocation } from './entities/machine-location.entity';
 
 describe('MachinesService', () => {
   let service: MachinesService;
@@ -47,6 +48,15 @@ describe('MachinesService', () => {
             findOne: jest.fn(),
             find: jest.fn(),
             createQueryBuilder: jest.fn().mockReturnValue(mockQueryBuilder),
+          },
+        },
+        {
+          provide: getRepositoryToken(MachineLocation),
+          useValue: {
+            create: jest.fn(),
+            save: jest.fn(),
+            findOne: jest.fn(),
+            find: jest.fn(),
           },
         },
       ],
