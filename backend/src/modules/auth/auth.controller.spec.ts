@@ -3,6 +3,7 @@ import { AuthController } from './auth.controller';
 import { AuthService, TelegramAuthData } from './auth.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
+import { Response, Request } from 'express';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -27,6 +28,17 @@ describe('AuthController', () => {
     user: mockUser,
   };
 
+  const mockResponse = {
+    cookie: jest.fn(),
+    clearCookie: jest.fn(),
+  } as unknown as Response;
+
+  const mockRequest = {
+    cookies: {
+      refresh_token: 'existing-refresh-token',
+    },
+  } as unknown as Request;
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -45,6 +57,9 @@ describe('AuthController', () => {
 
     controller = module.get<AuthController>(AuthController);
     authService = module.get(AuthService);
+
+    // Reset mocks
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
@@ -62,11 +77,11 @@ describe('AuthController', () => {
       hash: 'valid-hash',
     };
 
-    it('should authenticate user via Telegram and return tokens', async () => {
+    it('should authenticate user via Telegram and set cookies', async () => {
       authService.validateTelegramAuth.mockResolvedValue(mockUser);
       authService.login.mockResolvedValue(mockLoginResponse);
 
-      const result = await controller.telegramAuth(authDto);
+      const result = await controller.telegramAuth(authDto, mockResponse);
 
       expect(authService.validateTelegramAuth).toHaveBeenCalledWith({
         id: authDto.id,
@@ -78,14 +93,15 @@ describe('AuthController', () => {
         hash: authDto.hash,
       });
       expect(authService.login).toHaveBeenCalledWith(mockUser);
-      expect(result).toEqual(mockLoginResponse);
+      expect(mockResponse.cookie).toHaveBeenCalledTimes(2); // access_token and refresh_token
+      expect(result).toEqual({ user: mockUser });
     });
 
     it('should pass correct TelegramAuthData structure', async () => {
       authService.validateTelegramAuth.mockResolvedValue(mockUser);
       authService.login.mockResolvedValue(mockLoginResponse);
 
-      await controller.telegramAuth(authDto);
+      await controller.telegramAuth(authDto, mockResponse);
 
       const expectedAuthData: TelegramAuthData = {
         id: authDto.id,
@@ -110,7 +126,7 @@ describe('AuthController', () => {
       authService.validateTelegramAuth.mockResolvedValue(mockUser);
       authService.login.mockResolvedValue(mockLoginResponse);
 
-      await controller.telegramAuth(minimalAuthDto);
+      await controller.telegramAuth(minimalAuthDto, mockResponse);
 
       expect(authService.validateTelegramAuth).toHaveBeenCalledWith({
         id: minimalAuthDto.id,
@@ -147,24 +163,36 @@ describe('AuthController', () => {
       refreshToken: 'new-mock-refresh-token',
     };
 
-    it('should refresh tokens using refresh token', async () => {
-      const refreshTokenValue = 'existing-refresh-token';
+    it('should refresh tokens using cookie and set new cookies', async () => {
       authService.refreshTokens.mockResolvedValue(mockRefreshResponse);
 
-      const result = await controller.refresh({ refreshToken: refreshTokenValue });
+      const result = await controller.refresh(mockRequest, mockResponse);
 
-      expect(authService.refreshTokens).toHaveBeenCalledWith(refreshTokenValue);
-      expect(result).toEqual(mockRefreshResponse);
+      expect(authService.refreshTokens).toHaveBeenCalledWith('existing-refresh-token');
+      expect(mockResponse.cookie).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should throw error when no refresh token in cookie', async () => {
+      const requestWithoutCookie = {
+        cookies: {},
+      } as unknown as Request;
+
+      await expect(
+        controller.refresh(requestWithoutCookie, mockResponse),
+      ).rejects.toThrow('No refresh token provided');
     });
   });
 
   describe('logout', () => {
-    it('should revoke all user tokens', async () => {
+    it('should revoke all user tokens and clear cookies', async () => {
       authService.revokeAllUserTokens.mockResolvedValue(undefined);
 
-      const result = await controller.logout(mockUser);
+      const result = await controller.logout(mockUser, mockResponse);
 
       expect(authService.revokeAllUserTokens).toHaveBeenCalledWith(mockUser.id);
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith('access_token', { path: '/' });
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
       expect(result).toEqual({ success: true });
     });
   });

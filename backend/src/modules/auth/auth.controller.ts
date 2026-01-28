@@ -6,13 +6,26 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Res,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Response, Request } from 'express';
 import { AuthService, TelegramAuthData } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
+
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  path: '/',
+};
+
+const ACCESS_TOKEN_MAX_AGE = 15 * 60 * 1000; // 15 minutes
+const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 @ApiTags('auth')
 @Controller('auth')
@@ -21,7 +34,10 @@ export class AuthController {
 
   @Post('telegram')
   @ApiOperation({ summary: 'Authenticate via Telegram Login Widget' })
-  async telegramAuth(@Body() authDto: TelegramAuthDto) {
+  async telegramAuth(
+    @Body() authDto: TelegramAuthDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const authData: TelegramAuthData = {
       id: authDto.id,
       first_name: authDto.first_name,
@@ -33,7 +49,19 @@ export class AuthController {
     };
 
     const user = await this.authService.validateTelegramAuth(authData);
-    return this.authService.login(user);
+    const { accessToken, refreshToken, user: userData } = await this.authService.login(user);
+
+    // Set httpOnly cookies
+    res.cookie('access_token', accessToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: ACCESS_TOKEN_MAX_AGE,
+    });
+    res.cookie('refresh_token', refreshToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: REFRESH_TOKEN_MAX_AGE,
+    });
+
+    return { user: userData };
   }
 
   @Get('me')
@@ -47,8 +75,29 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token using refresh token' })
-  async refresh(@Body() body: { refreshToken: string }) {
-    return this.authService.refreshTokens(body.refreshToken);
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // Get refresh token from cookie or body (backward compatibility)
+    const refreshTokenValue = req.cookies?.refresh_token;
+    if (!refreshTokenValue) {
+      throw new Error('No refresh token provided');
+    }
+
+    const { accessToken, refreshToken } = await this.authService.refreshTokens(refreshTokenValue);
+
+    // Set new cookies
+    res.cookie('access_token', accessToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: ACCESS_TOKEN_MAX_AGE,
+    });
+    res.cookie('refresh_token', refreshToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: REFRESH_TOKEN_MAX_AGE,
+    });
+
+    return { success: true };
   }
 
   @Post('logout')
@@ -56,8 +105,16 @@ export class AuthController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout and revoke all refresh tokens' })
-  async logout(@CurrentUser() user: User) {
+  async logout(
+    @CurrentUser() user: User,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     await this.authService.revokeAllUserTokens(user.id);
+
+    // Clear cookies
+    res.clearCookie('access_token', { path: '/' });
+    res.clearCookie('refresh_token', { path: '/' });
+
     return { success: true };
   }
 }

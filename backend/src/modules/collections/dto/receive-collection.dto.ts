@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, Min, Max } from 'class-validator';
+import { IsNumber, IsOptional, IsString, Min, Max, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ReceiveCollectionDto {
@@ -10,6 +10,7 @@ export class ReceiveCollectionDto {
 
   @ApiProperty({ description: 'Notes', required: false })
   @IsString()
+  @MaxLength(1000)
   @IsOptional()
   notes?: string;
 }

@@ -1,12 +1,15 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
+import toast from 'react-hot-toast'
 
 const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 export const apiClient = axios.create({
   baseURL: API_URL,
+  timeout: 30000, // 30 seconds
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Send cookies with requests
 })
 
 // Track if we're currently refreshing the token
@@ -16,51 +19,16 @@ let failedQueue: Array<{
   reject: (reason?: unknown) => void
 }> = []
 
-const processQueue = (error: AxiosError | null, token: string | null = null) => {
+const processQueue = (error: AxiosError | null) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error)
     } else {
-      prom.resolve(token)
+      prom.resolve()
     }
   })
   failedQueue = []
 }
-
-const getToken = (): string | null => {
-  const authData = localStorage.getItem('vendcash-auth')
-  if (authData) {
-    try {
-      const { state } = JSON.parse(authData)
-      return state?.token || null
-    } catch {
-      return null
-    }
-  }
-  return null
-}
-
-const setToken = (token: string) => {
-  const authData = localStorage.getItem('vendcash-auth')
-  if (authData) {
-    try {
-      const parsed = JSON.parse(authData)
-      parsed.state.token = token
-      localStorage.setItem('vendcash-auth', JSON.stringify(parsed))
-    } catch {
-      // Ignore parsing errors
-    }
-  }
-}
-
-// Request interceptor for auth token
-apiClient.interceptors.request.use((config) => {
-  const token = getToken()
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
 
 // Response interceptor for errors and token refresh
 apiClient.interceptors.response.use(
@@ -68,11 +36,32 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
-    // If error is 401 and we haven't tried to refresh yet
+    // 1. Network error (no response at all)
+    if (!error.response) {
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Превышено время ожидания. Проверьте соединение.')
+      } else if (error.message.includes('Network Error')) {
+        toast.error('Ошибка сети. Проверьте подключение к интернету.')
+      }
+      return Promise.reject(error)
+    }
+
+    // 2. Server errors (5xx)
+    if (error.response.status >= 500) {
+      toast.error('Ошибка сервера. Попробуйте позже.')
+      return Promise.reject(error)
+    }
+
+    // 3. Rate limiting
+    if (error.response.status === 429) {
+      toast.error('Слишком много запросов. Подождите минуту.')
+      return Promise.reject(error)
+    }
+
+    // 4. If error is 401 and we haven't tried to refresh yet
     if (error.response?.status === 401 && !originalRequest._retry) {
       // Don't try to refresh if the failed request was the refresh endpoint itself
       if (originalRequest.url?.includes('/auth/refresh')) {
-        localStorage.removeItem('vendcash-auth')
         window.location.href = '/login'
         return Promise.reject(error)
       }
@@ -82,8 +71,8 @@ apiClient.interceptors.response.use(
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
         })
-          .then((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`
+          .then(() => {
+            // Retry with new cookie (automatically sent)
             return apiClient(originalRequest)
           })
           .catch((err) => {
@@ -95,32 +84,19 @@ apiClient.interceptors.response.use(
       isRefreshing = true
 
       try {
-        const token = getToken()
-        if (!token) {
-          throw new Error('No token available')
-        }
-
-        // Try to refresh the token
-        const response = await axios.post(
+        // Try to refresh the token (cookies sent automatically)
+        await axios.post(
           `${API_URL}/auth/refresh`,
           {},
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
+          { withCredentials: true }
         )
 
-        const newToken = response.data.accessToken
-        setToken(newToken)
-        processQueue(null, newToken)
+        processQueue(null)
 
-        // Retry original request with new token
-        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        // Retry original request (new cookie will be sent automatically)
         return apiClient(originalRequest)
       } catch (refreshError) {
-        processQueue(refreshError as AxiosError, null)
-        localStorage.removeItem('vendcash-auth')
+        processQueue(refreshError as AxiosError)
         window.location.href = '/login'
         return Promise.reject(refreshError)
       } finally {

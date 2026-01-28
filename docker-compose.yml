@@ -94,6 +94,25 @@ services:
       timeout: 10s
       retries: 3
 
+  # Database Backup Service (runs daily)
+  backup:
+    image: postgres:15-alpine
+    container_name: vendcash-backup
+    restart: unless-stopped
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./backups:/backups
+    environment:
+      DB_HOST: postgres
+      DB_USERNAME: ${DB_USERNAME:-vendcash}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      DB_NAME: ${DB_DATABASE:-vendcash}
+      BACKUP_DIR: /backups
+    entrypoint: /bin/sh -c "chmod +x /scripts/backup.sh && while true; do /scripts/backup.sh; sleep 86400; done"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:

@@ -42,22 +42,28 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Mobile header */}
-      <div className="lg:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
-        <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2">
-          <Menu className="w-6 h-6 dark:text-gray-200" />
+      <header className="lg:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between" role="banner">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="p-2 -ml-2"
+          aria-label="Открыть меню"
+          aria-expanded={sidebarOpen}
+        >
+          <Menu className="w-6 h-6 dark:text-gray-200" aria-hidden="true" />
         </button>
         <span className="font-bold text-lg text-primary-600 dark:text-primary-400">VendCash</span>
         <div className="flex items-center gap-1">
           <NotificationBell />
           <ThemeToggle />
         </div>
-      </div>
+      </header>
 
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
           className="lg:hidden fixed inset-0 bg-black/50 z-40"
           onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
 
@@ -65,6 +71,8 @@ export default function Layout() {
       <aside
         className={`fixed top-0 left-0 z-50 h-full w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-200 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
+        role="navigation"
+        aria-label="Главное меню"
       >
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <span className="font-bold text-xl text-primary-600 dark:text-primary-400">VendCash</span>
@@ -73,13 +81,17 @@ export default function Layout() {
               <NotificationBell />
               <ThemeToggle />
             </div>
-            <button className="lg:hidden p-2" onClick={() => setSidebarOpen(false)}>
-              <X className="w-5 h-5 dark:text-gray-200" />
+            <button
+              className="lg:hidden p-2"
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Закрыть меню"
+            >
+              <X className="w-5 h-5 dark:text-gray-200" aria-hidden="true" />
             </button>
           </div>
         </div>
 
-        <nav className="p-4 space-y-1">
+        <nav className="p-4 space-y-1" aria-label="Навигация">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -121,7 +133,7 @@ export default function Layout() {
       </aside>
 
       {/* Main content */}
-      <main className="lg:ml-64 p-4 lg:p-6">
+      <main className="lg:ml-64 p-4 lg:p-6" role="main" aria-label="Основной контент">
         <Outlet />
       </main>
     </div>

@@ -1,0 +1,13 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci
+
+# Don't copy source - will be mounted as volume
+# Source files mounted from docker-compose.dev.yml
+
+# Development with hot reload
+CMD ["npm", "run", "start:dev"]

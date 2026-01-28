@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -26,6 +26,8 @@ export interface JwtPayload {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
@@ -75,7 +77,7 @@ export class AuthService {
   private verifyTelegramAuth(authData: TelegramAuthData): boolean {
     const botToken = this.configService.get('telegram.botToken');
     if (!botToken) {
-      console.error('[Auth] No bot token configured');
+      this.logger.error('No bot token configured');
       return false;
     }
 
@@ -88,8 +90,6 @@ export class AuthService {
       .map((key) => `${key}=${data[key as keyof typeof data]}`)
       .join('\n');
 
-    console.log('[Auth] Data check string:', dataCheckArr);
-
     // Create secret key from bot token
     const secretKey = crypto.createHash('sha256').update(botToken).digest();
 
@@ -98,10 +98,6 @@ export class AuthService {
       .createHmac('sha256', secretKey)
       .update(dataCheckArr)
       .digest('hex');
-
-    console.log('[Auth] Received hash:', hash);
-    console.log('[Auth] Calculated hash:', calculatedHash);
-    console.log('[Auth] Hash match:', calculatedHash === hash);
 
     return calculatedHash === hash;
   }

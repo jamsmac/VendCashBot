@@ -84,17 +84,17 @@ const getNotificationMessage = (type: string, data: any): string => {
 
 export function useNotifications() {
   const socketRef = useRef<Socket | null>(null)
-  const { token, isAuthenticated } = useAuthStore()
+  const { isAuthenticated } = useAuthStore()
   const { addNotification } = useNotificationsStore()
 
   const connect = useCallback(() => {
-    if (!token || !isAuthenticated) return
+    if (!isAuthenticated) return
 
     const apiUrl = import.meta.env.VITE_API_URL || ''
     const wsUrl = apiUrl.replace('/api', '').replace('http', 'ws')
 
     socketRef.current = io(`${wsUrl}/notifications`, {
-      auth: { token },
+      withCredentials: true, // Send cookies with WebSocket connection
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,
@@ -127,7 +127,7 @@ export function useNotifications() {
     socketRef.current.on('connect_error', (error) => {
       console.error('WebSocket connection error:', error.message)
     })
-  }, [token, isAuthenticated, addNotification])
+  }, [isAuthenticated, addNotification])
 
   const disconnect = useCallback(() => {
     if (socketRef.current) {
@@ -137,7 +137,7 @@ export function useNotifications() {
   }, [])
 
   useEffect(() => {
-    if (isAuthenticated && token) {
+    if (isAuthenticated) {
       connect()
     } else {
       disconnect()
@@ -146,7 +146,7 @@ export function useNotifications() {
     return () => {
       disconnect()
     }
-  }, [isAuthenticated, token, connect, disconnect])
+  }, [isAuthenticated, connect, disconnect])
 
   return {
     isConnected: socketRef.current?.connected || false,

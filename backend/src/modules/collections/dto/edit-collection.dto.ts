@@ -1,4 +1,4 @@
-import { IsNumber, IsString, Min, Max } from 'class-validator';
+import { IsNumber, IsString, Min, Max, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class EditCollectionDto {
@@ -10,5 +10,6 @@ export class EditCollectionDto {
 
   @ApiProperty({ description: 'Reason for edit' })
   @IsString()
+  @MaxLength(500)
   reason: string;
 }

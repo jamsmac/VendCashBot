@@ -1,4 +1,3 @@
-import { RedisAdapter } from '@grammyjs/storage-redis';
 import { StorageAdapter } from 'grammy';
 import Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
@@ -61,6 +60,33 @@ class MemorySessionStorage<T> implements StorageAdapter<T> {
 }
 
 /**
+ * Redis session storage adapter with TTL support
+ */
+class RedisAdapterWithTTL<T> implements StorageAdapter<T> {
+  private readonly TTL_SECONDS = 86400; // 24 hours
+
+  constructor(private readonly redis: Redis) {}
+
+  async read(key: string): Promise<T | undefined> {
+    const data = await this.redis.get(key);
+    if (!data) return undefined;
+    try {
+      return JSON.parse(data) as T;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async write(key: string, value: T): Promise<void> {
+    await this.redis.set(key, JSON.stringify(value), 'EX', this.TTL_SECONDS);
+  }
+
+  async delete(key: string): Promise<void> {
+    await this.redis.del(key);
+  }
+}
+
+/**
  * Create session storage - Redis if configured, otherwise in-memory
  */
 export function createSessionStorage(
@@ -97,7 +123,7 @@ export function createSessionStorage(
     });
 
     return {
-      storage: new RedisAdapter<SessionData>({ instance: redis }),
+      storage: new RedisAdapterWithTTL<SessionData>(redis),
       type: 'redis',
     };
   } catch (error) {

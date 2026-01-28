@@ -171,27 +171,51 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Send a message to a specific Telegram user
+   * Send a message to a specific Telegram user with retry logic
    * Used for notifications (e.g., new collection alerts)
    */
-  async sendMessage(telegramId: number | string, text: string, parseMode: 'HTML' | 'Markdown' = 'HTML'): Promise<boolean> {
+  async sendMessage(
+    telegramId: number | string,
+    text: string,
+    parseMode: 'HTML' | 'Markdown' = 'HTML',
+    retries = 3,
+  ): Promise<boolean> {
     if (!this.bot) {
       this.logger.warn('Cannot send message: bot not initialized');
       return false;
     }
-    try {
-      await this.bot.api.sendMessage(telegramId, text, { parse_mode: parseMode });
-      return true;
-    } catch (error) {
-      const message = getErrorMessage(error);
-      // Don't log "blocked by user" as error
-      if (message.includes('bot was blocked') || message.includes('Forbidden')) {
-        this.logger.debug(`Could not send message to ${telegramId}: ${message}`);
-      } else {
-        this.logger.error(`Failed to send message to ${telegramId}: ${message}`);
+
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        await this.bot.api.sendMessage(telegramId, text, { parse_mode: parseMode });
+        return true;
+      } catch (error) {
+        const message = getErrorMessage(error);
+
+        // Permanent errors - don't retry
+        if (
+          message.includes('bot was blocked') ||
+          message.includes('Forbidden') ||
+          message.includes('chat not found') ||
+          message.includes('user is deactivated')
+        ) {
+          this.logger.debug(`Permanent error for ${telegramId}: ${message}`);
+          return false;
+        }
+
+        // Transient errors - retry with exponential backoff
+        if (attempt < retries) {
+          const delay = Math.pow(2, attempt) * 100; // 200ms, 400ms, 800ms
+          this.logger.warn(`Retry ${attempt}/${retries} for ${telegramId} in ${delay}ms: ${message}`);
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+
+        this.logger.error(`Failed to send message to ${telegramId} after ${retries} attempts: ${message}`);
+        return false;
       }
-      return false;
     }
+    return false;
   }
 
   /**

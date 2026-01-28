@@ -1,4 +1,4 @@
-import { IsUUID, IsDate, IsOptional, IsString, IsBoolean, IsEnum, IsNumber, Min, Max } from 'class-validator';
+import { IsUUID, IsDate, IsOptional, IsString, IsBoolean, IsEnum, IsNumber, Min, Max, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { CollectionSource } from '../entities/collection.entity';
@@ -29,6 +29,7 @@ export class CreateCollectionDto {
 
   @ApiProperty({ description: 'Notes', required: false })
   @IsString()
+  @MaxLength(1000)
   @IsOptional()
   notes?: string;
 

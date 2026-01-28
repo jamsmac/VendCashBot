@@ -59,27 +59,38 @@ export default function NotificationBell() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        aria-label={`Уведомления${unreadCount > 0 ? `, ${unreadCount} непрочитанных` : ''}`}
+        aria-expanded={isOpen}
+        aria-haspopup="true"
       >
-        <Bell className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+        <Bell className="w-5 h-5 text-gray-600 dark:text-gray-300" aria-hidden="true" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+          <span
+            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center"
+            aria-hidden="true"
+          >
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+        <div
+          className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
+          role="menu"
+          aria-label="Список уведомлений"
+        >
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="font-medium text-gray-900 dark:text-gray-100">Уведомления</h3>
+            <h3 className="font-medium text-gray-900 dark:text-gray-100" id="notifications-heading">Уведомления</h3>
             <div className="flex gap-1">
               {unreadCount > 0 && (
                 <button
                   onClick={markAllAsRead}
                   className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                   title="Отметить все как прочитанные"
+                  aria-label="Отметить все как прочитанные"
                 >
-                  <CheckCheck className="w-4 h-4 text-gray-500" />
+                  <CheckCheck className="w-4 h-4 text-gray-500" aria-hidden="true" />
                 </button>
               )}
               {notifications.length > 0 && (
@@ -87,16 +98,17 @@ export default function NotificationBell() {
                   onClick={clearAll}
                   className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                   title="Очистить все"
+                  aria-label="Очистить все уведомления"
                 >
-                  <X className="w-4 h-4 text-gray-500" />
+                  <X className="w-4 h-4 text-gray-500" aria-hidden="true" />
                 </button>
               )}
             </div>
           </div>
 
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-96 overflow-y-auto" role="list" aria-labelledby="notifications-heading">
             {notifications.length === 0 ? (
-              <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+              <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400" role="listitem">
                 Нет уведомлений
               </div>
             ) : (
@@ -107,6 +119,10 @@ export default function NotificationBell() {
                     !notification.read ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                   }`}
                   onClick={() => markAsRead(notification.id)}
+                  role="listitem"
+                  aria-label={`${getNotificationText(notification.type, notification.data)}${!notification.read ? ', непрочитано' : ''}`}
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === 'Enter' && markAsRead(notification.id)}
                 >
                   <div className="flex gap-3">
                     <span className="text-lg">{getNotificationIcon(notification.type)}</span>

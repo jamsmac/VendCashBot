@@ -14,7 +14,6 @@ export interface User {
 }
 
 export interface LoginResponse {
-  accessToken: string
   user: User
 }
 
@@ -29,8 +28,13 @@ export const authApi = {
     return response.data
   },
 
-  refresh: async (): Promise<{ accessToken: string }> => {
+  refresh: async (): Promise<{ success: boolean }> => {
     const response = await apiClient.post('/auth/refresh')
+    return response.data
+  },
+
+  logout: async (): Promise<{ success: boolean }> => {
+    const response = await apiClient.post('/auth/logout')
     return response.data
   },
 }
