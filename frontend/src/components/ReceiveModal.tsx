@@ -65,6 +65,7 @@ export default function ReceiveModal({ collection, onClose, onSubmit }: ReceiveM
               placeholder="Введите сумму"
               {...register('amount', {
                 required: 'Введите сумму',
+                valueAsNumber: true,
                 min: { value: 0, message: 'Сумма должна быть положительной' },
               })}
             />
