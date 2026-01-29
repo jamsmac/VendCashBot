@@ -182,6 +182,15 @@ export class MachinesService {
     return this.machineRepository.save(machine);
   }
 
+  async remove(id: string): Promise<void> {
+    const machine = await this.findByIdOrFail(id);
+
+    // Delete related locations first
+    await this.locationRepository.delete({ machineId: id });
+
+    await this.machineRepository.remove(machine);
+  }
+
   async search(query: string, includeAllStatuses = false): Promise<Machine[]> {
     const qb = this.machineRepository
       .createQueryBuilder('machine')

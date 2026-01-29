@@ -2827,6 +2827,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       } else {
         keyboard.text('✅ Включить', `toggle_machine_${machine.id}_${returnPage}`);
       }
+      keyboard.text('🗑 Удалить', `delete_machine_${machine.id}_${returnPage}`);
       keyboard.row();
       keyboard.text('◀️ Назад', `list_machines_${returnPage}`).text('🏠 Меню', 'main_menu');
 
@@ -2895,6 +2896,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         } else {
           keyboard.text('✅ Включить', `toggle_machine_${updatedMachine.id}_${returnPage}`);
         }
+        keyboard.text('🗑 Удалить', `delete_machine_${updatedMachine.id}_${returnPage}`);
         keyboard.row();
         keyboard.text('◀️ Назад', `list_machines_${returnPage}`).text('🏠 Меню', 'main_menu');
 
@@ -3025,6 +3027,103 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await ctx.reply('Отправьте новую геолокацию автомата:', {
         reply_markup: locationKeyboard,
       });
+    });
+
+    // Admin: Delete machine - confirmation screen
+    this.bot.callbackQuery(/^delete_machine_([a-f0-9-]+)(?:_(\d+))?$/, async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      const returnPage = ctx.match[2] || '0';
+
+      if (!isValidUUID(machineId)) {
+        await ctx.editMessageText('❌ Неверный ID автомата');
+        return;
+      }
+
+      const machine = await this.machinesService.findById(machineId);
+      if (!machine) {
+        await ctx.editMessageText('❌ Автомат не найден');
+        return;
+      }
+
+      const collectionsCount = await this.collectionsService.countByMachine(machineId);
+      const safeName = this.escapeHtml(machine.name);
+
+      if (collectionsCount > 0) {
+        await ctx.editMessageText(
+          `⚠️ <b>Нельзя удалить автомат</b>\n\n` +
+          `Автомат <code>${machine.code}</code> «${safeName}» имеет <b>${collectionsCount}</b> инкассаций.\n\n` +
+          `Вместо удаления можно отключить автомат.`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: new InlineKeyboard()
+              .text('◀️ К автомату', `edit_machine_${machineId}_${returnPage}`)
+              .text('🏠 Меню', 'main_menu'),
+          },
+        );
+        return;
+      }
+
+      await ctx.editMessageText(
+        `🗑 <b>Удаление автомата</b>\n\n` +
+        `Вы уверены, что хотите удалить автомат <code>${machine.code}</code> «${safeName}»?\n\n` +
+        `⚠️ Это действие нельзя отменить.`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: new InlineKeyboard()
+            .text('🗑 Да, удалить', `confirm_del_machine_${machineId}_${returnPage}`)
+            .text('◀️ Отмена', `edit_machine_${machineId}_${returnPage}`),
+        },
+      );
+    });
+
+    // Admin: Confirm delete machine
+    this.bot.callbackQuery(/^confirm_del_machine_([a-f0-9-]+)(?:_(\d+))?$/, async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
+
+      const machineId = ctx.match[1];
+      const returnPage = ctx.match[2] || '0';
+
+      if (!isValidUUID(machineId)) {
+        await ctx.answerCallbackQuery('Неверный ID');
+        return;
+      }
+
+      try {
+        const machine = await this.machinesService.findById(machineId);
+        if (!machine) {
+          await ctx.answerCallbackQuery('Автомат не найден');
+          return;
+        }
+
+        // Double-check collections before deleting
+        const collectionsCount = await this.collectionsService.countByMachine(machineId);
+        if (collectionsCount > 0) {
+          await ctx.answerCallbackQuery('Нельзя удалить: есть инкассации');
+          return;
+        }
+
+        const safeCode = this.escapeHtml(machine.code);
+        const safeName = this.escapeHtml(machine.name);
+
+        await this.machinesService.remove(machineId);
+
+        await ctx.answerCallbackQuery('Автомат удалён');
+        await ctx.editMessageText(
+          `✅ Автомат <code>${safeCode}</code> «${safeName}» удалён`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: new InlineKeyboard()
+              .text('◀️ К списку', `list_machines_${returnPage}`)
+              .text('🏠 Меню', 'main_menu'),
+          },
+        );
+      } catch (error: unknown) {
+        const safeError = this.escapeHtml(getErrorMessage(error));
+        await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
+      }
     });
 
     // Manage machines menu

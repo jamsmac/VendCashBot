@@ -438,6 +438,10 @@ export class CollectionsService {
     });
   }
 
+  async countByMachine(machineId: string): Promise<number> {
+    return this.collectionRepository.count({ where: { machineId } });
+  }
+
   async findByOperator(operatorId: string, date?: Date): Promise<Collection[]> {
     const query = this.collectionRepository
       .createQueryBuilder('collection')
