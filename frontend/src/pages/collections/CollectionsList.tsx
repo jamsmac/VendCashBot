@@ -3,13 +3,17 @@ import { useState } from 'react'
 import { collectionsApi, Collection, CollectionQuery } from '../../api/collections'
 import { machinesApi } from '../../api/machines'
 import { format } from 'date-fns'
-import { Filter, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Filter, ChevronLeft, ChevronRight, Edit, Trash2 } from 'lucide-react'
 import ReceiveModal from '../../components/ReceiveModal'
+import EditCollectionModal from '../../components/EditCollectionModal'
+import CancelCollectionModal from '../../components/CancelCollectionModal'
 import toast from 'react-hot-toast'
 
 export default function CollectionsList() {
     const [query, setQuery] = useState<CollectionQuery>({ page: 1, limit: 20 })
     const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null)
+    const [editCollection, setEditCollection] = useState<Collection | null>(null)
+    const [cancelCollection, setCancelCollection] = useState<Collection | null>(null)
     const [showFilters, setShowFilters] = useState(false)
 
     const { data, isLoading, refetch } = useQuery({
@@ -28,6 +32,30 @@ export default function CollectionsList() {
             await collectionsApi.receive(selectedCollection.id, { amount, notes })
             toast.success('Инкассация принята!')
             setSelectedCollection(null)
+            refetch()
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Ошибка')
+        }
+    }
+
+    const handleEdit = async (amount: number, reason: string) => {
+        if (!editCollection) return
+        try {
+            await collectionsApi.edit(editCollection.id, { amount, reason })
+            toast.success('Сумма инкассации изменена!')
+            setEditCollection(null)
+            refetch()
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Ошибка')
+        }
+    }
+
+    const handleCancel = async (reason?: string) => {
+        if (!cancelCollection) return
+        try {
+            await collectionsApi.cancel(cancelCollection.id, reason)
+            toast.success('Инкассация отменена')
+            setCancelCollection(null)
             refetch()
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Ошибка')
@@ -156,14 +184,43 @@ export default function CollectionsList() {
                                         </td>
                                         <td className="px-4 py-3">{getStatusBadge(collection.status)}</td>
                                         <td className="px-4 py-3">
-                                            {collection.status === 'collected' && (
-                                                <button
-                                                    onClick={() => setSelectedCollection(collection)}
-                                                    className="text-primary-600 hover:text-primary-800 font-medium text-sm"
-                                                >
-                                                    Принять
-                                                </button>
-                                            )}
+                                            <div className="flex items-center gap-2">
+                                                {collection.status === 'collected' && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => setSelectedCollection(collection)}
+                                                            className="text-primary-600 hover:text-primary-800 font-medium text-sm"
+                                                        >
+                                                            Принять
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setCancelCollection(collection)}
+                                                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                                                            title="Отменить"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {collection.status === 'received' && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => setEditCollection(collection)}
+                                                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
+                                                            title="Редактировать сумму"
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setCancelCollection(collection)}
+                                                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                                                            title="Отменить"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -207,6 +264,24 @@ export default function CollectionsList() {
                     collection={selectedCollection}
                     onClose={() => setSelectedCollection(null)}
                     onSubmit={handleReceive}
+                />
+            )}
+
+            {/* Edit Modal */}
+            {editCollection && (
+                <EditCollectionModal
+                    collection={editCollection}
+                    onClose={() => setEditCollection(null)}
+                    onSubmit={handleEdit}
+                />
+            )}
+
+            {/* Cancel Modal */}
+            {cancelCollection && (
+                <CancelCollectionModal
+                    collection={cancelCollection}
+                    onClose={() => setCancelCollection(null)}
+                    onSubmit={handleCancel}
                 />
             )}
         </div>
