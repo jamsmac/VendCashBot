@@ -4,7 +4,7 @@ export class ProtectAuditLog1737700000000 implements MigrationInterface {
   name = 'ProtectAuditLog1737700000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Create function to prevent audit log modifications
+    // Create function to prevent audit log modifications (CREATE OR REPLACE is idempotent)
     await queryRunner.query(`
       CREATE OR REPLACE FUNCTION prevent_audit_modification()
       RETURNS TRIGGER AS $$
@@ -14,7 +14,11 @@ export class ProtectAuditLog1737700000000 implements MigrationInterface {
       $$ LANGUAGE plpgsql;
     `);
 
-    // Create trigger to prevent UPDATE and DELETE on collection_history
+    // Drop trigger if exists, then create (to make idempotent)
+    await queryRunner.query(`
+      DROP TRIGGER IF EXISTS prevent_audit_update ON collection_history
+    `);
+
     await queryRunner.query(`
       CREATE TRIGGER prevent_audit_update
       BEFORE UPDATE OR DELETE ON collection_history
