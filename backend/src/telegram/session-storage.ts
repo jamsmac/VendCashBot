@@ -27,6 +27,8 @@ export interface SessionData {
   newMachineCode?: string;
   newMachineName?: string;
   editingTextKey?: string;
+  /** Track last bot message IDs for cleanup */
+  lastBotMessageIds?: number[];
 }
 
 /**

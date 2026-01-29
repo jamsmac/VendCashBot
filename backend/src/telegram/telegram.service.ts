@@ -263,7 +263,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const roleBadge = this.getRoleBadge(ctx.user.role);
         const safeName = this.escapeHtml(ctx.user.name);
 
-        await ctx.reply(
+        await this.cleanReply(ctx,
           `╭─────────────────────╮\n` +
           `│  🏧  <b>VendCash</b>\n` +
           `╰─────────────────────╯\n\n` +
@@ -361,7 +361,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     // /collect - Quick start new collection
     this.bot.command('collect', async (ctx) => {
       if (!ctx.user) return;
-      await ctx.reply(
+      await this.cleanReply(ctx,
         `╭─────────────────────╮\n` +
         `│  📦  <b>НОВЫЙ СБОР</b>\n` +
         `╰─────────────────────╯\n\n` +
@@ -386,7 +386,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const collections = await this.collectionsService.findByOperator(ctx.user.id, today);
 
       if (collections.length === 0) {
-        await ctx.reply(
+        await this.cleanReply(ctx,
           `╭─────────────────────╮\n` +
           `│  📋  <b>МОИ СБОРЫ</b>\n` +
           `╰─────────────────────╯\n\n` +
@@ -405,7 +405,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return `${statusIcon} ${time}  ${machineDisplay}${amount}`;
       });
 
-      await ctx.reply(
+      await this.cleanReply(ctx,
         `╭─────────────────────╮\n` +
         `│  📋  <b>МОИ СБОРЫ</b>\n` +
         `╰─────────────────────╯\n\n` +
@@ -431,7 +431,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const pending = await this.collectionsService.findPending();
 
       if (pending.length === 0) {
-        await ctx.reply(
+        await this.cleanReply(ctx,
           `╭─────────────────────╮\n` +
           `│  📥  <b>ПРИЁМ</b>\n` +
           `╰─────────────────────╯\n\n` +
@@ -455,7 +455,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
       keyboard.text('🏠 Меню', 'main_menu');
 
-      await ctx.reply(
+      await this.cleanReply(ctx,
         `╭─────────────────────╮\n` +
         `│  📥  <b>ПРИЁМ</b>\n` +
         `╰─────────────────────╯\n\n` +
@@ -504,7 +504,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `✅ Подтверждайте автоматы\n`;
       }
 
-      await ctx.reply(helpText, {
+      await this.cleanReply(ctx, helpText, {
         parse_mode: 'HTML',
         reply_markup: new InlineKeyboard().text('🏠 Меню', 'main_menu'),
       });
@@ -521,12 +521,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         ctx.session.newMachineCode = undefined;
         ctx.session.newMachineName = undefined;
 
+        await this.deletePreviousMessages(ctx);
         await ctx.reply(
           wasCreatingMachine ? '❌ Создание автомата отменено' : '❌ Сбор отменён',
           { reply_markup: { remove_keyboard: true } },
         );
 
-        await ctx.reply(
+        const sent = await ctx.reply(
           'Выберите действие:',
           {
             reply_markup: new InlineKeyboard()
@@ -534,6 +535,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
               .text('🏠 Меню', 'main_menu'),
           },
         );
+        this.trackMessage(ctx, sent.message_id);
         return;
       }
 
@@ -562,7 +564,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           ctx.session.step = 'idle';
           ctx.session.pendingCollectionId = undefined;
 
-          await ctx.reply(
+          await this.cleanReply(ctx,
             `╭─────────────────────╮\n` +
             `│  ✅  <b>ПРИНЯТО</b>\n` +
             `╰─────────────────────╯\n\n` +
@@ -622,7 +624,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             ? `🔍 Найдено: ${machines.length}\n\n✅ = подтверждён\n⏳ = ожидает подтверждения`
             : `❌ Ничего не найдено по запросу "${safeQuery}"`;
 
-        await ctx.reply(resultText, { parse_mode: 'HTML', reply_markup: keyboard });
+        await this.cleanReply(ctx, resultText, { parse_mode: 'HTML', reply_markup: keyboard });
         return;
       }
 
@@ -654,7 +656,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         ctx.session.newMachineCode = code;
         ctx.session.step = 'creating_machine_name';
 
-        await ctx.reply(
+        await this.cleanReply(ctx,
           `╭─────────────────────╮\n` +
           `│  ➕  <b>НОВЫЙ АВТОМАТ</b>\n` +
           `╰─────────────────────╯\n\n` +
@@ -683,7 +685,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
         const safeName = this.escapeHtml(name);
 
-        await ctx.reply(
+        await this.cleanReply(ctx,
           `╭─────────────────────╮\n` +
           `│  ➕  <b>НОВЫЙ АВТОМАТ</b>\n` +
           `╰─────────────────────╯\n\n` +
@@ -701,9 +703,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           .resized()
           .oneTime();
 
-        await ctx.reply('Отправьте геолокацию автомата:', {
+        const sent = await ctx.reply('Отправьте геолокацию автомата:', {
           reply_markup: locationKeyboard,
         });
+        this.trackMessage(ctx, sent.message_id);
         return;
       }
 
@@ -968,12 +971,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           const safeMachineName = this.escapeHtml(machine.name);
           const timeStr = this.formatDateTime(collection.collectedAt);
 
-          // Remove the reply keyboard first
+          // Remove the reply keyboard and clean old messages
+          await this.deletePreviousMessages(ctx);
           await ctx.reply('✅ Локация получена!', {
             reply_markup: { remove_keyboard: true },
           });
 
-          await ctx.reply(
+          const sent = await ctx.reply(
             `╭─────────────────────╮\n` +
             `│  ✅  <b>СБОР ОТПРАВЛЕН</b>\n` +
             `╰─────────────────────╯\n\n` +
@@ -989,6 +993,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
                 .text('🏠 Меню', 'main_menu'),
             },
           );
+          this.trackMessage(ctx, sent.message_id);
         } catch (error: unknown) {
           const safeError = this.escapeHtml(getErrorMessage(error));
           await ctx.reply(`❌ Ошибка: ${safeError}`, {
@@ -1025,12 +1030,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
           const safeMachineName = this.escapeHtml(machine.name);
 
-          // Remove reply keyboard first
+          // Remove reply keyboard and clean old messages
+          await this.deletePreviousMessages(ctx);
           await ctx.reply('✅ Локация получена!', {
             reply_markup: { remove_keyboard: true },
           });
 
-          await ctx.reply(
+          const sent = await ctx.reply(
             `╭─────────────────────╮\n` +
             `│  ✅  <b>АВТОМАТ СОЗДАН</b>\n` +
             `╰─────────────────────╯\n\n` +
@@ -1042,6 +1048,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
               reply_markup: this.getMainMenu(ctx.user),
             },
           );
+          this.trackMessage(ctx, sent.message_id);
         } catch (error: unknown) {
           const safeError = this.escapeHtml(getErrorMessage(error));
           await ctx.reply(`❌ Ошибка: ${safeError}`, {
@@ -1514,9 +1521,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           .resized()
           .oneTime();
 
-        await ctx.reply('Отправьте геолокацию для подтверждения:', {
+        const sent = await ctx.reply('Отправьте геолокацию для подтверждения:', {
           reply_markup: locationKeyboard,
         });
+        this.trackMessage(ctx, sent.message_id);
         return;
       }
 
@@ -3455,6 +3463,44 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       .text('✖️ Отмена', `machine_${machineId}`);
 
     return keyboard;
+  }
+
+  /**
+   * Delete previously tracked bot messages to keep chat clean.
+   * Then send a new message and track its ID.
+   */
+  private async cleanReply(ctx: MyContext, text: string, options?: Record<string, unknown>): Promise<import('grammy/types').Message.TextMessage> {
+    await this.deletePreviousMessages(ctx);
+    const sent = await ctx.reply(text, options as never);
+    this.trackMessage(ctx, sent.message_id);
+    return sent;
+  }
+
+  /** Delete all tracked bot messages from the chat */
+  private async deletePreviousMessages(ctx: MyContext): Promise<void> {
+    const ids = ctx.session.lastBotMessageIds;
+    if (!ids || ids.length === 0) return;
+
+    for (const msgId of ids) {
+      try {
+        await ctx.api.deleteMessage(ctx.chat!.id, msgId);
+      } catch {
+        // Message may already be deleted or too old — ignore
+      }
+    }
+    ctx.session.lastBotMessageIds = [];
+  }
+
+  /** Track a bot message ID for future cleanup */
+  private trackMessage(ctx: MyContext, messageId: number): void {
+    if (!ctx.session.lastBotMessageIds) {
+      ctx.session.lastBotMessageIds = [];
+    }
+    ctx.session.lastBotMessageIds.push(messageId);
+    // Keep only last 5 to avoid stale IDs
+    if (ctx.session.lastBotMessageIds.length > 5) {
+      ctx.session.lastBotMessageIds = ctx.session.lastBotMessageIds.slice(-5);
+    }
   }
 
   private formatDateTime(date: Date): string {
