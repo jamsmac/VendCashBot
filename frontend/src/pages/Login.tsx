@@ -52,7 +52,7 @@ export default function Login() {
     // Load Telegram widget
     const script = document.createElement('script')
     script.src = 'https://telegram.org/js/telegram-widget.js?22'
-    script.setAttribute('data-telegram-login', import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'VendCashBot')
+    script.setAttribute('data-telegram-login', import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'vendhubcashbot')
     script.setAttribute('data-size', 'large')
     script.setAttribute('data-radius', '8')
     script.setAttribute('data-onauth', 'TelegramLoginWidget.dataOnauth(user)')
