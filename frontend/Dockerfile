@@ -9,7 +9,8 @@ RUN npm ci
 COPY . .
 
 # Production environment variables for Railway
-ENV VITE_API_URL=https://backend-production-0df0d.up.railway.app/api
+# Use /api to leverage nginx proxy (same-origin for cookies)
+ENV VITE_API_URL=/api
 ENV VITE_TELEGRAM_BOT_USERNAME=vendhubcashbot
 
 RUN npm run build
