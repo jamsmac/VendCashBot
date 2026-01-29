@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Bot, InlineKeyboard, session, Context, SessionFlavor } from 'grammy';
+import { Bot, InlineKeyboard, Keyboard, session, Context, SessionFlavor } from 'grammy';
 import { limit } from '@grammyjs/ratelimiter';
 import { UsersService } from '../modules/users/users.service';
 import { InvitesService } from '../modules/invites/invites.service';
@@ -512,6 +512,29 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
     // Handle text messages
     this.bot.on('message:text', async (ctx) => {
+      // Handle cancel button from location request keyboard
+      if (ctx.session.step === 'awaiting_location' && ctx.message.text === '❌ Отмена') {
+        ctx.session.step = 'idle';
+        ctx.session.selectedMachineId = undefined;
+
+        await ctx.reply(
+          '❌ Сбор отменён',
+          {
+            reply_markup: { remove_keyboard: true },
+          },
+        );
+
+        await ctx.reply(
+          'Выберите действие:',
+          {
+            reply_markup: new InlineKeyboard()
+              .text('📦 Новый сбор', 'collect')
+              .text('🏠 Меню', 'main_menu'),
+          },
+        );
+        return;
+      }
+
       // Registration - name input
       // Amount input for receiving collection
       if (ctx.session.step === 'entering_amount' && ctx.session.pendingCollectionId && ctx.user) {
@@ -945,6 +968,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           const safeMachineName = this.escapeHtml(machine.name);
           const timeStr = this.formatDateTime(collection.collectedAt);
 
+          // Remove the reply keyboard first
+          await ctx.reply('✅ Локация получена!', {
+            reply_markup: { remove_keyboard: true },
+          });
+
           await ctx.reply(
             `╭─────────────────────╮\n` +
             `│  ✅  <b>СБОР ОТПРАВЛЕН</b>\n` +
@@ -963,7 +991,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           );
         } catch (error: unknown) {
           const safeError = this.escapeHtml(getErrorMessage(error));
-          await ctx.reply(`❌ Ошибка: ${safeError}`);
+          await ctx.reply(`❌ Ошибка: ${safeError}`, {
+            reply_markup: { remove_keyboard: true },
+          });
           ctx.session.step = 'idle';
           ctx.session.selectedMachineId = undefined;
         }
@@ -1454,25 +1484,32 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.selectedMachineId = machine.id;
       const safeMachineName = this.escapeHtml(machine.name);
 
-      // Operator flow: request location immediately
+      // Operator flow: request location with button
       if (ctx.user.role === UserRole.OPERATOR) {
         ctx.session.step = 'awaiting_location';
 
+        // Update the inline message first
         await ctx.editMessageText(
           `╭─────────────────────╮\n` +
           `│  📦  <b>НОВЫЙ СБОР</b>\n` +
           `╰─────────────────────╯\n\n` +
           `🏧  <b>${safeMachineName}</b>\n` +
           `📟  <code>${machine.code}</code>\n\n` +
-          `📍 Отправьте вашу геолокацию\n` +
-          `<i>Нажмите кнопку 📎 → Геопозиция</i>`,
-          {
-            parse_mode: 'HTML',
-            reply_markup: new InlineKeyboard()
-              .text('◀️ Назад', 'collect')
-              .text('✖️ Отмена', 'main_menu'),
-          },
+          `📍 Нажмите кнопку ниже для подтверждения`,
+          { parse_mode: 'HTML' },
         );
+
+        // Send reply keyboard with location request button
+        const locationKeyboard = new Keyboard()
+          .requestLocation('📍 Подтвердить сбор')
+          .row()
+          .text('❌ Отмена')
+          .resized()
+          .oneTime();
+
+        await ctx.reply('Отправьте геолокацию для подтверждения:', {
+          reply_markup: locationKeyboard,
+        });
         return;
       }
 
