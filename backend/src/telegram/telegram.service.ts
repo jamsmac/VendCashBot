@@ -513,15 +513,17 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     // Handle text messages
     this.bot.on('message:text', async (ctx) => {
       // Handle cancel button from location request keyboard
-      if (ctx.session.step === 'awaiting_location' && ctx.message.text === '❌ Отмена') {
+      if (ctx.message.text === '❌ Отмена' && (ctx.session.step === 'awaiting_location' || ctx.session.step === 'setting_machine_location')) {
+        const wasCreatingMachine = ctx.session.step === 'setting_machine_location';
+
         ctx.session.step = 'idle';
         ctx.session.selectedMachineId = undefined;
+        ctx.session.newMachineCode = undefined;
+        ctx.session.newMachineName = undefined;
 
         await ctx.reply(
-          '❌ Сбор отменён',
-          {
-            reply_markup: { remove_keyboard: true },
-          },
+          wasCreatingMachine ? '❌ Создание автомата отменено' : '❌ Сбор отменён',
+          { reply_markup: { remove_keyboard: true } },
         );
 
         await ctx.reply(
@@ -680,14 +682,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         ctx.session.step = 'setting_machine_location';
 
         const safeName = this.escapeHtml(name);
-        const frontendUrl = this.configService.get<string>('frontendUrl');
-        const keyboard = new InlineKeyboard();
-
-        // Add Mini App button if frontend URL is configured
-        if (frontendUrl) {
-          keyboard.webApp('🗺 Выбрать на карте', `${frontendUrl}/telegram/map`).row();
-        }
-        keyboard.text('✖️ Отмена', 'main_menu');
 
         await ctx.reply(
           `╭─────────────────────╮\n` +
@@ -696,14 +690,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `📍 Шаг <b>3</b> из 3\n\n` +
           `📟  Код: <code>${ctx.session.newMachineCode}</code>\n` +
           `📝  Название: ${safeName}\n\n` +
-          `🗺 Отправьте локацию автомата:\n` +
-          `• Нажмите <b>📎 → Геопозиция</b>\n` +
-          `${frontendUrl ? '• Или выберите на карте ниже' : ''}`,
-          {
-            parse_mode: 'HTML',
-            reply_markup: keyboard,
-          },
+          `📍 Нажмите кнопку ниже для отправки локации`,
+          { parse_mode: 'HTML' },
         );
+
+        const locationKeyboard = new Keyboard()
+          .requestLocation('📍 Отправить локацию')
+          .row()
+          .text('❌ Отмена')
+          .resized()
+          .oneTime();
+
+        await ctx.reply('Отправьте геолокацию автомата:', {
+          reply_markup: locationKeyboard,
+        });
         return;
       }
 
@@ -1000,7 +1000,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      // Manager/Admin: setting machine location
+      // Setting machine location (any role)
       if (ctx.session.step === 'setting_machine_location' && ctx.session.newMachineCode && ctx.session.newMachineName && ctx.user) {
         const { latitude, longitude } = ctx.message.location;
 
@@ -1025,6 +1025,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
           const safeMachineName = this.escapeHtml(machine.name);
 
+          // Remove reply keyboard first
+          await ctx.reply('✅ Локация получена!', {
+            reply_markup: { remove_keyboard: true },
+          });
+
           await ctx.reply(
             `╭─────────────────────╮\n` +
             `│  ✅  <b>АВТОМАТ СОЗДАН</b>\n` +
@@ -1039,7 +1044,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           );
         } catch (error: unknown) {
           const safeError = this.escapeHtml(getErrorMessage(error));
-          await ctx.reply(`❌ Ошибка: ${safeError}`);
+          await ctx.reply(`❌ Ошибка: ${safeError}`, {
+            reply_markup: { remove_keyboard: true },
+          });
           ctx.session.step = 'idle';
           ctx.session.newMachineCode = undefined;
           ctx.session.newMachineName = undefined;
