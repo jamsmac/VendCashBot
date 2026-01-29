@@ -21,7 +21,8 @@ import { User } from '../users/entities/user.entity';
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
+  // Use 'none' for cross-origin cookies (frontend and backend on different domains)
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
   path: '/',
 };
 
