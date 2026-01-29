@@ -59,9 +59,14 @@ export default function Login() {
     script.setAttribute('data-request-access', 'write')
     script.async = true
 
+    console.log('Login: Effect running', { widgetLoaded: widgetLoaded.current, container: containerRef.current });
+
     if (containerRef.current) {
+      console.log('Login: Appending script');
       containerRef.current.appendChild(script)
       widgetLoaded.current = true
+    } else {
+      console.error('Login: Container ref is missing');
     }
 
     // No cleanup - we don't want to destroy the widget on re-renders
