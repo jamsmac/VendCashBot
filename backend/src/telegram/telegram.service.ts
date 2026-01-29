@@ -712,19 +712,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const input = ctx.message.text.trim();
         let parsedDate: Date | null = null;
 
-        // Try to parse "HH:MM" (time only - for today)
+        // Try to parse "HH:MM" (time only - for today in Tashkent)
         const timeOnlyMatch = input.match(/^(\d{1,2}):(\d{2})$/);
         if (timeOnlyMatch) {
           const hours = parseInt(timeOnlyMatch[1], 10);
           const minutes = parseInt(timeOnlyMatch[2], 10);
 
           if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
-            parsedDate = new Date();
-            parsedDate.setHours(hours, minutes, 0, 0);
+            const now = this.getTashkentNow();
+            parsedDate = this.tashkentToUtc(now.year, now.month, now.day, hours, minutes);
           }
         }
 
-        // Try to parse "DD.MM.YYYY HH:MM"
+        // Try to parse "DD.MM.YYYY HH:MM" (Tashkent time)
         const fullMatch = input.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})$/);
         if (!parsedDate && fullMatch) {
           const day = parseInt(fullMatch[1], 10);
@@ -736,11 +736,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           if (day >= 1 && day <= 31 && month >= 0 && month <= 11 &&
             year >= 2020 && year <= 2030 &&
             hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
-            parsedDate = new Date(year, month, day, hours, minutes, 0, 0);
+            parsedDate = this.tashkentToUtc(year, month, day, hours, minutes);
           }
         }
 
-        // Try to parse "DD.MM.YYYY" (date only - use current time)
+        // Try to parse "DD.MM.YYYY" (date only - use current Tashkent time)
         const dateOnlyMatch = input.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
         if (!parsedDate && dateOnlyMatch) {
           const day = parseInt(dateOnlyMatch[1], 10);
@@ -749,8 +749,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
           if (day >= 1 && day <= 31 && month >= 0 && month <= 11 &&
             year >= 2020 && year <= 2030) {
-            const now = new Date();
-            parsedDate = new Date(year, month, day, now.getHours(), now.getMinutes(), 0, 0);
+            const now = this.getTashkentNow();
+            parsedDate = this.tashkentToUtc(year, month, day, now.hours, now.minutes);
           }
         }
 
@@ -3475,6 +3475,23 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       hour: '2-digit',
       minute: '2-digit',
     });
+  }
+
+  /** Convert Tashkent local time to UTC Date (Asia/Tashkent = UTC+5, no DST) */
+  private tashkentToUtc(year: number, month: number, day: number, hours: number, minutes: number): Date {
+    return new Date(Date.UTC(year, month, day, hours - 5, minutes, 0, 0));
+  }
+
+  /** Get current date/time parts in Tashkent timezone */
+  private getTashkentNow(): { year: number; month: number; day: number; hours: number; minutes: number } {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Tashkent',
+      year: 'numeric', month: 'numeric', day: 'numeric',
+      hour: 'numeric', minute: 'numeric',
+      hour12: false,
+    }).formatToParts(new Date());
+    const get = (type: string) => parseInt(parts.find(p => p.type === type)!.value, 10);
+    return { year: get('year'), month: get('month') - 1, day: get('day'), hours: get('hour'), minutes: get('minute') };
   }
 
   private getRoleBadge(role: UserRole): string {
