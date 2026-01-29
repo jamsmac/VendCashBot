@@ -404,10 +404,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('📍 Рядом со мной', 'nearby_machines')
-            .row()
             .text('🔍 Поиск', 'search_machine')
-            .text('➕ Новый автомат', 'create_new_machine')
             .row()
+            .text('➕ Новый автомат', 'create_new_machine')
             .text('🏠 Меню', 'main_menu'),
         },
       );
@@ -658,7 +657,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             keyboard.text(`${statusIcon} ${m.code} - ${m.name}`, `select_found_${m.id}`).row();
           });
           if (machines.length > 8) {
-            keyboard.text(`... ещё ${machines.length - 8}`, 'noop').row();
+            keyboard.text(`🔍 Ещё ${machines.length - 8}...`, 'search_by_text').row();
           }
         }
 
@@ -714,7 +713,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
               .text('◀️ Назад', 'create_new_machine')
-              .text('✖️ Отмена', 'main_menu'),
+              .text('❌ Отмена', 'main_menu'),
           },
         );
         return;
@@ -816,7 +815,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
               parse_mode: 'HTML',
               reply_markup: new InlineKeyboard()
                 .text('◀️ Назад', `machine_${ctx.session.selectedMachineId}`)
-                .text('✖️ Отмена', 'main_menu'),
+                .text('❌ Отмена', 'main_menu'),
             },
           );
           return;
@@ -829,7 +828,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             {
               reply_markup: new InlineKeyboard()
                 .text('◀️ Назад', `machine_${ctx.session.selectedMachineId}`)
-                .text('✖️ Отмена', 'main_menu'),
+                .text('❌ Отмена', 'main_menu'),
             },
           );
           return;
@@ -875,7 +874,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             '❌ Текст слишком длинный\n\n' +
             'Максимум 500 символов',
             {
-              reply_markup: new InlineKeyboard().text('✖️ Отмена', 'settings_texts'),
+              reply_markup: new InlineKeyboard().text('❌ Отмена', 'settings_texts'),
             },
           );
           return;
@@ -1390,7 +1389,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('◀️ Назад', 'collect')
-            .text('✖️ Отмена', 'main_menu'),
+            .text('❌ Отмена', 'main_menu'),
         },
       );
     });
@@ -1449,7 +1448,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
               .text('◀️ Назад', 'search_machine')
-              .text('✖️ Отмена', 'main_menu'),
+              .text('❌ Отмена', 'main_menu'),
           },
         );
         return;
@@ -1751,7 +1750,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (duplicate) {
         const time = this.formatTime(duplicate.collectedAt);
         await ctx.editMessageText(
-          `⚠️ Внимание!\n\nДля этого автомата уже есть сбор в ${time}.\nВы уверены, что хотите создать ещё один?`,
+          `╭─────────────────────╮\n` +
+          `│  ⚠️  <b>ДУБЛИКАТ</b>\n` +
+          `╰─────────────────────╯\n\n` +
+          `Для этого автомата уже есть\nсбор в ${time}.\n\nСоздать ещё один?`,
           {
             reply_markup: new InlineKeyboard()
               .text('✅ Да, создать', `confirm_dup_now_${machineId}`)
@@ -1785,7 +1787,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             .text('✅ Да', 'confirm_collection')
             .row()
             .text('◀️ Назад', `machine_${machine.id}`)
-            .text('✖️ Отмена', 'main_menu'),
+            .text('❌ Отмена', 'main_menu'),
         },
       );
     });
@@ -1814,7 +1816,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('◀️ Назад', `machine_${machineId}`)
-            .text('✖️ Отмена', 'main_menu'),
+            .text('❌ Отмена', 'main_menu'),
         },
       );
     });
@@ -1855,7 +1857,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             .text('✅ Да', 'confirm_collection')
             .row()
             .text('◀️ Назад', `machine_${machine.id}`)
-            .text('✖️ Отмена', 'main_menu'),
+            .text('❌ Отмена', 'main_menu'),
         },
       );
     });
@@ -1990,7 +1992,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       keyboard
         .text('◀️ К календарю', `date_custom_${machineId}`)
-        .text('✖️ Отмена', `machine_${machineId}`);
+        .text('❌ Отмена', `machine_${machineId}`);
 
       await ctx.editMessageText(
         `╭─────────────────────╮\n` +
@@ -2030,7 +2032,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (duplicate) {
         const time = this.formatTime(duplicate.collectedAt);
         await ctx.editMessageText(
-          `⚠️ Внимание!\n\nДля этого автомата уже есть сбор в ${time}.\nВы уверены, что хотите создать ещё один?`,
+          `╭─────────────────────╮\n` +
+          `│  ⚠️  <b>ДУБЛИКАТ</b>\n` +
+          `╰─────────────────────╯\n\n` +
+          `Для этого автомата уже есть\nсбор в ${time}.\n\nСоздать ещё один?`,
           {
             reply_markup: new InlineKeyboard()
               .text('✅ Да, создать', `confirm_dup_cal_${machineId}_${year}_${month}_${day}_${hour}_${minute}`)
@@ -2064,7 +2069,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             .text('✅ Да', 'confirm_collection')
             .row()
             .text('◀️ Назад', `machine_${machine.id}`)
-            .text('✖️ Отмена', 'main_menu'),
+            .text('❌ Отмена', 'main_menu'),
         },
       );
     });
@@ -2111,7 +2116,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             .text('✅ Да', 'confirm_collection')
             .row()
             .text('◀️ Назад', `machine_${machine.id}`)
-            .text('✖️ Отмена', 'main_menu'),
+            .text('❌ Отмена', 'main_menu'),
         },
       );
     });
@@ -2147,7 +2152,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             .text('✅ Да', 'confirm_collection')
             .row()
             .text('◀️ Назад', `machine_${machine.id}`)
-            .text('✖️ Отмена', 'main_menu'),
+            .text('❌ Отмена', 'main_menu'),
         },
       );
     });
@@ -2190,7 +2195,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             .text('✅ Да', 'confirm_collection')
             .row()
             .text('◀️ Назад', `machine_${machine.id}`)
-            .text('✖️ Отмена', 'main_menu'),
+            .text('❌ Отмена', 'main_menu'),
         },
       );
     });
@@ -2420,7 +2425,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `✏️ Введите сумму <i>(сум)</i>:`,
         {
           parse_mode: 'HTML',
-          reply_markup: new InlineKeyboard().text('✖️ Отмена', `pending_collections_${returnPage}`),
+          reply_markup: new InlineKeyboard().text('❌ Отмена', `pending_collections_${returnPage}`),
         },
       );
     });
@@ -2819,14 +2824,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const keyboard = new InlineKeyboard();
       keyboard
         .text('✏️ Код', `edit_mcode_${machine.id}_${returnPage}`)
-        .text('✏️ Название', `edit_mname_${machine.id}_${returnPage}`)
-        .text('✏️ Локация', `edit_mloc_${machine.id}_${returnPage}`);
+        .text('✏️ Название', `edit_mname_${machine.id}_${returnPage}`);
       keyboard.row();
+      keyboard.text('✏️ Локация', `edit_mloc_${machine.id}_${returnPage}`);
       if (machine.isActive) {
         keyboard.text('⛔️ Отключить', `toggle_machine_${machine.id}_${returnPage}`);
       } else {
         keyboard.text('✅ Включить', `toggle_machine_${machine.id}_${returnPage}`);
       }
+      keyboard.row();
       keyboard.text('🗑 Удалить', `delete_machine_${machine.id}_${returnPage}`);
       keyboard.row();
       keyboard.text('◀️ Назад', `list_machines_${returnPage}`).text('🏠 Меню', 'main_menu');
@@ -2888,14 +2894,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const keyboard = new InlineKeyboard();
         keyboard
           .text('✏️ Код', `edit_mcode_${updatedMachine.id}_${returnPage}`)
-          .text('✏️ Название', `edit_mname_${updatedMachine.id}_${returnPage}`)
-          .text('✏️ Локация', `edit_mloc_${updatedMachine.id}_${returnPage}`);
+          .text('✏️ Название', `edit_mname_${updatedMachine.id}_${returnPage}`);
         keyboard.row();
+        keyboard.text('✏️ Локация', `edit_mloc_${updatedMachine.id}_${returnPage}`);
         if (updatedMachine.isActive) {
           keyboard.text('⛔️ Отключить', `toggle_machine_${updatedMachine.id}_${returnPage}`);
         } else {
           keyboard.text('✅ Включить', `toggle_machine_${updatedMachine.id}_${returnPage}`);
         }
+        keyboard.row();
         keyboard.text('🗑 Удалить', `delete_machine_${updatedMachine.id}_${returnPage}`);
         keyboard.row();
         keyboard.text('◀️ Назад', `list_machines_${returnPage}`).text('🏠 Меню', 'main_menu');
@@ -3053,9 +3060,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       if (collectionsCount > 0) {
         await ctx.editMessageText(
-          `⚠️ <b>Нельзя удалить автомат</b>\n\n` +
-          `Автомат <code>${machine.code}</code> «${safeName}» имеет <b>${collectionsCount}</b> инкассаций.\n\n` +
-          `Вместо удаления можно отключить автомат.`,
+          `╭─────────────────────╮\n` +
+          `│  ⚠️  <b>ОГРАНИЧЕНИЕ</b>\n` +
+          `╰─────────────────────╯\n\n` +
+          `Автомат <code>${machine.code}</code> «${safeName}»\nимеет <b>${collectionsCount}</b> инкассаций.\n\n` +
+          `Удаление невозможно.\nМожно отключить автомат.`,
           {
             parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
@@ -3067,8 +3076,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
 
       await ctx.editMessageText(
-        `🗑 <b>Удаление автомата</b>\n\n` +
-        `Вы уверены, что хотите удалить автомат <code>${machine.code}</code> «${safeName}»?\n\n` +
+        `╭─────────────────────╮\n` +
+        `│  🗑  <b>УДАЛЕНИЕ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `Удалить автомат <code>${machine.code}</code> «${safeName}»?\n\n` +
         `⚠️ Это действие нельзя отменить.`,
         {
           parse_mode: 'HTML',
@@ -3563,7 +3574,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           reply_markup: new InlineKeyboard()
             .text('🗑 Очистить', `clear_text_${textKey}`)
             .row()
-            .text('✖️ Отмена', 'settings_texts'),
+            .text('❌ Отмена', 'settings_texts'),
         },
       );
     });
@@ -3649,7 +3660,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `🔗  Или ссылку (https://...)`,
         {
           parse_mode: 'HTML',
-          reply_markup: new InlineKeyboard().text('✖️ Отмена', 'bot_settings'),
+          reply_markup: new InlineKeyboard().text('❌ Отмена', 'bot_settings'),
         },
       );
     });
@@ -3867,7 +3878,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       .text('🕐 Сейчас', `date_now_${machineId}`)
       .text('📅 Сегодня', `date_today_${machineId}`)
       .row()
-      .text('✖️ Отмена', `machine_${machineId}`);
+      .text('❌ Отмена', `machine_${machineId}`);
 
     return keyboard;
   }
