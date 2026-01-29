@@ -3136,7 +3136,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
       const kb = new InlineKeyboard();
 
-      kb.text('🔍 Поиск', 'search_machine').row();
       kb.text('📋 Список всех', 'list_machines_0').row();
       kb.text('➕ Создать новый', 'create_new_machine').row();
 
@@ -3327,8 +3326,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `📦  <b>Новый сбор</b>\n` +
           `Выбрать автомат и отправить\n` +
           `геолокацию для регистрации\n\n` +
-          `🔍  <b>Поиск</b>\n` +
-          `Найти автомат\n\n` +
           `📋  <b>Мои сборы</b>\n` +
           `История за сегодня`;
       } else if (ctx.user.role === UserRole.MANAGER) {
@@ -3708,27 +3705,24 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     if (user.role === UserRole.OPERATOR) {
       // Operator - clean 2-column layout
       kb.text('📦 Новый сбор', 'collect')
-        .text('🔍 Поиск', 'search_machine').row();
-      kb.text('📋 Мои сборы', 'my_collections')
-        .text('❔ Помощь', 'help').row();
+        .text('📋 Мои сборы', 'my_collections').row();
+      kb.text('❔ Помощь', 'help').row();
     } else if (user.role === UserRole.MANAGER) {
       // Manager - full access to collections
       kb.text('📦 Новый сбор', 'collect')
         .text('📥 Принять', 'pending_collections').row();
-      kb.text('🔍 Поиск', 'search_machine')
-        .text('🗂 Автоматы', 'manage_machines').row();
-      kb.text('🌐 Веб-панель', 'web_panel')
-        .text('❔ Помощь', 'help').row();
+      kb.text('🗂 Автоматы', 'manage_machines')
+        .text('🌐 Веб-панель', 'web_panel').row();
+      kb.text('❔ Помощь', 'help').row();
     } else {
       // Admin - full access
       kb.text('📦 Новый сбор', 'collect')
         .text('📥 Принять', 'pending_collections').row();
-      kb.text('🔍 Поиск', 'search_machine')
-        .text('🗂 Автоматы', 'manage_machines').row();
-      kb.text('👥 Приглашения', 'invites_menu')
-        .text('⚙️ Настройки', 'bot_settings').row();
-      kb.text('🌐 Веб-панель', 'web_panel')
-        .text('❔ Помощь', 'help').row();
+      kb.text('🗂 Автоматы', 'manage_machines')
+        .text('👥 Приглашения', 'invites_menu').row();
+      kb.text('⚙️ Настройки', 'bot_settings')
+        .text('🌐 Веб-панель', 'web_panel').row();
+      kb.text('❔ Помощь', 'help').row();
     }
 
     return kb;
