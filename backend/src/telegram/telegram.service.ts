@@ -3727,6 +3727,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
   private getMainMenu(user: User): InlineKeyboard {
     const kb = new InlineKeyboard();
+    const webUrl = this.configService.get<string>('frontendUrl');
+    const hasWebPanel = webUrl && webUrl.startsWith('http') && !webUrl.includes('localhost');
 
     if (user.role === UserRole.OPERATOR) {
       // Operator - clean 2-column layout
@@ -3737,8 +3739,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       // Manager - full access to collections
       kb.text('📦 Новый сбор', 'collect')
         .text('📥 Принять', 'pending_collections').row();
-      kb.text('🗂 Автоматы', 'manage_machines')
-        .text('🌐 Веб-панель', 'web_panel').row();
+      kb.text('🗂 Автоматы', 'manage_machines');
+      if (hasWebPanel) {
+        kb.url('🌐 Веб-панель', webUrl);
+      }
+      kb.row();
       kb.text('❔ Помощь', 'help').row();
     } else {
       // Admin - full access
@@ -3746,8 +3751,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         .text('📥 Принять', 'pending_collections').row();
       kb.text('🗂 Автоматы', 'manage_machines')
         .text('👥 Приглашения', 'invites_menu').row();
-      kb.text('⚙️ Настройки', 'bot_settings')
-        .text('🌐 Веб-панель', 'web_panel').row();
+      kb.text('⚙️ Настройки', 'bot_settings');
+      if (hasWebPanel) {
+        kb.url('🌐 Веб-панель', webUrl);
+      }
+      kb.row();
       kb.text('❔ Помощь', 'help').row();
     }
 
