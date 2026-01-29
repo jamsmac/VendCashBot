@@ -49,5 +49,10 @@ export const useAuthStore = create<AuthState>()((set) => ({
   },
 }))
 
-// Check auth on app load
-useAuthStore.getState().checkAuth()
+// Check auth on app load (skip on login page to prevent unnecessary API calls)
+if (window.location.pathname !== '/login') {
+  useAuthStore.getState().checkAuth()
+} else {
+  // On login page, just set loading to false
+  useAuthStore.setState({ isLoading: false })
+}

@@ -62,7 +62,10 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       // Don't try to refresh if the failed request was the refresh endpoint itself
       if (originalRequest.url?.includes('/auth/refresh')) {
-        window.location.href = '/login'
+        // Only redirect if not already on login page to prevent infinite loop
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
         return Promise.reject(error)
       }
 
@@ -97,7 +100,10 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest)
       } catch (refreshError) {
         processQueue(refreshError as AxiosError)
-        window.location.href = '/login'
+        // Only redirect if not already on login page
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false
