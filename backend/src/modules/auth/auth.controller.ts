@@ -65,6 +65,35 @@ export class AuthController {
     return { user: userData };
   }
 
+  @Post('dev-login')
+  @ApiOperation({ summary: 'Development login by role' })
+  async devLogin(
+    @Body('role') role: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // Find a user with the requested role
+    const users = await this.authService.findUsersByRole(role);
+    if (!users || users.length === 0) {
+      throw new UnauthorizedException(`No user found with role ${role}`);
+    }
+
+    // Login as the first found user
+    const user = users[0];
+    const { accessToken, refreshToken, user: userData } = await this.authService.login(user);
+
+    // Set httpOnly cookies
+    res.cookie('access_token', accessToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: ACCESS_TOKEN_MAX_AGE,
+    });
+    res.cookie('refresh_token', refreshToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: REFRESH_TOKEN_MAX_AGE,
+    });
+
+    return { user: userData };
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

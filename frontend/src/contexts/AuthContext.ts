@@ -6,6 +6,7 @@ interface AuthState {
   isAuthenticated: boolean
   isLoading: boolean
   login: (telegramData: any) => Promise<void>
+  devLogin: (role: string) => Promise<void>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
 }
@@ -19,6 +20,19 @@ export const useAuthStore = create<AuthState>()((set) => ({
     try {
       const response = await authApi.telegramLogin(telegramData)
       // Token is now in httpOnly cookie, we only store user data
+      set({
+        user: response.user,
+        isAuthenticated: true,
+      })
+    } catch (error) {
+      set({ user: null, isAuthenticated: false })
+      throw error
+    }
+  },
+
+  devLogin: async (role: string) => {
+    try {
+      const response = await authApi.devLogin(role)
       set({
         user: response.user,
         isAuthenticated: true,

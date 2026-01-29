@@ -13,7 +13,7 @@ declare global {
 
 export default function Login() {
   const navigate = useNavigate()
-  const { login, isAuthenticated } = useAuthStore()
+  const { login, devLogin, isAuthenticated } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const widgetLoaded = useRef(false)
@@ -94,6 +94,26 @@ export default function Login() {
                 <span>Авторизация...</span>
               </div>
             )}
+          </div>
+
+          <div className="border-t pt-6">
+            <p className="text-center text-sm text-gray-500 mb-4">
+              Прямой вход (для разработки)
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => devLogin('manager')}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+              >
+                Менеджер
+              </button>
+              <button
+                onClick={() => devLogin('operator')}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+              >
+                Инкассатор
+              </button>
+            </div>
           </div>
 
           <div className="text-center text-sm text-gray-500">

@@ -36,6 +36,10 @@ export class AuthService {
     private readonly refreshTokenRepository: Repository<RefreshToken>,
   ) { }
 
+  async findUsersByRole(role: string): Promise<User[]> {
+    return this.usersService.findAll(role as any);
+  }
+
   async validateTelegramAuth(authData: TelegramAuthData): Promise<User> {
     // Verify Telegram auth data
     const isValid = this.verifyTelegramAuth(authData);
