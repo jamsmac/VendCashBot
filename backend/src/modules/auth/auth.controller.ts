@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Res,
   Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response, Request } from 'express';
@@ -30,7 +31,7 @@ const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('telegram')
   @ApiOperation({ summary: 'Authenticate via Telegram Login Widget' })
@@ -82,7 +83,7 @@ export class AuthController {
     // Get refresh token from cookie or body (backward compatibility)
     const refreshTokenValue = req.cookies?.refresh_token;
     if (!refreshTokenValue) {
-      throw new Error('No refresh token provided');
+      throw new UnauthorizedException('No refresh token provided');
     }
 
     const { accessToken, refreshToken } = await this.authService.refreshTokens(refreshTokenValue);
