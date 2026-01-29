@@ -44,23 +44,28 @@ export class AuthService {
     // Verify Telegram auth data
     const isValid = this.verifyTelegramAuth(authData);
     if (!isValid) {
+      this.logger.warn(`Invalid Telegram auth hash for user ID: ${authData.id}`);
       throw new UnauthorizedException('Invalid Telegram authentication data');
     }
 
     // Check if auth_date is not too old (max 24 hours)
     const authDate = authData.auth_date;
     const now = Math.floor(Date.now() / 1000);
-    if (now - authDate > 86400) {
+    const ageSeconds = now - authDate;
+    if (ageSeconds > 86400) {
+      this.logger.warn(`Expired Telegram auth for user ID: ${authData.id}, age: ${ageSeconds}s`);
       throw new UnauthorizedException('Telegram authentication data expired');
     }
 
     // Find user by Telegram ID
     const user = await this.usersService.findByTelegramId(authData.id);
     if (!user) {
+      this.logger.warn(`Unregistered user attempted login: Telegram ID ${authData.id}`);
       throw new UnauthorizedException('User not registered. Please use an invite link.');
     }
 
     if (!user.isActive) {
+      this.logger.warn(`Deactivated user attempted login: ${user.id}`);
       throw new UnauthorizedException('User account is deactivated');
     }
 
@@ -73,8 +78,10 @@ export class AuthService {
         telegramUsername: authData.username,
         telegramFirstName: authData.first_name,
       });
+      this.logger.log(`Updated Telegram data for user: ${user.id}`);
     }
 
+    this.logger.log(`User authenticated: ${user.id} (${user.name})`);
     return user;
   }
 
@@ -147,20 +154,28 @@ export class AuthService {
       relations: ['user'],
     });
 
-    if (!token || token.expiresAt < new Date()) {
+    if (!token) {
+      this.logger.warn('Refresh token not found or already revoked');
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    if (token.expiresAt < new Date()) {
+      this.logger.warn(`Expired refresh token for user: ${token.userId}`);
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
     if (!token.user?.isActive) {
+      this.logger.warn(`Inactive user attempted token refresh: ${token.userId}`);
       throw new UnauthorizedException('User inactive');
     }
 
-    // Revoke old token
+    // Revoke old token (rotation)
     token.isRevoked = true;
     await this.refreshTokenRepository.save(token);
 
     // Issue new tokens
     const { accessToken, refreshToken } = await this.login(token.user);
+    this.logger.log(`Token refreshed for user: ${token.userId}`);
     return { accessToken, refreshToken };
   }
 

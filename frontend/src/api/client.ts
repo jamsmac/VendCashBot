@@ -5,14 +5,14 @@ const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 export const apiClient = axios.create({
   baseURL: API_URL,
-  timeout: 30000, // 30 seconds
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, // Send cookies with requests
+  withCredentials: true,
 })
 
-// Track if we're currently refreshing the token
+// Track refresh state
 let isRefreshing = false
 let failedQueue: Array<{
   resolve: (value?: unknown) => void
@@ -30,13 +30,29 @@ const processQueue = (error: AxiosError | null) => {
   failedQueue = []
 }
 
-// Response interceptor for errors and token refresh
+// Clear auth state and redirect to login
+const handleAuthFailure = () => {
+  // Clear Zustand store - import dynamically to avoid circular deps
+  import('../contexts/AuthContext').then(({ useAuthStore }) => {
+    useAuthStore.getState().clearAuth()
+  })
+
+  // Clear the queue with error
+  processQueue(new AxiosError('Session expired'))
+
+  // Redirect to login if not already there
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login'
+  }
+}
+
+// Response interceptor for error handling and token refresh
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
-    // 1. Network error (no response at all)
+    // Network error (no response)
     if (!error.response) {
       if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
         toast.error('Превышено время ожидания. Проверьте соединение.')
@@ -46,64 +62,62 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // 2. Server errors (5xx)
-    if (error.response.status >= 500) {
+    const status = error.response.status
+
+    // Server errors (5xx)
+    if (status >= 500) {
       toast.error('Ошибка сервера. Попробуйте позже.')
       return Promise.reject(error)
     }
 
-    // 3. Rate limiting
-    if (error.response.status === 429) {
+    // Rate limiting
+    if (status === 429) {
       toast.error('Слишком много запросов. Подождите минуту.')
       return Promise.reject(error)
     }
 
-    // 4. If error is 401 and we haven't tried to refresh yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      // Don't try to refresh if the failed request was the refresh endpoint itself
+    // Handle 401 Unauthorized
+    if (status === 401 && !originalRequest._retry) {
+      // Don't retry refresh endpoint - session is truly expired
       if (originalRequest.url?.includes('/auth/refresh')) {
-        // Only redirect if not already on login page to prevent infinite loop
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login'
-        }
+        handleAuthFailure()
         return Promise.reject(error)
       }
 
+      // Don't retry login endpoint
+      if (originalRequest.url?.includes('/auth/telegram') ||
+          originalRequest.url?.includes('/auth/dev-login')) {
+        return Promise.reject(error)
+      }
+
+      // If already refreshing, queue this request
       if (isRefreshing) {
-        // If we're already refreshing, queue this request
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
         })
-          .then(() => {
-            // Retry with new cookie (automatically sent)
-            return apiClient(originalRequest)
-          })
-          .catch((err) => {
-            return Promise.reject(err)
-          })
+          .then(() => apiClient(originalRequest))
+          .catch((err) => Promise.reject(err))
       }
 
       originalRequest._retry = true
       isRefreshing = true
 
       try {
-        // Try to refresh the token (cookies sent automatically)
+        // Attempt to refresh tokens
         await axios.post(
           `${API_URL}/auth/refresh`,
           {},
           { withCredentials: true }
         )
 
+        // Success - process queued requests
         processQueue(null)
 
-        // Retry original request (new cookie will be sent automatically)
+        // Retry original request with new cookie
         return apiClient(originalRequest)
       } catch (refreshError) {
-        processQueue(refreshError as AxiosError)
-        // Only redirect if not already on login page
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login'
-        }
+        // Refresh failed - clear auth and redirect
+        handleAuthFailure()
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false

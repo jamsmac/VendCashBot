@@ -1,31 +1,45 @@
 import { create } from 'zustand'
 import { authApi, User } from '../api/auth'
 
+// Telegram Login Widget data interface
+export interface TelegramAuthData {
+  id: number
+  first_name?: string
+  last_name?: string
+  username?: string
+  photo_url?: string
+  auth_date: number
+  hash: string
+}
+
 interface AuthState {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
-  login: (telegramData: any) => Promise<void>
+  isInitialized: boolean
+  login: (telegramData: TelegramAuthData) => Promise<void>
   devLogin: (role: string) => Promise<void>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
+  clearAuth: () => void
 }
 
-export const useAuthStore = create<AuthState>()((set) => ({
+export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
   isAuthenticated: false,
   isLoading: true,
+  isInitialized: false,
 
-  login: async (telegramData: any) => {
+  login: async (telegramData: TelegramAuthData) => {
     try {
       const response = await authApi.telegramLogin(telegramData)
-      // Token is now in httpOnly cookie, we only store user data
       set({
         user: response.user,
         isAuthenticated: true,
+        isLoading: false,
       })
     } catch (error) {
-      set({ user: null, isAuthenticated: false })
+      set({ user: null, isAuthenticated: false, isLoading: false })
       throw error
     }
   },
@@ -36,9 +50,10 @@ export const useAuthStore = create<AuthState>()((set) => ({
       set({
         user: response.user,
         isAuthenticated: true,
+        isLoading: false,
       })
     } catch (error) {
-      set({ user: null, isAuthenticated: false })
+      set({ user: null, isAuthenticated: false, isLoading: false })
       throw error
     }
   },
@@ -47,26 +62,59 @@ export const useAuthStore = create<AuthState>()((set) => ({
     try {
       await authApi.logout()
     } catch {
-      // Ignore logout errors
+      // Ignore logout errors - clear state anyway
     }
-    set({ user: null, isAuthenticated: false })
+    set({ user: null, isAuthenticated: false, isLoading: false })
   },
 
   checkAuth: async () => {
-    try {
-      // Cookie is sent automatically with withCredentials
-      const user = await authApi.me()
-      set({ user, isAuthenticated: true, isLoading: false })
-    } catch {
-      set({ user: null, isAuthenticated: false, isLoading: false })
+    // Prevent multiple concurrent checks
+    const state = get()
+    if (state.isInitialized && !state.isLoading) {
+      return
     }
+
+    set({ isLoading: true })
+    try {
+      const user = await authApi.me()
+      set({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+        isInitialized: true,
+      })
+    } catch {
+      set({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        isInitialized: true,
+      })
+    }
+  },
+
+  // Called by API client when refresh fails
+  clearAuth: () => {
+    set({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+    })
   },
 }))
 
-// Check auth on app load (skip on login page to prevent unnecessary API calls)
-if (window.location.pathname !== '/login') {
+// Initialize auth check after store is created
+// This runs once when the module loads
+const initAuth = () => {
+  // Don't check auth on login page to prevent unnecessary API calls
+  if (window.location.pathname === '/login') {
+    useAuthStore.setState({ isLoading: false, isInitialized: true })
+    return
+  }
+
+  // Check auth for all other pages
   useAuthStore.getState().checkAuth()
-} else {
-  // On login page, just set loading to false
-  useAuthStore.setState({ isLoading: false })
 }
+
+// Run initialization
+initAuth()

@@ -33,7 +33,16 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { user } = useAuthStore()
+  const { user, isLoading } = useAuthStore()
+
+  // Wait for auth to load before checking role
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
+      </div>
+    )
+  }
 
   if (user?.role !== 'admin') {
     return <Navigate to="/dashboard" replace />
@@ -43,7 +52,16 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 function ManagerRoute({ children }: { children: React.ReactNode }) {
-  const { user } = useAuthStore()
+  const { user, isLoading } = useAuthStore()
+
+  // Wait for auth to load before checking role
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
+      </div>
+    )
+  }
 
   if (user?.role !== 'admin' && user?.role !== 'manager') {
     return <Navigate to="/dashboard" replace />

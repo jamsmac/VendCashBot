@@ -9,6 +9,7 @@ import {
   Res,
   Req,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response, Request } from 'express';
@@ -16,6 +17,7 @@ import { AuthService, TelegramAuthData } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { User } from '../users/entities/user.entity';
 
 const COOKIE_OPTIONS = {
@@ -34,7 +36,9 @@ const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 export class AuthController {
   constructor(private readonly authService: AuthService) { }
 
+  @Public()
   @Post('telegram')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Authenticate via Telegram Login Widget' })
   async telegramAuth(
     @Body() authDto: TelegramAuthDto,
@@ -66,12 +70,19 @@ export class AuthController {
     return { user: userData };
   }
 
+  @Public()
   @Post('dev-login')
-  @ApiOperation({ summary: 'Development login by role' })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Development login by role (disabled in production)' })
   async devLogin(
     @Body('role') role: string,
     @Res({ passthrough: true }) res: Response,
   ) {
+    // Block dev-login in production for security
+    if (process.env.NODE_ENV === 'production') {
+      throw new ForbiddenException('Dev login is disabled in production');
+    }
+
     // Find a user with the requested role
     const users = await this.authService.findUsersByRole(role);
     if (!users || users.length === 0) {
@@ -103,6 +114,7 @@ export class AuthController {
     return user;
   }
 
+  @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token using refresh token' })

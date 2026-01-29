@@ -1,51 +1,81 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../contexts/AuthContext'
 import toast from 'react-hot-toast'
 
+// Telegram Login Widget data interface
+interface TelegramUser {
+  id: number
+  first_name?: string
+  last_name?: string
+  username?: string
+  photo_url?: string
+  auth_date: number
+  hash: string
+}
+
 declare global {
   interface Window {
     TelegramLoginWidget: {
-      dataOnauth: (user: any) => void
+      dataOnauth: (user: TelegramUser) => void
     }
   }
 }
 
 export default function Login() {
   const navigate = useNavigate()
-  const { login, isAuthenticated } = useAuthStore()
-  const [isLoading, setIsLoading] = useState(false)
+  const { login, isAuthenticated, isLoading: authLoading } = useAuthStore()
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const widgetLoaded = useRef(false)
+  const isMounted = useRef(true)
 
-  // Store login function in ref to avoid re-creating callback
-  const loginRef = useRef(login)
-  loginRef.current = login
-
+  // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/dashboard')
+    if (isAuthenticated && !authLoading) {
+      navigate('/dashboard', { replace: true })
     }
-  }, [isAuthenticated, navigate])
+  }, [isAuthenticated, authLoading, navigate])
+
+  // Memoized login handler to prevent stale closures
+  const handleTelegramAuth = useCallback(async (telegramUser: TelegramUser) => {
+    // Prevent double-submit
+    if (isSubmitting) return
+
+    setIsSubmitting(true)
+    try {
+      await login(telegramUser)
+      // Only navigate and show toast if component is still mounted
+      if (isMounted.current) {
+        toast.success('Добро пожаловать!')
+        navigate('/dashboard', { replace: true })
+      }
+    } catch (error: any) {
+      if (isMounted.current) {
+        const message = error.response?.data?.message || 'Ошибка авторизации'
+        toast.error(message)
+      }
+    } finally {
+      if (isMounted.current) {
+        setIsSubmitting(false)
+      }
+    }
+  }, [login, navigate, isSubmitting])
+
+  // Store handler in ref to avoid recreating widget callback
+  const handleAuthRef = useRef(handleTelegramAuth)
+  handleAuthRef.current = handleTelegramAuth
 
   useEffect(() => {
+    isMounted.current = true
+
     // Prevent double loading in StrictMode
     if (widgetLoaded.current) return
 
-    // Set up Telegram callback using ref
+    // Set up Telegram callback using ref to get latest handler
     window.TelegramLoginWidget = {
-      dataOnauth: async (telegramUser: any) => {
-        setIsLoading(true)
-        try {
-          await loginRef.current(telegramUser)
-          toast.success('Добро пожаловать!')
-          navigate('/dashboard')
-        } catch (error: any) {
-          const message = error.response?.data?.message || 'Ошибка авторизации'
-          toast.error(message)
-        } finally {
-          setIsLoading(false)
-        }
+      dataOnauth: (telegramUser: TelegramUser) => {
+        handleAuthRef.current(telegramUser)
       },
     }
 
@@ -64,8 +94,11 @@ export default function Login() {
       widgetLoaded.current = true
     }
 
-    // No cleanup - we don't want to destroy the widget on re-renders
-  }, [navigate])
+    // Cleanup on unmount
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-600 to-primary-800 flex items-center justify-center p-4">
@@ -83,10 +116,10 @@ export default function Login() {
           </div>
 
           <div ref={containerRef} className="flex justify-center min-h-[50px]">
-            {isLoading && (
+            {(isSubmitting || authLoading) && (
               <div className="flex items-center gap-2 text-gray-500">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600" />
-                <span>Авторизация...</span>
+                <span>{isSubmitting ? 'Авторизация...' : 'Проверка сессии...'}</span>
               </div>
             )}
           </div>
