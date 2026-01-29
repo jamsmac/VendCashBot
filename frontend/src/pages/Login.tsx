@@ -15,6 +15,7 @@ export default function Login() {
   const navigate = useNavigate()
   const { login, devLogin, isAuthenticated } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
+  const [isDevLoading, setIsDevLoading] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const widgetLoaded = useRef(false)
 
@@ -27,6 +28,22 @@ export default function Login() {
       navigate('/dashboard')
     }
   }, [isAuthenticated, navigate])
+
+  const handleDevLogin = async (role: string) => {
+    if (isDevLoading || isLoading) return
+
+    setIsDevLoading(true)
+    try {
+      await devLogin(role)
+      toast.success('Добро пожаловать!')
+      navigate('/dashboard')
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Ошибка авторизации'
+      toast.error(message)
+    } finally {
+      setIsDevLoading(false)
+    }
+  }
 
   useEffect(() => {
     // Prevent double loading in StrictMode
@@ -59,14 +76,9 @@ export default function Login() {
     script.setAttribute('data-request-access', 'write')
     script.async = true
 
-    console.log('Login: Effect running', { widgetLoaded: widgetLoaded.current, container: containerRef.current });
-
     if (containerRef.current) {
-      console.log('Login: Appending script');
       containerRef.current.appendChild(script)
       widgetLoaded.current = true
-    } else {
-      console.error('Login: Container ref is missing');
     }
 
     // No cleanup - we don't want to destroy the widget on re-renders
@@ -102,16 +114,18 @@ export default function Login() {
             </p>
             <div className="grid grid-cols-2 gap-4">
               <button
-                onClick={() => devLogin('manager')}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+                onClick={() => handleDevLogin('manager')}
+                disabled={isDevLoading || isLoading}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Менеджер
+                {isDevLoading ? 'Вход...' : 'Менеджер'}
               </button>
               <button
-                onClick={() => devLogin('operator')}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+                onClick={() => handleDevLogin('operator')}
+                disabled={isDevLoading || isLoading}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Инкассатор
+                {isDevLoading ? 'Вход...' : 'Инкассатор'}
               </button>
             </div>
           </div>
