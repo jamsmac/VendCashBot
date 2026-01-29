@@ -697,7 +697,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `Введите название места:`,
           {
             parse_mode: 'HTML',
-            reply_markup: new InlineKeyboard().text('✖️ Отмена', 'main_menu'),
+            reply_markup: new InlineKeyboard()
+              .text('◀️ Назад', 'create_new_machine')
+              .text('✖️ Отмена', 'main_menu'),
           },
         );
         return;
@@ -797,7 +799,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             '• <b>ДД.ММ.ГГГГ ЧЧ:ММ</b> (дата и время)',
             {
               parse_mode: 'HTML',
-              reply_markup: new InlineKeyboard().text('◀️ Отмена', 'main_menu'),
+              reply_markup: new InlineKeyboard()
+                .text('◀️ Назад', `machine_${ctx.session.selectedMachineId}`)
+                .text('✖️ Отмена', 'main_menu'),
             },
           );
           return;
@@ -808,7 +812,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           await ctx.reply(
             '❌ Нельзя указать дату в будущем',
             {
-              reply_markup: new InlineKeyboard().text('◀️ Отмена', 'main_menu'),
+              reply_markup: new InlineKeyboard()
+                .text('◀️ Назад', `machine_${ctx.session.selectedMachineId}`)
+                .text('✖️ Отмена', 'main_menu'),
             },
           );
           return;
@@ -837,6 +843,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             parse_mode: 'HTML',
             reply_markup: new InlineKeyboard()
               .text('✅ Подтвердить', 'confirm_collection')
+              .row()
+              .text('◀️ Назад', `machine_${ctx.session.selectedMachineId}`)
               .text('❌ Отмена', 'main_menu'),
           },
         );
@@ -1226,12 +1234,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `╭─────────────────────╮\n` +
         `│  ➕  <b>НОВЫЙ АВТОМАТ</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `📍 Шаг <b>1</b> из 2\n\n` +
+        `📍 Шаг <b>1</b> из 3\n\n` +
         `Введите код <i>(серийный номер)</i>\n` +
         `автомата:`,
         {
           parse_mode: 'HTML',
-          reply_markup: new InlineKeyboard().text('✖️ Отмена', 'main_menu'),
+          reply_markup: new InlineKeyboard()
+            .text('◀️ Назад', 'collect')
+            .text('✖️ Отмена', 'main_menu'),
         },
       );
     });
@@ -1624,6 +1634,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('✅ Да', 'confirm_collection')
+            .row()
+            .text('◀️ Назад', `machine_${machine.id}`)
             .text('✖️ Отмена', 'main_menu'),
         },
       );
@@ -1651,7 +1663,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `<i>Например: 14:30</i>`,
         {
           parse_mode: 'HTML',
-          reply_markup: new InlineKeyboard().text('✖️ Отмена', `machine_${machineId}`),
+          reply_markup: new InlineKeyboard()
+            .text('◀️ Назад', `machine_${machineId}`)
+            .text('✖️ Отмена', 'main_menu'),
         },
       );
     });
@@ -1690,6 +1704,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('✅ Да', 'confirm_collection')
+            .row()
+            .text('◀️ Назад', `machine_${machine.id}`)
             .text('✖️ Отмена', 'main_menu'),
         },
       );
@@ -1897,6 +1913,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('✅ Да', 'confirm_collection')
+            .row()
+            .text('◀️ Назад', `machine_${machine.id}`)
             .text('✖️ Отмена', 'main_menu'),
         },
       );
@@ -1942,6 +1960,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('✅ Да', 'confirm_collection')
+            .row()
+            .text('◀️ Назад', `machine_${machine.id}`)
             .text('✖️ Отмена', 'main_menu'),
         },
       );
@@ -1976,6 +1996,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('✅ Да', 'confirm_collection')
+            .row()
+            .text('◀️ Назад', `machine_${machine.id}`)
             .text('✖️ Отмена', 'main_menu'),
         },
       );
@@ -2017,6 +2039,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           parse_mode: 'HTML',
           reply_markup: new InlineKeyboard()
             .text('✅ Да', 'confirm_collection')
+            .row()
+            .text('◀️ Назад', `machine_${machine.id}`)
             .text('✖️ Отмена', 'main_menu'),
         },
       );
