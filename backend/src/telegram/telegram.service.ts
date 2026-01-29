@@ -1304,6 +1304,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
       ctx.session.step = 'idle';
+      ctx.session.selectedMachineId = undefined;
+      ctx.session.collectionTime = undefined;
+      ctx.session.pendingCollectionId = undefined;
+      ctx.session.newMachineCode = undefined;
+      ctx.session.newMachineName = undefined;
+      ctx.session.searchQuery = undefined;
+      ctx.session.editingMachineId = undefined;
+      ctx.session.editingMachineReturnPage = undefined;
+      ctx.session.editingTextKey = undefined;
       const roleBadge = this.getRoleBadge(ctx.user.role);
       const safeName = this.escapeHtml(ctx.user.name);
       await ctx.editMessageText(
@@ -1324,6 +1333,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.bot.callbackQuery('search_machine', async (ctx) => {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
+      ctx.session.step = 'selecting_machine';
+      ctx.session.selectedMachineId = undefined;
+      ctx.session.searchQuery = undefined;
 
       const machines = await this.machinesService.findAll(true, true);
       const keyboard = new InlineKeyboard();
@@ -1616,6 +1628,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.bot.callbackQuery('collect', async (ctx) => {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
+      ctx.session.step = 'selecting_machine';
+      ctx.session.selectedMachineId = undefined;
+      ctx.session.collectionTime = undefined;
 
       const machines = await this.machinesService.findAllActive();
 
