@@ -59,10 +59,13 @@ export class CollectionsService {
     // Verify machine exists
     await this.machinesService.findByIdOrFail(dto.machineId);
 
+    // Ensure collectedAt is a Date object
+    const collectedAt = dto.collectedAt instanceof Date ? dto.collectedAt : new Date(dto.collectedAt);
+
     // Check for duplicates (same machine within configured time window)
     const windowMs = this.duplicateCheckMinutes * 60 * 1000;
-    const windowBefore = new Date(dto.collectedAt.getTime() - windowMs);
-    const windowAfter = new Date(dto.collectedAt.getTime() + windowMs);
+    const windowBefore = new Date(collectedAt.getTime() - windowMs);
+    const windowAfter = new Date(collectedAt.getTime() + windowMs);
 
     const duplicate = await this.collectionRepository.findOne({
       where: {
@@ -83,7 +86,7 @@ export class CollectionsService {
     const collection = this.collectionRepository.create({
       machineId: dto.machineId,
       operatorId,
-      collectedAt: dto.collectedAt,
+      collectedAt,
       latitude: dto.latitude,
       longitude: dto.longitude,
       source: dto.source || CollectionSource.REALTIME,
