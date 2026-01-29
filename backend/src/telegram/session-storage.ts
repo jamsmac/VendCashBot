@@ -19,7 +19,10 @@ export interface SessionData {
     | 'creating_machine_name'
     | 'setting_machine_location'
     | 'setting_welcome_image'
-    | 'editing_text';
+    | 'editing_text'
+    | 'editing_machine_code'
+    | 'editing_machine_name'
+    | 'editing_machine_location';
   selectedMachineId?: string;
   collectionTime?: Date;
   pendingCollectionId?: string;
@@ -27,6 +30,8 @@ export interface SessionData {
   newMachineCode?: string;
   newMachineName?: string;
   editingTextKey?: string;
+  editingMachineId?: string;
+  editingMachineReturnPage?: string;
   /** Track last bot message IDs for cleanup */
   lastBotMessageIds?: number[];
 }

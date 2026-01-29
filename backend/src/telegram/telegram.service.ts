@@ -547,27 +547,42 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     // Handle text messages
     this.bot.on('message:text', async (ctx) => {
       // Handle cancel button from location request keyboard
-      if (ctx.message.text === '❌ Отмена' && (ctx.session.step === 'awaiting_location' || ctx.session.step === 'setting_machine_location')) {
+      if (ctx.message.text === '❌ Отмена' && (ctx.session.step === 'awaiting_location' || ctx.session.step === 'setting_machine_location' || ctx.session.step === 'editing_machine_location')) {
         const wasCreatingMachine = ctx.session.step === 'setting_machine_location';
+        const wasEditingLocation = ctx.session.step === 'editing_machine_location';
+        const editMachineId = ctx.session.editingMachineId;
+        const editReturnPage = ctx.session.editingMachineReturnPage || '0';
 
         ctx.session.step = 'idle';
         ctx.session.selectedMachineId = undefined;
         ctx.session.newMachineCode = undefined;
         ctx.session.newMachineName = undefined;
+        ctx.session.editingMachineId = undefined;
+        ctx.session.editingMachineReturnPage = undefined;
 
-        await ctx.reply(
-          wasCreatingMachine ? '❌ Создание автомата отменено' : '❌ Сбор отменён',
-          { reply_markup: { remove_keyboard: true } },
-        );
-
-        await ctx.reply(
-          'Выберите действие:',
-          {
+        if (wasEditingLocation && editMachineId) {
+          await ctx.reply('❌ Изменение локации отменено', {
+            reply_markup: { remove_keyboard: true },
+          });
+          await ctx.reply('Вернуться к автомату:', {
             reply_markup: new InlineKeyboard()
-              .text('📦 Новый сбор', 'collect')
+              .text('◀️ К автомату', `edit_machine_${editMachineId}_${editReturnPage}`)
               .text('🏠 Меню', 'main_menu'),
-          },
-        );
+          });
+        } else {
+          await ctx.reply(
+            wasCreatingMachine ? '❌ Создание автомата отменено' : '❌ Сбор отменён',
+            { reply_markup: { remove_keyboard: true } },
+          );
+          await ctx.reply(
+            'Выберите действие:',
+            {
+              reply_markup: new InlineKeyboard()
+                .text('📦 Новый сбор', 'collect')
+                .text('🏠 Меню', 'main_menu'),
+            },
+          );
+        }
         return;
       }
 
@@ -902,6 +917,100 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
+      // Admin: Editing machine code
+      if (ctx.session.step === 'editing_machine_code' && ctx.session.editingMachineId && ctx.user?.role === UserRole.ADMIN) {
+        const newCode = ctx.message.text.trim().toUpperCase();
+        const machineId = ctx.session.editingMachineId;
+        const returnPage = ctx.session.editingMachineReturnPage || '0';
+
+        if (newCode.length < 1 || newCode.length > 50) {
+          await ctx.reply('❌ Код должен быть от 1 до 50 символов. Попробуйте ещё раз:', {
+            reply_markup: new InlineKeyboard()
+              .text('◀️ Отмена', `edit_machine_${machineId}_${returnPage}`),
+          });
+          return;
+        }
+
+        try {
+          const existing = await this.machinesService.findByCode(newCode);
+          if (existing && existing.id !== machineId) {
+            await ctx.reply(
+              `⚠️ Автомат с кодом "${this.escapeHtml(newCode)}" уже существует.\n\nВведите другой код:`,
+              {
+                parse_mode: 'HTML',
+                reply_markup: new InlineKeyboard()
+                  .text('◀️ Отмена', `edit_machine_${machineId}_${returnPage}`),
+              },
+            );
+            return;
+          }
+
+          await this.machinesService.update(machineId, { code: newCode });
+
+          ctx.session.step = 'idle';
+          ctx.session.editingMachineId = undefined;
+          ctx.session.editingMachineReturnPage = undefined;
+
+          await ctx.reply(
+            `✅ Код автомата изменён на <code>${this.escapeHtml(newCode)}</code>`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: new InlineKeyboard()
+                .text('◀️ К автомату', `edit_machine_${machineId}_${returnPage}`)
+                .text('🏠 Меню', 'main_menu'),
+            },
+          );
+        } catch (error: unknown) {
+          const safeError = this.escapeHtml(getErrorMessage(error));
+          await ctx.reply(`❌ Ошибка: ${safeError}`);
+          ctx.session.step = 'idle';
+          ctx.session.editingMachineId = undefined;
+          ctx.session.editingMachineReturnPage = undefined;
+        }
+        return;
+      }
+
+      // Admin: Editing machine name
+      if (ctx.session.step === 'editing_machine_name' && ctx.session.editingMachineId && ctx.user?.role === UserRole.ADMIN) {
+        const newName = ctx.message.text.trim();
+        const machineId = ctx.session.editingMachineId;
+        const returnPage = ctx.session.editingMachineReturnPage || '0';
+
+        if (newName.length < 1 || newName.length > 255) {
+          await ctx.reply('❌ Название должно быть от 1 до 255 символов. Попробуйте ещё раз:', {
+            reply_markup: new InlineKeyboard()
+              .text('◀️ Отмена', `edit_machine_${machineId}_${returnPage}`),
+          });
+          return;
+        }
+
+        try {
+          await this.machinesService.update(machineId, { name: newName });
+
+          ctx.session.step = 'idle';
+          ctx.session.editingMachineId = undefined;
+          ctx.session.editingMachineReturnPage = undefined;
+
+          const safeName = this.escapeHtml(newName);
+          await ctx.reply(
+            `✅ Название автомата изменено на «${safeName}»`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: new InlineKeyboard()
+                .text('◀️ К автомату', `edit_machine_${machineId}_${returnPage}`)
+                .text('🏠 Меню', 'main_menu'),
+            },
+          );
+        } catch (error: unknown) {
+          const safeError = this.escapeHtml(getErrorMessage(error));
+          await ctx.reply(`❌ Ошибка: ${safeError}`);
+          ctx.session.step = 'idle';
+          ctx.session.editingMachineId = undefined;
+          ctx.session.editingMachineReturnPage = undefined;
+        }
+        return;
+      }
+
       // Admin: Setting welcome image URL
       if (ctx.session.step === 'setting_welcome_image' && ctx.user?.role === UserRole.ADMIN) {
         const url = ctx.message.text.trim();
@@ -1092,6 +1201,46 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           ctx.session.step = 'idle';
           ctx.session.newMachineCode = undefined;
           ctx.session.newMachineName = undefined;
+        }
+        return;
+      }
+
+      // Admin: Editing machine location
+      if (ctx.session.step === 'editing_machine_location' && ctx.session.editingMachineId && ctx.user?.role === UserRole.ADMIN) {
+        const { latitude, longitude } = ctx.message.location;
+        const machineId = ctx.session.editingMachineId;
+        const returnPage = ctx.session.editingMachineReturnPage || '0';
+
+        try {
+          await this.machinesService.update(machineId, {
+            latitude,
+            longitude,
+          });
+
+          ctx.session.step = 'idle';
+          ctx.session.editingMachineId = undefined;
+          ctx.session.editingMachineReturnPage = undefined;
+
+          await ctx.reply('✅ Локация получена!', {
+            reply_markup: { remove_keyboard: true },
+          });
+
+          await ctx.reply(
+            `✅ Локация автомата обновлена`,
+            {
+              reply_markup: new InlineKeyboard()
+                .text('◀️ К автомату', `edit_machine_${machineId}_${returnPage}`)
+                .text('🏠 Меню', 'main_menu'),
+            },
+          );
+        } catch (error: unknown) {
+          const safeError = this.escapeHtml(getErrorMessage(error));
+          await ctx.reply(`❌ Ошибка: ${safeError}`, {
+            reply_markup: { remove_keyboard: true },
+          });
+          ctx.session.step = 'idle';
+          ctx.session.editingMachineId = undefined;
+          ctx.session.editingMachineReturnPage = undefined;
         }
         return;
       }
@@ -2668,6 +2817,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const statusText = machine.isActive ? '✅ Активен' : '⛔️ Отключён';
 
       const keyboard = new InlineKeyboard();
+      keyboard
+        .text('✏️ Код', `edit_mcode_${machine.id}_${returnPage}`)
+        .text('✏️ Название', `edit_mname_${machine.id}_${returnPage}`)
+        .text('✏️ Локация', `edit_mloc_${machine.id}_${returnPage}`);
+      keyboard.row();
       if (machine.isActive) {
         keyboard.text('⛔️ Отключить', `toggle_machine_${machine.id}_${returnPage}`);
       } else {
@@ -2731,6 +2885,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const statusText = updatedMachine.isActive ? '✅ Активен' : '⛔️ Отключён';
 
         const keyboard = new InlineKeyboard();
+        keyboard
+          .text('✏️ Код', `edit_mcode_${updatedMachine.id}_${returnPage}`)
+          .text('✏️ Название', `edit_mname_${updatedMachine.id}_${returnPage}`)
+          .text('✏️ Локация', `edit_mloc_${updatedMachine.id}_${returnPage}`);
+        keyboard.row();
         if (updatedMachine.isActive) {
           keyboard.text('⛔️ Отключить', `toggle_machine_${updatedMachine.id}_${returnPage}`);
         } else {
@@ -2762,6 +2921,111 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     });
 
 
+
+    // Admin: Edit machine code
+    this.bot.callbackQuery(/^edit_mcode_([a-f0-9-]+)(?:_(\d+))?$/, async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      const returnPage = ctx.match[2] || '0';
+
+      const machine = await this.machinesService.findById(machineId);
+      if (!machine) {
+        await ctx.editMessageText('❌ Автомат не найден');
+        return;
+      }
+
+      ctx.session.step = 'editing_machine_code';
+      ctx.session.editingMachineId = machineId;
+      ctx.session.editingMachineReturnPage = returnPage;
+
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  ✏️  <b>ИЗМЕНИТЬ КОД</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `Текущий код: <code>${machine.code}</code>\n\n` +
+        `Введите новый код:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: new InlineKeyboard()
+            .text('◀️ Отмена', `edit_machine_${machineId}_${returnPage}`),
+        },
+      );
+    });
+
+    // Admin: Edit machine name
+    this.bot.callbackQuery(/^edit_mname_([a-f0-9-]+)(?:_(\d+))?$/, async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      const returnPage = ctx.match[2] || '0';
+
+      const machine = await this.machinesService.findById(machineId);
+      if (!machine) {
+        await ctx.editMessageText('❌ Автомат не найден');
+        return;
+      }
+
+      ctx.session.step = 'editing_machine_name';
+      ctx.session.editingMachineId = machineId;
+      ctx.session.editingMachineReturnPage = returnPage;
+
+      const safeName = this.escapeHtml(machine.name);
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  ✏️  <b>ИЗМЕНИТЬ НАЗВАНИЕ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `Текущее название: ${safeName}\n\n` +
+        `Введите новое название:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: new InlineKeyboard()
+            .text('◀️ Отмена', `edit_machine_${machineId}_${returnPage}`),
+        },
+      );
+    });
+
+    // Admin: Edit machine location (GPS)
+    this.bot.callbackQuery(/^edit_mloc_([a-f0-9-]+)(?:_(\d+))?$/, async (ctx) => {
+      if (!ctx.user || ctx.user.role !== UserRole.ADMIN) return;
+      await ctx.answerCallbackQuery();
+
+      const machineId = ctx.match[1];
+      const returnPage = ctx.match[2] || '0';
+
+      const machine = await this.machinesService.findById(machineId);
+      if (!machine) {
+        await ctx.editMessageText('❌ Автомат не найден');
+        return;
+      }
+
+      ctx.session.step = 'editing_machine_location';
+      ctx.session.editingMachineId = machineId;
+      ctx.session.editingMachineReturnPage = returnPage;
+
+      const safeLocation = machine.location ? this.escapeHtml(machine.location) : '—';
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  ✏️  <b>ИЗМЕНИТЬ ЛОКАЦИЮ</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `Текущая локация: ${safeLocation}\n\n` +
+        `📍 Нажмите кнопку ниже для отправки новой локации`,
+        { parse_mode: 'HTML' },
+      );
+
+      const locationKeyboard = new Keyboard()
+        .requestLocation('📍 Отправить локацию')
+        .row()
+        .text('❌ Отмена')
+        .resized()
+        .oneTime();
+
+      await ctx.reply('Отправьте новую геолокацию автомата:', {
+        reply_markup: locationKeyboard,
+      });
+    });
 
     // Manage machines menu
     this.bot.callbackQuery('manage_machines', async (ctx) => {
