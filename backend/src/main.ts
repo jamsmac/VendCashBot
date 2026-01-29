@@ -27,7 +27,19 @@ async function bootstrap() {
         directives: {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
+          scriptSrc: [
+            "'self'",
+            "'unsafe-inline'",
+            "'unsafe-eval'",
+            'https://telegram.org',
+            'https://oauth.telegram.org',
+          ],
+          frameSrc: [
+            "'self'",
+            'https://telegram.org',
+            'https://oauth.telegram.org',
+          ],
+          connectSrc: ["'self'", 'https://telegram.org'],
           imgSrc: ["'self'", 'data:', 'https:'],
         },
       },
