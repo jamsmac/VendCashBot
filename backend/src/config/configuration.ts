@@ -14,6 +14,26 @@ function warnIfDefault(name: string, defaultValue: string): string {
   return value;
 }
 
+// Parse DATABASE_URL if provided (Railway/Heroku style)
+function parseDatabaseUrl(): { host: string; port: number; username: string; password: string; database: string } | null {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) return null;
+
+  try {
+    const url = new URL(databaseUrl);
+    return {
+      host: url.hostname,
+      port: parseInt(url.port || '5432', 10),
+      username: url.username,
+      password: url.password,
+      database: url.pathname.slice(1), // Remove leading /
+    };
+  } catch {
+    console.error('Failed to parse DATABASE_URL');
+    return null;
+  }
+}
+
 export default () => {
   // Critical: JWT secret must be set and strong in production
   const jwtSecret = process.env.JWT_SECRET;
@@ -32,10 +52,13 @@ export default () => {
     throw new Error('TELEGRAM_BOT_TOKEN is required');
   }
 
+  // Parse DATABASE_URL if available (Railway provides this)
+  const dbFromUrl = parseDatabaseUrl();
+
   return {
     nodeEnv: process.env.NODE_ENV || 'development',
     port: parseInt(process.env.PORT || '3000', 10),
-    database: {
+    database: dbFromUrl || {
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '5432', 10),
       username: process.env.DB_USERNAME || 'vendcash',
