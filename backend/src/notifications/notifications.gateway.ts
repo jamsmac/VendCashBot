@@ -62,7 +62,22 @@ export class NotificationsGateway
 
   async handleConnection(client: Socket) {
     try {
-      const token = client.handshake.auth?.token || client.handshake.headers?.authorization?.replace('Bearer ', '');
+      // Extract JWT from cookie (primary) or auth/header (fallback for non-browser clients)
+      const cookieHeader = client.handshake.headers?.cookie;
+      let token: string | undefined;
+
+      if (cookieHeader) {
+        const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
+          const [key, val] = cookie.trim().split('=');
+          if (key && val) acc[key] = val;
+          return acc;
+        }, {} as Record<string, string>);
+        token = cookies['access_token'];
+      }
+
+      if (!token) {
+        token = client.handshake.auth?.token || client.handshake.headers?.authorization?.replace('Bearer ', '');
+      }
 
       if (!token) {
         this.logger.warn(`Client ${client.id} connected without token`);

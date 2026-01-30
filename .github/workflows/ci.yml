@@ -87,6 +87,9 @@ jobs:
       - name: Run linter
         run: npm run lint || echo "No lint script found"
 
+      - name: Run tests
+        run: npm run test || echo "No tests found"
+
       - name: Build
         run: npm run build
         env:
@@ -113,10 +116,10 @@ jobs:
         with:
           image-ref: 'vendcash-backend'
           format: 'table'
-          exit-code: '0'
+          exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'os,library'
-          severity: 'HIGH,CRITICAL'
+          severity: 'CRITICAL'
 
   # ============================================
   # Deploy to Railway (only on main branch push)

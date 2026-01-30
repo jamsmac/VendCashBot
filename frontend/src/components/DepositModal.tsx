@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 interface DepositModalProps {
     onClose: () => void
@@ -25,8 +26,8 @@ export default function DepositModal({ onClose, onSubmit, maxAmount }: DepositMo
                 date,
             })
             onClose()
-        } catch (error) {
-            console.error(error)
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Ошибка при сдаче в банк')
         } finally {
             setLoading(false)
         }

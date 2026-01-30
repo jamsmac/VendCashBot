@@ -30,7 +30,6 @@ async function bootstrap() {
           scriptSrc: [
             "'self'",
             "'unsafe-inline'",
-            "'unsafe-eval'",
             'https://telegram.org',
             'https://oauth.telegram.org',
           ],

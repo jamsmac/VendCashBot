@@ -99,7 +99,7 @@ describe('CollectionsController', () => {
   });
 
   describe('findAll', () => {
-    it('should return all collections with filters', async () => {
+    it('should return all collections with filters for manager', async () => {
       const query: CollectionQueryDto = {
         status: CollectionStatus.COLLECTED,
         page: 1,
@@ -111,7 +111,7 @@ describe('CollectionsController', () => {
       };
       collectionsService.findAll.mockResolvedValue(expectedResult);
 
-      const result = await controller.findAll(query);
+      const result = await controller.findAll(query, mockManagerUser);
 
       expect(collectionsService.findAll).toHaveBeenCalledWith(query);
       expect(result).toEqual(expectedResult);
@@ -125,7 +125,7 @@ describe('CollectionsController', () => {
       };
       collectionsService.findAll.mockResolvedValue(expectedResult);
 
-      const result = await controller.findAll(query);
+      const result = await controller.findAll(query, mockManagerUser);
 
       expect(collectionsService.findAll).toHaveBeenCalledWith(query);
       expect(result).toEqual(expectedResult);
@@ -138,9 +138,20 @@ describe('CollectionsController', () => {
       };
       collectionsService.findAll.mockResolvedValue({ data: [], total: 0 });
 
-      await controller.findAll(query);
+      await controller.findAll(query, mockManagerUser);
 
       expect(collectionsService.findAll).toHaveBeenCalledWith(query);
+    });
+
+    it('should filter by operatorId for operator role (IDOR protection)', async () => {
+      const query: CollectionQueryDto = {};
+      collectionsService.findAll.mockResolvedValue({ data: [], total: 0 });
+
+      await controller.findAll(query, mockUser);
+
+      expect(collectionsService.findAll).toHaveBeenCalledWith(
+        expect.objectContaining({ operatorId: mockUser.id }),
+      );
     });
   });
 

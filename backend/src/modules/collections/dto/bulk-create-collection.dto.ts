@@ -1,4 +1,4 @@
-import { IsArray, ValidateNested, IsOptional, IsString, IsNumber, IsUUID, IsEnum, IsDateString, Min, Max, ArrayMaxSize } from 'class-validator';
+import { IsArray, ValidateNested, IsOptional, IsString, IsNumber, IsUUID, IsEnum, IsDateString, Min, Max, MaxLength, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { CollectionSource } from '../entities/collection.entity';
@@ -11,6 +11,7 @@ class BulkCollectionItemDto {
 
   @ApiProperty({ description: 'Machine code', required: false })
   @IsString()
+  @MaxLength(50)
   @IsOptional()
   machineCode?: string;
 
@@ -27,6 +28,7 @@ class BulkCollectionItemDto {
 
   @ApiProperty({ description: 'Notes', required: false })
   @IsString()
+  @MaxLength(1000)
   @IsOptional()
   notes?: string;
 

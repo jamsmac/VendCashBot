@@ -22,6 +22,7 @@ import { EditCollectionDto } from './dto/edit-collection.dto';
 import { BulkCreateCollectionDto } from './dto/bulk-create-collection.dto';
 import { CollectionQueryDto } from './dto/collection-query.dto';
 import { CancelCollectionDto } from './dto/cancel-collection.dto';
+import { BulkCancelCollectionDto } from './dto/bulk-cancel-collection.dto';
 
 @ApiTags('collections')
 @Controller('collections')
@@ -32,7 +33,11 @@ export class CollectionsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all collections with filters' })
-  async findAll(@Query() query: CollectionQueryDto) {
+  async findAll(@Query() query: CollectionQueryDto, @CurrentUser() user: User) {
+    // IDOR protection: operators can only see their own collections
+    if (user.role === UserRole.OPERATOR) {
+      query.operatorId = user.id;
+    }
     return this.collectionsService.findAll(query);
   }
 
@@ -92,6 +97,16 @@ export class CollectionsController {
     @CurrentUser() user: User,
   ) {
     return this.collectionsService.receive(id, user.id, dto);
+  }
+
+  @Patch('bulk-cancel')
+  @Roles(UserRole.MANAGER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Bulk cancel collections by IDs or filters' })
+  async bulkCancel(
+    @Body() dto: BulkCancelCollectionDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.collectionsService.bulkCancel(dto, user.id);
   }
 
   @Patch(':id/edit')

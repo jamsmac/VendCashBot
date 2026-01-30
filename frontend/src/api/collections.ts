@@ -34,6 +34,13 @@ export interface CollectionQuery {
   limit?: number
 }
 
+export interface BulkCancelResult {
+  cancelled: number
+  failed: number
+  errors: { id: string; error: string }[]
+  total: number
+}
+
 export const collectionsApi = {
   getAll: async (query: CollectionQuery = {}): Promise<{ data: Collection[]; total: number }> => {
     const response = await apiClient.get('/collections', { params: query })
@@ -62,6 +69,21 @@ export const collectionsApi = {
 
   cancel: async (id: string, reason?: string): Promise<Collection> => {
     const response = await apiClient.patch(`/collections/${id}/cancel`, { reason })
+    return response.data
+  },
+
+  bulkCancel: async (data: {
+    ids?: string[]
+    useFilters?: boolean
+    status?: string
+    machineId?: string
+    operatorId?: string
+    source?: string
+    from?: string
+    to?: string
+    reason?: string
+  }): Promise<BulkCancelResult> => {
+    const response = await apiClient.patch('/collections/bulk-cancel', data)
     return response.data
   },
 

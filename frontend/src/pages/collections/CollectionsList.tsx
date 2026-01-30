@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
-import { collectionsApi, Collection, CollectionQuery } from '../../api/collections'
+import { useState, useEffect } from 'react'
+import { collectionsApi, Collection, CollectionQuery, BulkCancelResult } from '../../api/collections'
 import { machinesApi } from '../../api/machines'
 import { format } from 'date-fns'
-import { Filter, ChevronLeft, ChevronRight, Edit, Trash2 } from 'lucide-react'
+import { Filter, ChevronLeft, ChevronRight, Edit, Trash2, XSquare } from 'lucide-react'
 import ReceiveModal from '../../components/ReceiveModal'
 import EditCollectionModal from '../../components/EditCollectionModal'
 import CancelCollectionModal from '../../components/CancelCollectionModal'
+import BulkCancelModal from '../../components/BulkCancelModal'
+import { useAuthStore } from '../../contexts/AuthContext'
 import toast from 'react-hot-toast'
 
 export default function CollectionsList() {
@@ -15,6 +17,10 @@ export default function CollectionsList() {
     const [editCollection, setEditCollection] = useState<Collection | null>(null)
     const [cancelCollection, setCancelCollection] = useState<Collection | null>(null)
     const [showFilters, setShowFilters] = useState(false)
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+    const [showBulkCancel, setShowBulkCancel] = useState<'selected' | 'filtered' | null>(null)
+    const { user } = useAuthStore()
+    const isManagerOrAdmin = user?.role === 'manager' || user?.role === 'admin'
 
     const { data, isLoading, refetch } = useQuery({
         queryKey: ['collections', query],
@@ -59,6 +65,83 @@ export default function CollectionsList() {
             refetch()
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Ошибка')
+        }
+    }
+
+    // Selection helpers
+    const cancellableOnPage = (data?.data || []).filter(
+        (c) => c.status !== 'cancelled'
+    )
+    const allPageSelected =
+        cancellableOnPage.length > 0 &&
+        cancellableOnPage.every((c) => selectedIds.has(c.id))
+
+    const toggleSelectAll = () => {
+        if (allPageSelected) {
+            const newSet = new Set(selectedIds)
+            cancellableOnPage.forEach((c) => newSet.delete(c.id))
+            setSelectedIds(newSet)
+        } else {
+            const newSet = new Set(selectedIds)
+            cancellableOnPage.forEach((c) => newSet.add(c.id))
+            setSelectedIds(newSet)
+        }
+    }
+
+    const toggleSelectOne = (id: string) => {
+        const newSet = new Set(selectedIds)
+        if (newSet.has(id)) {
+            newSet.delete(id)
+        } else {
+            newSet.add(id)
+        }
+        setSelectedIds(newSet)
+    }
+
+    const hasActiveFilters = !!(
+        query.status || query.machineId || query.operatorId ||
+        query.source || query.from || query.to
+    )
+
+    // Reset selections when filters or page change
+    useEffect(() => {
+        setSelectedIds(new Set())
+    }, [query.page, query.status, query.machineId, query.from, query.to])
+
+    const handleBulkCancel = async (reason?: string) => {
+        try {
+            let result: BulkCancelResult
+
+            if (showBulkCancel === 'selected') {
+                result = await collectionsApi.bulkCancel({
+                    ids: Array.from(selectedIds),
+                    reason,
+                })
+            } else {
+                result = await collectionsApi.bulkCancel({
+                    useFilters: true,
+                    status: query.status,
+                    machineId: query.machineId,
+                    operatorId: query.operatorId,
+                    source: query.source,
+                    from: query.from,
+                    to: query.to,
+                    reason,
+                })
+            }
+
+            if (result.cancelled > 0) {
+                toast.success(`Отменено ${result.cancelled} инкассаций`)
+            }
+            if (result.failed > 0) {
+                toast.error(`Не удалось отменить: ${result.failed}`)
+            }
+
+            setShowBulkCancel(null)
+            setSelectedIds(new Set())
+            refetch()
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Ошибка массовой отмены')
         }
     }
 
@@ -133,8 +216,42 @@ export default function CollectionsList() {
                             />
                         </>
                     )}
+
+                    {isManagerOrAdmin && hasActiveFilters && (
+                        <button
+                            onClick={() => setShowBulkCancel('filtered')}
+                            className="btn btn-danger text-sm flex items-center gap-1"
+                            title="Отменить все записи по фильтру"
+                        >
+                            <XSquare className="w-4 h-4" />
+                            Отменить все ({data?.total || 0})
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {/* Selection Action Bar */}
+            {isManagerOrAdmin && selectedIds.size > 0 && (
+                <div className="card p-3 flex items-center justify-between bg-red-50 border border-red-200">
+                    <span className="text-sm font-medium text-red-700">
+                        Выбрано: {selectedIds.size}
+                    </span>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setSelectedIds(new Set())}
+                            className="btn btn-secondary text-sm"
+                        >
+                            Снять выделение
+                        </button>
+                        <button
+                            onClick={() => setShowBulkCancel('selected')}
+                            className="btn btn-danger text-sm"
+                        >
+                            Отменить выбранные
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Table */}
             <div className="card overflow-hidden">
@@ -142,6 +259,16 @@ export default function CollectionsList() {
                     <table className="w-full">
                         <thead className="bg-gray-50">
                             <tr>
+                                {isManagerOrAdmin && (
+                                    <th className="px-4 py-3 w-10">
+                                        <input
+                                            type="checkbox"
+                                            checked={allPageSelected && cancellableOnPage.length > 0}
+                                            onChange={toggleSelectAll}
+                                            className="rounded border-gray-300"
+                                        />
+                                    </th>
+                                )}
                                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Время</th>
                                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Автомат</th>
                                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Оператор</th>
@@ -153,19 +280,33 @@ export default function CollectionsList() {
                         <tbody className="divide-y divide-gray-100">
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                                    <td colSpan={isManagerOrAdmin ? 7 : 6} className="px-4 py-8 text-center text-gray-500">
                                         Загрузка...
                                     </td>
                                 </tr>
                             ) : data?.data.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                                    <td colSpan={isManagerOrAdmin ? 7 : 6} className="px-4 py-8 text-center text-gray-500">
                                         Нет данных
                                     </td>
                                 </tr>
                             ) : (
                                 data?.data.map((collection) => (
-                                    <tr key={collection.id} className="hover:bg-gray-50">
+                                    <tr key={collection.id} className={`hover:bg-gray-50 ${selectedIds.has(collection.id) ? 'bg-blue-50' : ''}`}>
+                                        {isManagerOrAdmin && (
+                                            <td className="px-4 py-3">
+                                                {collection.status !== 'cancelled' ? (
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedIds.has(collection.id)}
+                                                        onChange={() => toggleSelectOne(collection.id)}
+                                                        className="rounded border-gray-300"
+                                                    />
+                                                ) : (
+                                                    <span className="block w-4" />
+                                                )}
+                                            </td>
+                                        )}
                                         <td className="px-4 py-3 text-sm">
                                             <div>{format(new Date(collection.collectedAt), 'dd.MM.yyyy')}</div>
                                             <div className="text-gray-500">
@@ -282,6 +423,20 @@ export default function CollectionsList() {
                     collection={cancelCollection}
                     onClose={() => setCancelCollection(null)}
                     onSubmit={handleCancel}
+                />
+            )}
+
+            {/* Bulk Cancel Modal */}
+            {showBulkCancel && (
+                <BulkCancelModal
+                    count={
+                        showBulkCancel === 'selected'
+                            ? selectedIds.size
+                            : (data?.total || 0)
+                    }
+                    mode={showBulkCancel}
+                    onClose={() => setShowBulkCancel(null)}
+                    onSubmit={handleBulkCancel}
                 />
             )}
         </div>

@@ -86,11 +86,10 @@ export default function HistoryByDate() {
     const lastRow = rows[rows.length - 1]
     const lastTime = lastRow?.time || defaultTime
     const [hours, minutes] = lastTime.split(':').map(Number)
-    const newMinutes = minutes + 5
-    const newTime =
-      newMinutes >= 60
-        ? `${String(hours + 1).padStart(2, '0')}:${String(newMinutes - 60).padStart(2, '0')}`
-        : `${String(hours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`
+    const totalMinutes = hours * 60 + minutes + 5
+    const newHours = Math.min(Math.floor(totalMinutes / 60), 23)
+    const newMins = totalMinutes >= 24 * 60 ? 59 : totalMinutes % 60
+    const newTime = `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`
 
     setRows([
       ...rows,

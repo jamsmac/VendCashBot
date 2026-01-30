@@ -117,6 +117,9 @@ export default function Machines() {
       queryClient.invalidateQueries({ queryKey: ['machines'] })
       toast.success('Статус изменён')
     },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка изменения статуса')
+    },
   })
 
   // Location mutations
@@ -379,7 +382,8 @@ export default function Machines() {
                             isActive: !machine.isActive,
                           })
                         }
-                        className={`p-2 rounded-lg ${
+                        disabled={toggleActiveMutation.isPending}
+                        className={`p-2 rounded-lg disabled:opacity-50 ${
                           machine.isActive
                             ? 'text-red-500 hover:bg-red-50'
                             : 'text-green-500 hover:bg-green-50'

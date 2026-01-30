@@ -9,6 +9,7 @@ type Tab = 'machine' | 'date' | 'operator'
 export default function Reports() {
   const [activeTab, setActiveTab] = useState<Tab>('machine')
   const [query, setQuery] = useState<ReportQuery>({})
+  const [exporting, setExporting] = useState(false)
 
   const { data: byMachine, isLoading: loadingMachine } = useQuery({
     queryKey: ['reports-by-machine', query],
@@ -29,6 +30,8 @@ export default function Reports() {
   })
 
   const handleExport = async () => {
+    if (exporting) return
+    setExporting(true)
     try {
       const blob = await reportsApi.exportExcel(query)
       const url = window.URL.createObjectURL(blob)
@@ -42,6 +45,8 @@ export default function Reports() {
       toast.success('Отчёт скачан')
     } catch {
       toast.error('Ошибка экспорта')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -57,9 +62,9 @@ export default function Reports() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Отчёты</h1>
-        <button onClick={handleExport} className="btn btn-primary flex items-center gap-2">
+        <button onClick={handleExport} disabled={exporting} className="btn btn-primary flex items-center gap-2 disabled:opacity-50">
           <Download className="w-4 h-4" />
-          Excel
+          {exporting ? 'Экспорт...' : 'Excel'}
         </button>
       </div>
 
@@ -116,7 +121,7 @@ export default function Reports() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {byMachine?.data.map((item) => (
+                  {byMachine?.data?.map((item) => (
                     <tr key={item.machine.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-mono">{item.machine.code}</td>
                       <td className="px-4 py-3">{item.machine.name}</td>
@@ -161,7 +166,7 @@ export default function Reports() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {byDate?.data.map((item) => (
+                  {byDate?.data?.map((item) => (
                     <tr key={item.date} className="hover:bg-gray-50">
                       <td className="px-4 py-3">{item.date}</td>
                       <td className="px-4 py-3 text-right">{item.collectionsCount}</td>
@@ -201,7 +206,7 @@ export default function Reports() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {byOperator?.data.map((item) => (
+                  {byOperator?.data?.map((item) => (
                     <tr key={item.operator.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">{item.operator.name}</td>
                       <td className="px-4 py-3 text-gray-500">

@@ -12,6 +12,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole, User } from '../users/entities/user.entity';
+import { CreateDepositDto } from './dto/create-deposit.dto';
 
 @ApiTags('finance')
 @Controller('finance')
@@ -38,9 +39,9 @@ export class FinanceController {
     @Roles(UserRole.MANAGER, UserRole.ADMIN)
     @ApiOperation({ summary: 'Create new bank deposit' })
     async createDeposit(
-        @Body() body: { amount: number; notes?: string; date: string },
+        @Body() dto: CreateDepositDto,
         @CurrentUser() user: User,
     ) {
-        return this.financeService.createDeposit(user.id, body);
+        return this.financeService.createDeposit(user.id, dto);
     }
 }

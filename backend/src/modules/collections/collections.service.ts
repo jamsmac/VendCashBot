@@ -19,6 +19,7 @@ import { CreateCollectionDto } from './dto/create-collection.dto';
 import { ReceiveCollectionDto } from './dto/receive-collection.dto';
 import { EditCollectionDto } from './dto/edit-collection.dto';
 import { BulkCreateCollectionDto } from './dto/bulk-create-collection.dto';
+import { BulkCancelCollectionDto } from './dto/bulk-cancel-collection.dto';
 import { CollectionQueryDto } from './dto/collection-query.dto';
 
 @Injectable()
@@ -392,17 +393,27 @@ export class CollectionsService {
     await queryRunner.startTransaction();
 
     try {
+      // First lock the row without relations (FOR UPDATE doesn't work with LEFT JOIN)
+      const lockedCollection = await queryRunner.manager.findOne(Collection, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!lockedCollection) {
+        throw new NotFoundException('Collection not found');
+      }
+      if (lockedCollection.status === CollectionStatus.CANCELLED) {
+        throw new BadRequestException('Collection is already cancelled');
+      }
+
+      // Now load with relations for the response
       const collection = await queryRunner.manager.findOne(Collection, {
         where: { id },
         relations: ['machine', 'operator', 'manager'],
-        lock: { mode: 'pessimistic_write' },
       });
 
       if (!collection) {
         throw new NotFoundException('Collection not found');
-      }
-      if (collection.status === CollectionStatus.CANCELLED) {
-        throw new BadRequestException('Collection is already cancelled');
       }
 
       // Log history within transaction
@@ -428,6 +439,125 @@ export class CollectionsService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  async bulkCancel(
+    dto: BulkCancelCollectionDto,
+    userId: string,
+  ): Promise<{
+    cancelled: number;
+    failed: number;
+    errors: { id: string; error: string }[];
+    total: number;
+  }> {
+    const results = {
+      cancelled: 0,
+      failed: 0,
+      errors: [] as { id: string; error: string }[],
+      total: 0,
+    };
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      let collectionIds: string[];
+
+      if (dto.useFilters) {
+        const qb = queryRunner.manager
+          .createQueryBuilder(Collection, 'collection')
+          .select('collection.id');
+
+        qb.andWhere('collection.status != :cancelledStatus', {
+          cancelledStatus: CollectionStatus.CANCELLED,
+        });
+
+        if (dto.status) {
+          qb.andWhere('collection.status = :status', { status: dto.status });
+        }
+        if (dto.machineId) {
+          qb.andWhere('collection.machineId = :machineId', { machineId: dto.machineId });
+        }
+        if (dto.operatorId) {
+          qb.andWhere('collection.operatorId = :operatorId', { operatorId: dto.operatorId });
+        }
+        if (dto.source) {
+          qb.andWhere('collection.source = :source', { source: dto.source });
+        }
+        if (dto.from) {
+          qb.andWhere('collection.collectedAt >= :from', { from: dto.from });
+        }
+        if (dto.to) {
+          qb.andWhere('collection.collectedAt <= :to', { to: dto.to });
+        }
+
+        const rows = await qb.getRawMany();
+        collectionIds = rows.map((r: { collection_id: string }) => r.collection_id);
+      } else {
+        collectionIds = dto.ids || [];
+      }
+
+      results.total = collectionIds.length;
+
+      if (collectionIds.length === 0) {
+        await queryRunner.commitTransaction();
+        return results;
+      }
+
+      for (const id of collectionIds) {
+        try {
+          const collection = await queryRunner.manager.findOne(Collection, {
+            where: { id },
+            lock: { mode: 'pessimistic_write' },
+          });
+
+          if (!collection) {
+            results.failed++;
+            results.errors.push({ id, error: 'Collection not found' });
+            continue;
+          }
+
+          if (collection.status === CollectionStatus.CANCELLED) {
+            results.failed++;
+            results.errors.push({ id, error: 'Already cancelled' });
+            continue;
+          }
+
+          const history = queryRunner.manager.create(CollectionHistory, {
+            collectionId: id,
+            changedById: userId,
+            fieldName: 'status',
+            oldValue: collection.status,
+            newValue: CollectionStatus.CANCELLED,
+            reason: dto.reason || 'Bulk cancellation',
+          });
+          await queryRunner.manager.save(history);
+
+          collection.status = CollectionStatus.CANCELLED;
+          await queryRunner.manager.save(collection);
+
+          results.cancelled++;
+        } catch (error: unknown) {
+          results.failed++;
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          results.errors.push({ id, error: message });
+        }
+      }
+
+      await queryRunner.commitTransaction();
+
+      if (results.cancelled > 0) {
+        await this.invalidateReportsCache();
+      }
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+
+    return results;
   }
 
   async getHistory(id: string): Promise<CollectionHistory[]> {

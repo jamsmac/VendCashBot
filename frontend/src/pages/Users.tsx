@@ -45,6 +45,9 @@ export default function Users() {
       queryClient.invalidateQueries({ queryKey: ['pending-invites'] })
       toast.success('Приглашение удалено')
     },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка удаления')
+    },
   })
 
   const updateUserMutation = useMutation({
@@ -66,6 +69,9 @@ export default function Users() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       toast.success('Статус изменён')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка изменения статуса')
     },
   })
 
@@ -181,7 +187,8 @@ export default function Users() {
                               isActive: !user.isActive,
                             })
                           }
-                          className={`p-2 rounded-lg ${
+                          disabled={toggleActiveMutation.isPending}
+                          className={`p-2 rounded-lg disabled:opacity-50 ${
                             user.isActive
                               ? 'text-red-500 hover:bg-red-50'
                               : 'text-green-500 hover:bg-green-50'
@@ -242,7 +249,8 @@ export default function Users() {
                       </button>
                       <button
                         onClick={() => deleteInviteMutation.mutate(invite.id)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                        disabled={deleteInviteMutation.isPending}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-50"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

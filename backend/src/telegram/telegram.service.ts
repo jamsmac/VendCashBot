@@ -852,7 +852,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const safeMachineName = this.escapeHtml(machine.name);
 
         await ctx.reply(
-          `🏧 <b>${safeMachineName}</b>\n📟 ${machine.code}\n📍 ${machine.location || '—'}\n\n` +
+          `🏧 <b>${safeMachineName}</b>\n📟 ${this.escapeHtml(machine.code)}\n📍 ${this.escapeHtml(machine.location || '—')}\n\n` +
           `⏰ Время: <b>${timeStr}</b>\n` +
           `${isHistorical ? '📆 <i>(исторические данные)</i>\n' : ''}\n` +
           `Подтвердить сбор?`,
@@ -1187,7 +1187,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             `╭─────────────────────╮\n` +
             `│  ✅  <b>АВТОМАТ СОЗДАН</b>\n` +
             `╰─────────────────────╯\n\n` +
-            `📟  Код: <code>${machine.code}</code>\n` +
+            `📟  Код: <code>${this.escapeHtml(machine.code)}</code>\n` +
             `📝  ${safeMachineName}\n` +
             `📍  Локация сохранена`,
             {
@@ -1284,7 +1284,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             `╭─────────────────────╮\n` +
             `│  ✅  <b>АВТОМАТ СОЗДАН</b>\n` +
             `╰─────────────────────╯\n\n` +
-            `📟  Код: <code>${machine.code}</code>\n` +
+            `📟  Код: <code>${this.escapeHtml(machine.code)}</code>\n` +
             `📝  ${safeMachineName}\n` +
             `📍  ${safeLocation}`,
             {
@@ -1456,7 +1456,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `│  📦  <b>НОВЫЙ СБОР</b>\n` +
           `╰─────────────────────╯\n\n` +
           `🏧  <b>${safeMachineName}</b>\n` +
-          `📟  <code>${machine.code}</code>\n\n` +
+          `📟  <code>${this.escapeHtml(machine.code)}</code>\n\n` +
           `📍 Отправьте вашу геолокацию\n` +
           `<i>Нажмите 📎 → Геопозиция</i>`,
           {
@@ -1477,7 +1477,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `│  📦  <b>НОВЫЙ СБОР</b>\n` +
         `╰─────────────────────╯\n\n` +
         `🏧  <b>${safeMachineName}</b>\n` +
-        `📟  <code>${machine.code}</code>\n\n` +
+        `📟  <code>${this.escapeHtml(machine.code)}</code>\n\n` +
         `Выберите время:`,
         {
           parse_mode: 'HTML',
@@ -1497,6 +1497,18 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.bot.callbackQuery('noop', async (ctx) => {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery('Используйте поиск для уточнения');
+    });
+
+    // Nearby machines - not yet implemented, redirect to search
+    this.bot.callbackQuery('nearby_machines', async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery('Функция в разработке');
+      ctx.session.step = 'searching_machine';
+      ctx.session.searchQuery = undefined;
+      await ctx.editMessageText(
+        '🔍 Введите код или название автомата:',
+        { reply_markup: new InlineKeyboard().text('◀️ Назад', 'collect') },
+      );
     });
 
     // Admin: Approve machine
@@ -1521,7 +1533,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `╭─────────────────────╮\n` +
           `│  ✅  <b>ПОДТВЕРЖДЕНО</b>\n` +
           `╰─────────────────────╯\n\n` +
-          `📟  <code>${machine.code}</code>\n` +
+          `📟  <code>${this.escapeHtml(machine.code)}</code>\n` +
           `📝  ${safeMachineName}`,
           {
             parse_mode: 'HTML',
@@ -1563,7 +1575,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `╭─────────────────────╮\n` +
           `│  ❌  <b>ОТКЛОНЕНО</b>\n` +
           `╰─────────────────────╯\n\n` +
-          `📟  <code>${machine.code}</code>\n` +
+          `📟  <code>${this.escapeHtml(machine.code)}</code>\n` +
           `📝  ${safeMachineName}`,
           {
             parse_mode: 'HTML',
@@ -1676,7 +1688,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `│  📦  <b>НОВЫЙ СБОР</b>\n` +
           `╰─────────────────────╯\n\n` +
           `🏧  <b>${safeMachineName}</b>\n` +
-          `📟  <code>${machine.code}</code>\n\n` +
+          `📟  <code>${this.escapeHtml(machine.code)}</code>\n\n` +
           `📍 Нажмите кнопку ниже для подтверждения`,
           { parse_mode: 'HTML' },
         );
@@ -1703,7 +1715,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `│  📦  <b>НОВЫЙ СБОР</b>\n` +
         `╰─────────────────────╯\n\n` +
         `🏧  <b>${safeMachineName}</b>\n` +
-        `📟  <code>${machine.code}</code>\n\n` +
+        `📟  <code>${this.escapeHtml(machine.code)}</code>\n\n` +
         `Выберите время:`,
         {
           parse_mode: 'HTML',
@@ -1760,8 +1772,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `🏧  <b>${safeMachineName}</b>\n` +
-        `📟  <code>${machine.code}</code>\n` +
-        `📍  ${machine.location || '—'}\n\n` +
+        `📟  <code>${this.escapeHtml(machine.code)}</code>\n` +
+        `📍  ${this.escapeHtml(machine.location || '—')}\n\n` +
         `⏰  ${timeStr}\n\n` +
         `Подтвердить сбор?`,
         {
@@ -1829,8 +1841,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `🏧  <b>${safeMachineName}</b>\n` +
-        `📟  <code>${machine.code}</code>\n` +
-        `📍  ${machine.location || '—'}\n\n` +
+        `📟  <code>${this.escapeHtml(machine.code)}</code>\n` +
+        `📍  ${this.escapeHtml(machine.location || '—')}\n\n` +
         `⏰  ${timeStr}\n` +
         `📆  <i>вчера</i>\n\n` +
         `Подтвердить сбор?`,
@@ -2042,8 +2054,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `🏧  <b>${safeMachineName}</b>\n` +
-        `📟  <code>${machine.code}</code>\n` +
-        `📍  ${machine.location || '—'}\n\n` +
+        `📟  <code>${this.escapeHtml(machine.code)}</code>\n` +
+        `📍  ${this.escapeHtml(machine.location || '—')}\n\n` +
         `⏰  ${timeStr}\n\n` +
         `Подтвердить сбор?`,
         {
@@ -2089,8 +2101,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `🏧  <b>${safeMachineName}</b>\n` +
-        `📟  <code>${machine.code}</code>\n` +
-        `📍  ${machine.location || '—'}\n\n` +
+        `📟  <code>${this.escapeHtml(machine.code)}</code>\n` +
+        `📍  ${this.escapeHtml(machine.location || '—')}\n\n` +
         `⏰  ${timeStr}\n\n` +
         `Подтвердить сбор?`,
         {
@@ -2125,8 +2137,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `🏧  <b>${safeMachineName}</b>\n` +
-        `📟  <code>${machine.code}</code>\n` +
-        `📍  ${machine.location || '—'}\n\n` +
+        `📟  <code>${this.escapeHtml(machine.code)}</code>\n` +
+        `📍  ${this.escapeHtml(machine.location || '—')}\n\n` +
         `⏰  ${timeStr}\n\n` +
         `Подтвердить сбор?`,
         {
@@ -2168,8 +2180,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `│  📦  <b>ПОДТВЕРЖДЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
         `🏧  <b>${safeMachineName}</b>\n` +
-        `📟  <code>${machine.code}</code>\n` +
-        `📍  ${machine.location || '—'}\n\n` +
+        `📟  <code>${this.escapeHtml(machine.code)}</code>\n` +
+        `📍  ${this.escapeHtml(machine.location || '—')}\n\n` +
         `⏰  ${timeStr}\n\n` +
         `Подтвердить сбор?`,
         {
@@ -2196,21 +2208,24 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
       await ctx.answerCallbackQuery();
 
+      // Save and clear session data BEFORE creating collection to prevent double-press
+      const machineId = ctx.session.selectedMachineId;
+      const collectionTime = ctx.session.collectionTime;
+      ctx.session.step = 'idle';
+      ctx.session.selectedMachineId = undefined;
+      ctx.session.collectionTime = undefined;
+
       try {
         const collection = await this.collectionsService.create(
           {
-            machineId: ctx.session.selectedMachineId,
-            collectedAt: ctx.session.collectionTime,
+            machineId,
+            collectedAt: collectionTime,
             skipDuplicateCheck: true,
           },
           ctx.user.id,
         );
 
-        const machine = await this.machinesService.findById(ctx.session.selectedMachineId);
-
-        ctx.session.step = 'idle';
-        ctx.session.selectedMachineId = undefined;
-        ctx.session.collectionTime = undefined;
+        const machine = await this.machinesService.findById(machineId);
 
         const safeMachineName = machine ? this.escapeHtml(machine.name) : '';
         await ctx.editMessageText(
@@ -2824,7 +2839,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `╭─────────────────────╮\n` +
         `│  📝  <b>АВТОМАТ</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `📟  Код: <code>${machine.code}</code>\n` +
+        `📟  Код: <code>${this.escapeHtml(machine.code)}</code>\n` +
         `📝  ${safeMachineName}\n` +
         `📍  ${safeLocation}\n` +
         `${statusText}\n\n` +
@@ -2936,7 +2951,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `╭─────────────────────╮\n` +
         `│  ✏️  <b>ИЗМЕНИТЬ КОД</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `Текущий код: <code>${machine.code}</code>\n\n` +
+        `Текущий код: <code>${this.escapeHtml(machine.code)}</code>\n\n` +
         `Введите новый код:`,
         {
           parse_mode: 'HTML',
@@ -3046,7 +3061,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           `╭─────────────────────╮\n` +
           `│  ⚠️  <b>ОГРАНИЧЕНИЕ</b>\n` +
           `╰─────────────────────╯\n\n` +
-          `Автомат <code>${machine.code}</code> «${safeName}»\nимеет <b>${collectionsCount}</b> инкассаций.\n\n` +
+          `Автомат <code>${this.escapeHtml(machine.code)}</code> «${safeName}»\nимеет <b>${collectionsCount}</b> инкассаций.\n\n` +
           `Удаление невозможно.\nМожно отключить автомат.`,
           {
             parse_mode: 'HTML',
@@ -3062,7 +3077,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `╭─────────────────────╮\n` +
         `│  🗑  <b>УДАЛЕНИЕ</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `Удалить автомат <code>${machine.code}</code> «${safeName}»?\n\n` +
+        `Удалить автомат <code>${this.escapeHtml(machine.code)}</code> «${safeName}»?\n\n` +
         `⚠️ Это действие нельзя отменить.`,
         {
           parse_mode: 'HTML',
@@ -3246,7 +3261,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `╭─────────────────────╮\n` +
         `│  🔍  <b>ПРОВЕРКА</b>\n` +
         `╰─────────────────────╯\n\n` +
-        `📟  Код: <code>${machine.code}</code>\n` +
+        `📟  Код: <code>${this.escapeHtml(machine.code)}</code>\n` +
         `📝  ${safeMachineName}\n` +
         `📍  ${safeLocation}\n\n` +
         `────────────────────\n` +
@@ -3799,7 +3814,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
     const message =
       `🆕 <b>Новый автомат добавлен</b>\n\n` +
-      `📟 Код: <code>${machine.code}</code>\n` +
+      `📟 Код: <code>${this.escapeHtml(machine.code)}</code>\n` +
       `📝 Название: ${safeMachineName}\n` +
       `👤 Создал: ${safeCreatorName} ${safeUsername}\n` +
       `📅 ${this.formatDateTime(machine.createdAt)}`;
@@ -3829,7 +3844,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await this.bot.api.sendMessage(
         creator.telegramId,
         `✅ Ваш автомат подтверждён!\n\n` +
-        `📟 Код: <code>${machine.code}</code>\n` +
+        `📟 Код: <code>${this.escapeHtml(machine.code)}</code>\n` +
         `📝 Название: ${safeMachineName}\n\n` +
         `Теперь вы можете использовать его для инкассаций.`,
         { parse_mode: 'HTML' },
@@ -3853,7 +3868,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await this.bot.api.sendMessage(
         creator.telegramId,
         `❌ Ваш автомат отклонён\n\n` +
-        `📟 Код: <code>${machine.code}</code>\n` +
+        `📟 Код: <code>${this.escapeHtml(machine.code)}</code>\n` +
         `📝 Название: ${safeMachineName}\n\n` +
         `Причина: ${safeReason}`,
         { parse_mode: 'HTML' },
