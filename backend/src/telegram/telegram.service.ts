@@ -101,19 +101,22 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Message cleanup middleware — auto-track all outgoing messages
-    // and delete previous ones on each new user interaction
+    // and delete previous ones on each new user message (not callback queries)
     this.bot.use(async (ctx, next) => {
-      // Delete old bot messages at the start of each interaction
-      const ids = ctx.session?.lastBotMessageIds;
-      if (ids && ids.length > 0) {
-        for (const msgId of ids) {
-          try {
-            await ctx.api.deleteMessage(ctx.chat!.id, msgId);
-          } catch {
-            // Already deleted or too old — ignore
+      // Only delete old bot messages on new user messages (text, command, photo, etc.)
+      // Callback queries use editMessageText, so we must NOT delete the current message
+      if (ctx.message) {
+        const ids = ctx.session?.lastBotMessageIds;
+        if (ids && ids.length > 0) {
+          for (const msgId of ids) {
+            try {
+              await ctx.api.deleteMessage(ctx.chat!.id, msgId);
+            } catch {
+              // Already deleted or too old — ignore
+            }
           }
+          ctx.session.lastBotMessageIds = [];
         }
-        ctx.session.lastBotMessageIds = [];
       }
 
       // Wrap ctx.reply to auto-track every outgoing message
