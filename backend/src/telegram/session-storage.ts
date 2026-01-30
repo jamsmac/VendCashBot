@@ -32,8 +32,6 @@ export interface SessionData {
   editingTextKey?: string;
   editingMachineId?: string;
   editingMachineReturnPage?: string;
-  /** Track last bot message IDs for cleanup */
-  lastBotMessageIds?: number[];
 }
 
 /**

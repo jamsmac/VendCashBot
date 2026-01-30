@@ -100,43 +100,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn('Telegram sessions: In-memory (not recommended for production)');
     }
 
-    // Message cleanup middleware — auto-track all outgoing messages
-    // and delete previous ones on each new user message (not callback queries)
-    this.bot.use(async (ctx, next) => {
-      // Only delete old bot messages on new user messages (text, command, photo, etc.)
-      // Callback queries use editMessageText, so we must NOT delete the current message
-      if (ctx.message) {
-        const ids = ctx.session?.lastBotMessageIds;
-        if (ids && ids.length > 0) {
-          for (const msgId of ids) {
-            try {
-              await ctx.api.deleteMessage(ctx.chat!.id, msgId);
-            } catch {
-              // Already deleted or too old — ignore
-            }
-          }
-          ctx.session.lastBotMessageIds = [];
-        }
-      }
-
-      // Wrap ctx.reply to auto-track every outgoing message
-      const originalReply = ctx.reply.bind(ctx);
-      (ctx as any).reply = async (...args: Parameters<typeof ctx.reply>) => {
-        const sent = await originalReply(...args);
-        if (!ctx.session.lastBotMessageIds) {
-          ctx.session.lastBotMessageIds = [];
-        }
-        ctx.session.lastBotMessageIds.push(sent.message_id);
-        // Keep max 10 to avoid stale IDs
-        if (ctx.session.lastBotMessageIds.length > 10) {
-          ctx.session.lastBotMessageIds = ctx.session.lastBotMessageIds.slice(-10);
-        }
-        return sent;
-      };
-
-      await next();
-    });
-
     // User middleware
     this.bot.use(async (ctx, next) => {
       if (ctx.from) {
@@ -1309,21 +1272,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.editingMachineId = undefined;
       ctx.session.editingMachineReturnPage = undefined;
       ctx.session.editingTextKey = undefined;
-      // Clean up tracked bot messages on main menu (natural reset point)
-      // Skip the current message (the one with the inline keyboard being clicked)
-      const currentMsgId = ctx.callbackQuery?.message?.message_id;
-      const ids = ctx.session.lastBotMessageIds;
-      if (ids && ids.length > 0) {
-        for (const msgId of ids) {
-          if (msgId === currentMsgId) continue; // Don't delete the message we're about to edit
-          try {
-            await ctx.api.deleteMessage(ctx.chat!.id, msgId);
-          } catch {
-            // Already deleted or too old
-          }
-        }
-        ctx.session.lastBotMessageIds = [];
-      }
       const roleBadge = this.getRoleBadge(ctx.user.role);
       const safeName = this.escapeHtml(ctx.user.name);
       await ctx.editMessageText(
