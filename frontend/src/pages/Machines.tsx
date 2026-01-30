@@ -263,7 +263,7 @@ export default function Machines() {
           location: machineData.location,
           latitude: machineData.latitude,
           longitude: machineData.longitude,
-          isActive: machineData.isActive,
+          isActive: String(machineData.isActive) === 'true',
         },
       })
     } else {

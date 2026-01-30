@@ -66,7 +66,8 @@ export default function ReceiveModal({ collection, onClose, onSubmit }: ReceiveM
               {...register('amount', {
                 required: 'Введите сумму',
                 valueAsNumber: true,
-                min: { value: 0, message: 'Сумма должна быть положительной' },
+                min: { value: 1, message: 'Сумма должна быть больше 0' },
+                max: { value: 1000000000, message: 'Сумма не может превышать 1,000,000,000' },
               })}
             />
             {errors.amount && (

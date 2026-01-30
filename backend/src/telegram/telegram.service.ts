@@ -591,8 +591,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       // Registration - name input
       // Amount input for receiving collection
       if (ctx.session.step === 'entering_amount' && ctx.session.pendingCollectionId && ctx.user) {
-        const amountStr = ctx.message.text.replace(/\s/g, '').replace(/,/g, '');
-        const amount = parseInt(amountStr, 10);
+        const amountStr = ctx.message.text.replace(/\s/g, '').replace(/,/g, '.');
+        const amount = parseFloat(amountStr);
         const maxAmount = this.configService.get<number>('app.maxCollectionAmount') || 1_000_000_000;
 
         if (isNaN(amount) || amount <= 0) {

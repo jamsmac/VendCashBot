@@ -2,9 +2,9 @@ import { IsNumber, IsOptional, IsString, Min, Max, MaxLength } from 'class-valid
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ReceiveCollectionDto {
-  @ApiProperty({ description: 'Amount in UZS', minimum: 0, maximum: 1000000000 })
+  @ApiProperty({ description: 'Amount in UZS', minimum: 1, maximum: 1000000000 })
   @IsNumber()
-  @Min(0)
+  @Min(1, { message: 'Сумма должна быть больше 0' })
   @Max(1000000000)
   amount: number;
 
