@@ -1310,9 +1310,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.editingMachineReturnPage = undefined;
       ctx.session.editingTextKey = undefined;
       // Clean up tracked bot messages on main menu (natural reset point)
+      // Skip the current message (the one with the inline keyboard being clicked)
+      const currentMsgId = ctx.callbackQuery?.message?.message_id;
       const ids = ctx.session.lastBotMessageIds;
       if (ids && ids.length > 0) {
         for (const msgId of ids) {
+          if (msgId === currentMsgId) continue; // Don't delete the message we're about to edit
           try {
             await ctx.api.deleteMessage(ctx.chat!.id, msgId);
           } catch {

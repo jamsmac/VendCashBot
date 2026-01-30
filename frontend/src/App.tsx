@@ -14,6 +14,11 @@ import Machines from './pages/Machines'
 import Users from './pages/Users'
 import TelegramMapPicker from './pages/TelegramMapPicker'
 
+function getDefaultRoute(role?: string): string {
+  if (role === 'admin' || role === 'manager') return '/dashboard'
+  return '/collections'
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore()
 
@@ -35,7 +40,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuthStore()
 
-  // Wait for auth to load before checking role
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -45,7 +49,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user?.role !== 'admin') {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={getDefaultRoute(user?.role)} replace />
   }
 
   return <>{children}</>
@@ -54,7 +58,6 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 function ManagerRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuthStore()
 
-  // Wait for auth to load before checking role
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -64,10 +67,15 @@ function ManagerRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user?.role !== 'admin' && user?.role !== 'manager') {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={getDefaultRoute(user?.role)} replace />
   }
 
   return <>{children}</>
+}
+
+function DefaultRedirect() {
+  const { user } = useAuthStore()
+  return <Navigate to={getDefaultRoute(user?.role)} replace />
 }
 
 export default function App() {
@@ -84,8 +92,15 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<Dashboard />} />
+        <Route index element={<DefaultRedirect />} />
+        <Route
+          path="dashboard"
+          element={
+            <ManagerRoute>
+              <Dashboard />
+            </ManagerRoute>
+          }
+        />
         <Route path="collections" element={<Collections />} />
         <Route path="collections/pending" element={<CollectionsPending />} />
         <Route path="collections/history" element={<HistoryEntry />} />

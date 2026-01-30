@@ -33,7 +33,7 @@ export default function Login() {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && !authLoading) {
-      navigate('/dashboard', { replace: true })
+      navigate('/', { replace: true })
     }
   }, [isAuthenticated, authLoading, navigate])
 
@@ -48,7 +48,7 @@ export default function Login() {
       // Only navigate and show toast if component is still mounted
       if (isMounted.current) {
         toast.success('Добро пожаловать!')
-        navigate('/dashboard', { replace: true })
+        navigate('/', { replace: true })
       }
     } catch (error: any) {
       if (isMounted.current) {

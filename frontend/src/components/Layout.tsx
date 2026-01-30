@@ -32,7 +32,7 @@ export default function Layout() {
   const isManager = user?.role === 'manager' || isAdmin
 
   const navItems = [
-    { to: '/dashboard', icon: LayoutDashboard, label: 'Главная' },
+    ...(isManager ? [{ to: '/dashboard', icon: LayoutDashboard, label: 'Главная' }] : []),
     { to: '/collections', icon: ClipboardList, label: 'Инкассации' },
     { to: '/reports', icon: BarChart3, label: 'Отчёты' },
     ...(isManager ? [{ to: '/machines', icon: Settings, label: 'Автоматы' }] : []),
