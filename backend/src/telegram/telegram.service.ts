@@ -1624,7 +1624,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       );
     });
 
-    // Operator: Start collection
+    // Operator: Start collection (page 0)
     this.bot.callbackQuery('collect', async (ctx) => {
       if (!ctx.user) return;
       await ctx.answerCallbackQuery();
@@ -1632,51 +1632,16 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.selectedMachineId = undefined;
       ctx.session.collectionTime = undefined;
 
-      const machines = await this.machinesService.findAllActive();
+      await this.showCollectMachines(ctx, 0);
+    });
 
-      if (machines.length === 0) {
-        await ctx.editMessageText(
-          `╭─────────────────────╮\n` +
-          `│  📦  <b>НОВЫЙ СБОР</b>\n` +
-          `╰─────────────────────╯\n\n` +
-          `Нет доступных автоматов\n\n` +
-          `Создайте через поиск`,
-          {
-            parse_mode: 'HTML',
-            reply_markup: new InlineKeyboard()
-              .text('🔍 Поиск', 'search_machine')
-              .text('🏠 Меню', 'main_menu'),
-          },
-        );
-        return;
-      }
+    // Operator: Collection machine list pagination
+    this.bot.callbackQuery(/^collect_page_(\d+)$/, async (ctx) => {
+      if (!ctx.user) return;
+      await ctx.answerCallbackQuery();
 
-      const keyboard = new InlineKeyboard();
-
-      // Add search button at top
-      keyboard.text('🔍 Поиск', 'search_machine').row();
-
-      machines.slice(0, 8).forEach((m) => {
-        keyboard.text(`${m.code}  ${m.name}`, `machine_${m.id}`).row();
-      });
-
-      if (machines.length > 8) {
-        keyboard.text(`⋯ ещё ${machines.length - 8}`, 'search_machine').row();
-      }
-
-      keyboard.text('🏠 Меню', 'main_menu');
-
-      await ctx.editMessageText(
-        `╭─────────────────────╮\n` +
-        `│  📦  <b>НОВЫЙ СБОР</b>\n` +
-        `╰─────────────────────╯\n\n` +
-        `Выберите автомат:`,
-        {
-          parse_mode: 'HTML',
-          reply_markup: keyboard,
-        },
-      );
-      ctx.session.step = 'selecting_machine';
+      const page = parseInt(ctx.match[1], 10);
+      await this.showCollectMachines(ctx, page);
     });
 
     // Machine selection - operator sends location, manager/admin selects date
@@ -3723,6 +3688,61 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         await ctx.answerCallbackQuery(`Ошибка: ${safeError}`);
       }
     });
+  }
+
+  private async showCollectMachines(ctx: any, page: number): Promise<void> {
+    const pageSize = 10;
+    const machines = await this.machinesService.findAllActive();
+
+    if (machines.length === 0) {
+      await ctx.editMessageText(
+        `╭─────────────────────╮\n` +
+        `│  📦  <b>НОВЫЙ СБОР</b>\n` +
+        `╰─────────────────────╯\n\n` +
+        `Нет доступных автоматов`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: new InlineKeyboard()
+            .text('🏠 Меню', 'main_menu'),
+        },
+      );
+      return;
+    }
+
+    const totalPages = Math.ceil(machines.length / pageSize);
+    const safeePage = Math.min(page, totalPages - 1);
+    const pageItems = machines.slice(safeePage * pageSize, (safeePage + 1) * pageSize);
+
+    const keyboard = new InlineKeyboard();
+
+    pageItems.forEach((m) => {
+      keyboard.text(`${m.code}  ${m.name}`, `machine_${m.id}`).row();
+    });
+
+    // Pagination buttons
+    if (totalPages > 1) {
+      if (safeePage > 0) {
+        keyboard.text('◀️', `collect_page_${safeePage - 1}`);
+      }
+      keyboard.text(`${safeePage + 1}/${totalPages}`, 'noop');
+      if (safeePage < totalPages - 1) {
+        keyboard.text('▶️', `collect_page_${safeePage + 1}`);
+      }
+      keyboard.row();
+    }
+
+    keyboard.text('🏠 Меню', 'main_menu');
+
+    await ctx.editMessageText(
+      `╭─────────────────────╮\n` +
+      `│  📦  <b>НОВЫЙ СБОР</b>\n` +
+      `╰─────────────────────╯\n\n` +
+      `Выберите автомат:`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: keyboard,
+      },
+    );
   }
 
   private getMainMenu(user: User): InlineKeyboard {
