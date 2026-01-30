@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThanOrEqual, MoreThanOrEqual, IsNull, Or } from 'typeorm';
+import { Repository, DataSource, LessThanOrEqual, MoreThanOrEqual, IsNull, Or } from 'typeorm';
 import { Machine, MachineStatus } from './entities/machine.entity';
 import { MachineLocation } from './entities/machine-location.entity';
 import { CreateMachineDto } from './dto/create-machine.dto';
@@ -22,6 +22,7 @@ export class MachinesService {
     private readonly machineRepository: Repository<Machine>,
     @InjectRepository(MachineLocation)
     private readonly locationRepository: Repository<MachineLocation>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(createMachineDto: CreateMachineDto): Promise<Machine> {
@@ -183,12 +184,30 @@ export class MachinesService {
   }
 
   async remove(id: string): Promise<void> {
-    const machine = await this.findByIdOrFail(id);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    // Delete related locations first
-    await this.locationRepository.delete({ machineId: id });
+    try {
+      const machine = await queryRunner.manager.findOne(Machine, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    await this.machineRepository.remove(machine);
+      if (!machine) {
+        throw new NotFoundException('Machine not found');
+      }
+
+      // Delete locations and machine within the same transaction
+      await queryRunner.manager.delete(MachineLocation, { machineId: id });
+      await queryRunner.manager.remove(machine);
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async search(query: string, includeAllStatuses = false): Promise<Machine[]> {

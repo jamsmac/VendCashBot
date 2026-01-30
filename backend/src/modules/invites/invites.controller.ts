@@ -44,13 +44,6 @@ export class InvitesController {
     return this.invitesService.create(user.id, createInviteDto.role);
   }
 
-  @Get('validate/:code')
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Validate invite code' })
-  async validate(@Param('code') code: string) {
-    return this.invitesService.validateInvite(code);
-  }
-
   @Delete(':id')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Delete invite' })

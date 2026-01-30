@@ -330,10 +330,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
+      // Validate invite first (non-locking check for user-friendly error messages)
       const validation = await this.invitesService.validateInvite(inviteCode);
 
       if (!validation.valid) {
-        // Translate error messages to Russian
         let errorMsg = 'Ссылка недействительна.';
         if (validation.error === 'Invite not found') {
           errorMsg = 'Приглашение не найдено.';
@@ -346,7 +346,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      // Auto-register with Telegram name
       if (!ctx.from) {
         await ctx.reply('❌ Ошибка: не удалось получить данные пользователя.');
         return;
@@ -356,23 +355,17 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const roleBadge = this.getRoleBadge(validation.role!);
 
       try {
-        const invite = await this.invitesService.findByCode(inviteCode);
-        if (!invite || invite.isUsed || invite.isExpired) {
-          await ctx.reply('❌ Ошибка регистрации. Запросите новую ссылку.');
-          return;
-        }
-
         // Create user
         const user = await this.usersService.create({
           telegramId: ctx.from.id,
           telegramUsername: ctx.from.username,
           telegramFirstName: ctx.from.first_name,
           name: name,
-          role: invite.role,
+          role: validation.role!,
         });
 
-        // Mark invite as used
-        await this.invitesService.markAsUsed(invite.id, user.id);
+        // Atomically claim invite with pessimistic locking (prevents TOCTOU race)
+        await this.invitesService.claimInvite(inviteCode, user.id);
         ctx.user = user;
 
         const safeName = this.escapeHtml(user.name);
@@ -786,8 +779,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           const hours = parseInt(fullMatch[4], 10);
           const minutes = parseInt(fullMatch[5], 10);
 
-          if (day >= 1 && day <= 31 && month >= 0 && month <= 11 &&
-            year >= 2020 && year <= 2030 &&
+          if (month >= 0 && month <= 11 && year >= 2020 && year <= 2030 &&
+            this.isValidDate(year, month, day) &&
             hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
             parsedDate = this.tashkentToUtc(year, month, day, hours, minutes);
           }
@@ -800,8 +793,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           const month = parseInt(dateOnlyMatch[2], 10) - 1;
           const year = parseInt(dateOnlyMatch[3], 10);
 
-          if (day >= 1 && day <= 31 && month >= 0 && month <= 11 &&
-            year >= 2020 && year <= 2030) {
+          if (month >= 0 && month <= 11 && year >= 2020 && year <= 2030 &&
+            this.isValidDate(year, month, day)) {
             const now = this.getTashkentNow();
             parsedDate = this.tashkentToUtc(year, month, day, now.hours, now.minutes);
           }
@@ -1316,6 +1309,18 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.editingMachineId = undefined;
       ctx.session.editingMachineReturnPage = undefined;
       ctx.session.editingTextKey = undefined;
+      // Clean up tracked bot messages on main menu (natural reset point)
+      const ids = ctx.session.lastBotMessageIds;
+      if (ids && ids.length > 0) {
+        for (const msgId of ids) {
+          try {
+            await ctx.api.deleteMessage(ctx.chat!.id, msgId);
+          } catch {
+            // Already deleted or too old
+          }
+        }
+        ctx.session.lastBotMessageIds = [];
+      }
       const roleBadge = this.getRoleBadge(ctx.user.role);
       const safeName = this.escapeHtml(ctx.user.name);
       await ctx.editMessageText(
@@ -2214,6 +2219,15 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       ctx.session.step = 'idle';
       ctx.session.selectedMachineId = undefined;
       ctx.session.collectionTime = undefined;
+
+      // Immediately show processing state to prevent duplicate presses
+      // (second press will fail with "message is not modified")
+      try {
+        await ctx.editMessageText('⏳ Сохранение...');
+      } catch {
+        // Message already edited by a concurrent press — abort
+        return;
+      }
 
       try {
         const collection = await this.collectionsService.create(
@@ -3979,6 +3993,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     }).formatToParts(new Date());
     const get = (type: string) => parseInt(parts.find(p => p.type === type)!.value, 10);
     return { year: get('year'), month: get('month') - 1, day: get('day'), hours: get('hour'), minutes: get('minute') };
+  }
+
+  /** Check if day is valid for given month/year (handles Feb, leap years, etc.) */
+  private isValidDate(year: number, month: number, day: number): boolean {
+    // month is 0-based here (0=Jan, 11=Dec)
+    const date = new Date(year, month, day);
+    return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day;
   }
 
   private getRoleBadge(role: UserRole): string {

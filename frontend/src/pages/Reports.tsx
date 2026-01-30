@@ -82,8 +82,12 @@ export default function Reports() {
           type="date"
           className="input w-auto"
           value={query.to || ''}
+          min={query.from || undefined}
           onChange={(e) => setQuery({ ...query, to: e.target.value || undefined })}
         />
+        {query.from && query.to && query.from > query.to && (
+          <span className="text-red-500 text-sm">Дата «от» не может быть позже «до»</span>
+        )}
       </div>
 
       {/* Tabs */}
@@ -109,6 +113,8 @@ export default function Reports() {
           <div className="overflow-x-auto">
             {loadingMachine ? (
               <div className="p-8 text-center text-gray-500">Загрузка...</div>
+            ) : !byMachine?.data?.length ? (
+              <div className="p-8 text-center text-gray-500">Нет данных за выбранный период</div>
             ) : (
               <table className="w-full">
                 <thead className="bg-gray-50">
@@ -156,6 +162,8 @@ export default function Reports() {
           <div className="overflow-x-auto">
             {loadingDate ? (
               <div className="p-8 text-center text-gray-500">Загрузка...</div>
+            ) : !byDate?.data?.length ? (
+              <div className="p-8 text-center text-gray-500">Нет данных за выбранный период</div>
             ) : (
               <table className="w-full">
                 <thead className="bg-gray-50">
@@ -195,6 +203,8 @@ export default function Reports() {
           <div className="overflow-x-auto">
             {loadingOperator ? (
               <div className="p-8 text-center text-gray-500">Загрузка...</div>
+            ) : !byOperator?.data?.length ? (
+              <div className="p-8 text-center text-gray-500">Нет данных за выбранный период</div>
             ) : (
               <table className="w-full">
                 <thead className="bg-gray-50">

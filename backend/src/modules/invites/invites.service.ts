@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Repository, IsNull, MoreThan } from 'typeorm';
+import { Repository, DataSource, IsNull, MoreThan } from 'typeorm';
 import { randomBytes } from 'crypto';
 import { Invite } from './entities/invite.entity';
 import { UserRole } from '../users/entities/user.entity';
@@ -12,6 +12,7 @@ export class InvitesService {
     @InjectRepository(Invite)
     private readonly inviteRepository: Repository<Invite>,
     private readonly configService: ConfigService,
+    private readonly dataSource: DataSource,
   ) { }
 
   private generateCode(): string {
@@ -92,6 +93,45 @@ export class InvitesService {
     invite.usedAt = new Date();
 
     return this.inviteRepository.save(invite);
+  }
+
+  /**
+   * Atomically claim an invite: validate + mark as used in a single transaction
+   * with pessimistic locking to prevent race conditions (TOCTOU).
+   */
+  async claimInvite(code: string, usedById: string): Promise<Invite> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const invite = await queryRunner.manager.findOne(Invite, {
+        where: { code },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!invite) {
+        throw new NotFoundException('Invite not found');
+      }
+      if (invite.usedById) {
+        throw new BadRequestException('Invite already used');
+      }
+      if (invite.isExpired) {
+        throw new BadRequestException('Invite has expired');
+      }
+
+      invite.usedById = usedById;
+      invite.usedAt = new Date();
+
+      const saved = await queryRunner.manager.save(invite);
+      await queryRunner.commitTransaction();
+      return saved;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async delete(id: string): Promise<void> {

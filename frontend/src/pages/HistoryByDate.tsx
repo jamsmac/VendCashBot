@@ -6,6 +6,14 @@ import { collectionsApi } from '../api/collections'
 import { Plus, Trash2, MapPin } from 'lucide-react'
 import toast from 'react-hot-toast'
 
+const generateId = (): string => {
+  try {
+    return crypto.randomUUID()
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
+  }
+}
+
 interface HistoryRow {
   id: string
   machineId: string
@@ -20,7 +28,7 @@ export default function HistoryByDate() {
   const [selectedDate, setSelectedDate] = useState('')
   const [defaultTime, setDefaultTime] = useState('14:00')
   const [rows, setRows] = useState<HistoryRow[]>([
-    { id: crypto.randomUUID(), machineId: '', time: defaultTime, amount: '', locationId: '', locations: [] },
+    { id: generateId(), machineId: '', time: defaultTime, amount: '', locationId: '', locations: [] },
   ])
 
   const { data: machines } = useQuery({
@@ -94,7 +102,7 @@ export default function HistoryByDate() {
     setRows([
       ...rows,
       {
-        id: crypto.randomUUID(),
+        id: generateId(),
         machineId: '',
         time: newTime,
         amount: '',
@@ -127,6 +135,15 @@ export default function HistoryByDate() {
     const validRows = rows.filter((r) => r.machineId && r.amount)
     if (validRows.length === 0) {
       toast.error('Заполните хотя бы одну строку')
+      return
+    }
+
+    const invalidAmounts = validRows.filter((r) => {
+      const amt = parseFloat(r.amount)
+      return isNaN(amt) || amt <= 0 || amt > 1_000_000_000
+    })
+    if (invalidAmounts.length > 0) {
+      toast.error('Все суммы должны быть от 1 до 1,000,000,000')
       return
     }
 
@@ -237,6 +254,8 @@ export default function HistoryByDate() {
                       type="number"
                       className="input"
                       placeholder="Сумма"
+                      min="1"
+                      max="1000000000"
                       value={row.amount}
                       onChange={(e) => updateRow(row.id, 'amount', e.target.value)}
                       onKeyDown={(e) => {

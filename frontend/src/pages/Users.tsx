@@ -7,6 +7,8 @@ import { Plus, Edit, X, Check, XCircle, Copy, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 
+const BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'vendhubcashbot'
+
 export default function Users() {
   const queryClient = useQueryClient()
   const [showInviteModal, setShowInviteModal] = useState(false)
@@ -31,7 +33,7 @@ export default function Users() {
     mutationFn: invitesApi.create,
     onSuccess: (invite) => {
       queryClient.invalidateQueries({ queryKey: ['pending-invites'] })
-      const link = `https://t.me/VendCashBot?start=invite_${invite.code}`
+      const link = `https://t.me/${BOT_USERNAME}?start=invite_${invite.code}`
       setInviteLink(link)
     },
     onError: (error: any) => {
@@ -239,7 +241,7 @@ export default function Users() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => {
-                          const link = `https://t.me/VendCashBot?start=invite_${invite.code}`
+                          const link = `https://t.me/${BOT_USERNAME}?start=invite_${invite.code}`
                           navigator.clipboard.writeText(link)
                           toast.success('Ссылка скопирована')
                         }}

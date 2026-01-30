@@ -108,7 +108,11 @@ export default function CollectionsList() {
         setSelectedIds(new Set())
     }, [query.page, query.status, query.machineId, query.from, query.to])
 
+    const [isBulkCancelling, setIsBulkCancelling] = useState(false)
+
     const handleBulkCancel = async (reason?: string) => {
+        if (isBulkCancelling) return
+        setIsBulkCancelling(true)
         try {
             let result: BulkCancelResult
 
@@ -142,6 +146,8 @@ export default function CollectionsList() {
             refetch()
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Ошибка массовой отмены')
+        } finally {
+            setIsBulkCancelling(false)
         }
     }
 

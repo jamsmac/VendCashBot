@@ -99,7 +99,16 @@ class RedisAdapterWithTTL<T> implements StorageAdapter<T> {
 export function createSessionStorage(
   configService: ConfigService,
 ): { storage: StorageAdapter<SessionData>; type: 'redis' | 'memory' } {
+  const isProduction = configService.get('NODE_ENV') === 'production' ||
+    configService.get('nodeEnv') === 'production';
+
   if (!isRedisConfigured(configService)) {
+    if (isProduction) {
+      logger.error(
+        'CRITICAL: Redis not configured in production! ' +
+        'Sessions will be lost on restart. Set REDIS_HOST environment variable.',
+      );
+    }
     logger.warn('Redis not configured, using in-memory session storage');
     return {
       storage: new MemorySessionStorage<SessionData>(),

@@ -6,6 +6,14 @@ import { collectionsApi } from '../api/collections'
 import { Plus, Trash2, MapPin } from 'lucide-react'
 import toast from 'react-hot-toast'
 
+const generateId = (): string => {
+  try {
+    return crypto.randomUUID()
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
+  }
+}
+
 interface HistoryRow {
   id: string
   date: string
@@ -18,7 +26,7 @@ export default function HistoryByMachine() {
   const navigate = useNavigate()
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null)
   const [rows, setRows] = useState<HistoryRow[]>([
-    { id: crypto.randomUUID(), date: '', time: '12:00', amount: '', locationId: '' },
+    { id: generateId(), date: '', time: '12:00', amount: '', locationId: '' },
   ])
 
   const { data: machines } = useQuery({
@@ -64,7 +72,7 @@ export default function HistoryByMachine() {
     setRows([
       ...rows,
       {
-        id: crypto.randomUUID(),
+        id: generateId(),
         date: lastRow?.date || '',
         time: '12:00',
         amount: '',
@@ -96,6 +104,15 @@ export default function HistoryByMachine() {
     const validRows = rows.filter((r) => r.date && r.amount)
     if (validRows.length === 0) {
       toast.error('Заполните хотя бы одну строку')
+      return
+    }
+
+    const invalidAmounts = validRows.filter((r) => {
+      const amt = parseFloat(r.amount)
+      return isNaN(amt) || amt <= 0 || amt > 1_000_000_000
+    })
+    if (invalidAmounts.length > 0) {
+      toast.error('Все суммы должны быть от 1 до 1,000,000,000')
       return
     }
 
@@ -177,6 +194,8 @@ export default function HistoryByMachine() {
                       type="number"
                       className="input"
                       placeholder="Сумма"
+                      min="1"
+                      max="1000000000"
                       value={row.amount}
                       onChange={(e) => updateRow(row.id, 'amount', e.target.value)}
                       onKeyDown={(e) => {

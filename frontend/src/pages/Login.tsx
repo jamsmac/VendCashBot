@@ -87,6 +87,7 @@ export default function Login() {
     script.setAttribute('data-radius', '8')
     script.setAttribute('data-onauth', 'TelegramLoginWidget.dataOnauth(user)')
     script.setAttribute('data-request-access', 'write')
+    script.crossOrigin = 'anonymous'
     script.async = true
 
     if (containerRef.current) {
