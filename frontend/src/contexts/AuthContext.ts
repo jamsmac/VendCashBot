@@ -1,16 +1,7 @@
 import { create } from 'zustand'
-import { authApi, User } from '../api/auth'
+import { authApi, User, TelegramLoginData } from '../api/auth'
 
-// Telegram Login Widget data interface
-export interface TelegramAuthData {
-  id: number
-  first_name?: string
-  last_name?: string
-  username?: string
-  photo_url?: string
-  auth_date: number
-  hash: string
-}
+export type TelegramAuthData = TelegramLoginData
 
 interface AuthState {
   user: User | null
