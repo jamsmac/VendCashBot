@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Body,
+  Param,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -14,8 +15,10 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { AuthService, TelegramAuthData } from './auth.service';
+import { InvitesService } from '../invites/invites.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
+import { RegisterByInviteDto } from './dto/register-by-invite.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { User } from '../users/entities/user.entity';
@@ -34,7 +37,10 @@ const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(
+    private readonly authService: AuthService,
+    private readonly invitesService: InvitesService,
+  ) { }
 
   @Public()
   @Post('telegram')
@@ -55,6 +61,48 @@ export class AuthController {
     };
 
     const user = await this.authService.validateTelegramAuth(authData);
+    const { accessToken, refreshToken, user: userData } = await this.authService.login(user);
+
+    // Set httpOnly cookies
+    res.cookie('access_token', accessToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: ACCESS_TOKEN_MAX_AGE,
+    });
+    res.cookie('refresh_token', refreshToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: REFRESH_TOKEN_MAX_AGE,
+    });
+
+    return { user: userData };
+  }
+
+  @Public()
+  @Get('validate-invite/:code')
+  @ApiOperation({ summary: 'Check if invite code is valid' })
+  async validateInvite(@Param('code') code: string) {
+    const result = await this.invitesService.validateInvite(code);
+    return { valid: result.valid, role: result.role };
+  }
+
+  @Public()
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Register via Telegram + invite code' })
+  async register(
+    @Body() body: RegisterByInviteDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const authData: TelegramAuthData = {
+      id: body.id,
+      first_name: body.first_name,
+      last_name: body.last_name,
+      username: body.username,
+      photo_url: body.photo_url,
+      auth_date: body.auth_date,
+      hash: body.hash,
+    };
+
+    const user = await this.authService.registerWithTelegramAndInvite(authData, body.code);
     const { accessToken, refreshToken, user: userData } = await this.authService.login(user);
 
     // Set httpOnly cookies

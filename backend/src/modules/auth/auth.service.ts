@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -6,6 +6,7 @@ import { Repository, LessThan } from 'typeorm';
 import * as crypto from 'crypto';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
+import { InvitesService } from '../invites/invites.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 
 export interface TelegramAuthData {
@@ -32,6 +33,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly invitesService: InvitesService,
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
   ) { }
@@ -111,6 +113,60 @@ export class AuthService {
       .digest('hex');
 
     return calculatedHash === hash;
+  }
+
+  /**
+   * Register a new user via Telegram auth + invite code (web panel registration)
+   */
+  async registerWithTelegramAndInvite(authData: TelegramAuthData, inviteCode: string): Promise<User> {
+    // 1. Verify Telegram auth
+    const isValid = this.verifyTelegramAuth(authData);
+    if (!isValid) {
+      this.logger.warn(`Invalid Telegram auth hash for registration, user ID: ${authData.id}`);
+      throw new UnauthorizedException('Неверные данные авторизации Telegram');
+    }
+
+    // 2. Check auth_date freshness
+    const now = Math.floor(Date.now() / 1000);
+    if (now - authData.auth_date > 86400) {
+      throw new UnauthorizedException('Данные авторизации устарели. Попробуйте ещё раз.');
+    }
+
+    // 3. Check if user already exists
+    const existingUser = await this.usersService.findByTelegramId(authData.id);
+    if (existingUser) {
+      throw new BadRequestException('Вы уже зарегистрированы. Используйте кнопку входа.');
+    }
+
+    // 4. Validate invite
+    const validation = await this.invitesService.validateInvite(inviteCode);
+    if (!validation.valid) {
+      let errorMsg = 'Код приглашения недействителен.';
+      if (validation.error === 'Invite not found') {
+        errorMsg = 'Код приглашения не найден.';
+      } else if (validation.error === 'Invite already used') {
+        errorMsg = 'Код приглашения уже использован.';
+      } else if (validation.error === 'Invite has expired') {
+        errorMsg = 'Срок действия приглашения истёк.';
+      }
+      throw new BadRequestException(errorMsg);
+    }
+
+    // 5. Create user
+    const name = (authData.first_name || '') + (authData.last_name ? ` ${authData.last_name}` : '');
+    const user = await this.usersService.create({
+      telegramId: authData.id,
+      telegramUsername: authData.username,
+      telegramFirstName: authData.first_name,
+      name: name.trim() || `User ${authData.id}`,
+      role: validation.role!,
+    });
+
+    // 6. Claim invite atomically
+    await this.invitesService.claimInvite(inviteCode, user.id);
+
+    this.logger.log(`User registered via web: ${user.id} (${user.name}), role: ${user.role}`);
+    return user;
   }
 
   async login(user: User): Promise<{ accessToken: string; refreshToken: string; user: User }> {

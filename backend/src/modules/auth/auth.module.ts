@@ -8,11 +8,13 @@ import { AuthService } from './auth.service';
 import { AuthCleanupService } from './auth-cleanup.service';
 import { JwtStrategy } from './jwt.strategy';
 import { UsersModule } from '../users/users.module';
+import { InvitesModule } from '../invites/invites.module';
 import { RefreshToken } from './entities/refresh-token.entity';
 
 @Module({
   imports: [
     UsersModule,
+    InvitesModule,
     TypeOrmModule.forFeature([RefreshToken]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
