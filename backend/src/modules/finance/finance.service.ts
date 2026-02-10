@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { BankDeposit } from './entities/bank-deposit.entity';
-import { Collection } from '../collections/entities/collection.entity';
+import { Collection, CollectionStatus } from '../collections/entities/collection.entity';
 
 @Injectable()
 export class FinanceService {
@@ -11,6 +11,7 @@ export class FinanceService {
         private readonly depositRepository: Repository<BankDeposit>,
         @InjectRepository(Collection)
         private readonly collectionRepository: Repository<Collection>,
+        private readonly dataSource: DataSource,
     ) { }
 
     async createDeposit(
@@ -34,27 +35,42 @@ export class FinanceService {
     }
 
     async getBalance() {
-        // 1. Sum up all RECEIVED collections
-        const { totalReceived } = await this.collectionRepository
-            .createQueryBuilder('collection')
-            .select('SUM(collection.amount)', 'totalReceived')
-            .where('collection.status = :status', { status: 'received' })
-            .getRawOne();
+        // Use a transaction to ensure consistent snapshot of both sums
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction('REPEATABLE READ');
 
-        // 2. Sum up all DEPOSITS
-        const { totalDeposited } = await this.depositRepository
-            .createQueryBuilder('deposit')
-            .select('SUM(deposit.amount)', 'totalDeposited')
-            .getRawOne();
+        try {
+            // 1. Sum up all RECEIVED collections — use COALESCE for precision
+            const { totalReceived } = await queryRunner.manager
+                .createQueryBuilder(Collection, 'collection')
+                .select('COALESCE(SUM(collection.amount), 0)::numeric', 'totalReceived')
+                .where('collection.status = :status', { status: CollectionStatus.RECEIVED })
+                .getRawOne();
 
-        const received = parseFloat(totalReceived || '0');
-        const deposited = parseFloat(totalDeposited || '0');
-        const balance = received - deposited;
+            // 2. Sum up all DEPOSITS
+            const { totalDeposited } = await queryRunner.manager
+                .createQueryBuilder(BankDeposit, 'deposit')
+                .select('COALESCE(SUM(deposit.amount), 0)::numeric', 'totalDeposited')
+                .getRawOne();
 
-        return {
-            received,
-            deposited,
-            balance,
-        };
+            await queryRunner.commitTransaction();
+
+            // Convert string results from PostgreSQL numeric type to numbers
+            const received = Number(totalReceived) || 0;
+            const deposited = Number(totalDeposited) || 0;
+            const balance = Math.round((received - deposited) * 100) / 100;
+
+            return {
+                received: Math.round(received * 100) / 100,
+                deposited: Math.round(deposited * 100) / 100,
+                balance,
+            };
+        } catch (error) {
+            await queryRunner.rollbackTransaction();
+            throw error;
+        } finally {
+            await queryRunner.release();
+        }
     }
 }

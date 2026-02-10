@@ -16,8 +16,9 @@ export class InvitesService {
   ) { }
 
   private generateCode(): string {
-    // 4 bytes = 8 hex characters, short enough for Telegram deep links
-    return randomBytes(4).toString('hex').toUpperCase();
+    // 6 bytes = 12 hex characters, short enough for Telegram deep links
+    // Provides 48 bits of entropy (vs 32 bits with 4 bytes)
+    return randomBytes(6).toString('hex').toUpperCase();
   }
 
   async create(createdById: string, role: UserRole): Promise<Invite> {

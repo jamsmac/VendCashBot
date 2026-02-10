@@ -23,8 +23,9 @@ import { User } from '../users/entities/user.entity';
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  // Use 'none' for cross-origin cookies (frontend and backend on different domains)
-  sameSite: process.env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
+  // Default to 'lax' for CSRF protection (works with same-origin nginx proxy).
+  // Set COOKIE_SAME_SITE=none only if frontend and backend are on different origins.
+  sameSite: (process.env.COOKIE_SAME_SITE === 'none' ? 'none' as const : 'lax' as const),
   path: '/',
 };
 
@@ -78,9 +79,9 @@ export class AuthController {
     @Body('role') role: string,
     @Res({ passthrough: true }) res: Response,
   ) {
-    // Block dev-login in production for security
-    if (process.env.NODE_ENV === 'production') {
-      throw new ForbiddenException('Dev login is disabled in production');
+    // Block dev-login in all environments except explicit 'development'
+    if (process.env.NODE_ENV !== 'development') {
+      throw new ForbiddenException('Dev login is only available in development environment');
     }
 
     // Find a user with the requested role
@@ -154,9 +155,9 @@ export class AuthController {
   ) {
     await this.authService.revokeAllUserTokens(user.id);
 
-    // Clear cookies
-    res.clearCookie('access_token', { path: '/' });
-    res.clearCookie('refresh_token', { path: '/' });
+    // Clear cookies — must mirror COOKIE_OPTIONS for browser to actually remove them
+    res.clearCookie('access_token', COOKIE_OPTIONS);
+    res.clearCookie('refresh_token', COOKIE_OPTIONS);
 
     return { success: true };
   }

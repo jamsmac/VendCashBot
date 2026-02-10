@@ -2,7 +2,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // Helper for environment variables (used by warnIfDefault and for explicit env access)
 function getEnv(name: string, defaultValue?: string): string {
-  return process.env[name] || defaultValue || '';
+  return process.env[name] ?? defaultValue ?? '';
 }
 
 // Warn about insecure defaults in development
@@ -73,7 +73,7 @@ export default () => {
     },
     jwt: {
       secret: jwtSecret || 'dev-only-secret-do-not-use-in-production',
-      expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+      expiresIn: process.env.JWT_EXPIRES_IN || '15m',
     },
     telegram: {
       botToken: telegramBotToken,

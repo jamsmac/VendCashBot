@@ -55,7 +55,7 @@ export class MachinesService {
 
     const machine = this.machineRepository.create({
       ...createMachineDto,
-      status: MachineStatus.APPROVED,
+      status: MachineStatus.PENDING,
       createdById: userId,
     });
     return this.machineRepository.save(machine);
@@ -265,25 +265,38 @@ export class MachinesService {
   ): Promise<MachineLocation> {
     await this.findByIdOrFail(machineId);
 
-    // If this is set as current, unset other current locations
-    if (dto.isCurrent) {
-      await this.locationRepository.update(
-        { machineId, isCurrent: true },
-        { isCurrent: false },
-      );
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // If this is set as current, unset other current locations atomically
+      if (dto.isCurrent) {
+        await queryRunner.manager.update(MachineLocation,
+          { machineId, isCurrent: true },
+          { isCurrent: false },
+        );
+      }
+
+      const location = queryRunner.manager.create(MachineLocation, {
+        machineId,
+        address: dto.address,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        validFrom: new Date(dto.validFrom),
+        validTo: dto.validTo ? new Date(dto.validTo) : null,
+        isCurrent: dto.isCurrent ?? false,
+      });
+
+      const saved = await queryRunner.manager.save(location);
+      await queryRunner.commitTransaction();
+      return saved;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    const location = this.locationRepository.create({
-      machineId,
-      address: dto.address,
-      latitude: dto.latitude,
-      longitude: dto.longitude,
-      validFrom: new Date(dto.validFrom),
-      validTo: dto.validTo ? new Date(dto.validTo) : null,
-      isCurrent: dto.isCurrent ?? false,
-    });
-
-    return this.locationRepository.save(location);
   }
 
   async updateLocation(
@@ -328,22 +341,34 @@ export class MachinesService {
   }
 
   async setCurrentLocation(locationId: string): Promise<MachineLocation> {
-    const location = await this.locationRepository.findOne({
-      where: { id: locationId },
-    });
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (!location) {
-      throw new NotFoundException('Location not found');
+    try {
+      const location = await queryRunner.manager.findOne(MachineLocation, {
+        where: { id: locationId },
+      });
+
+      if (!location) {
+        throw new NotFoundException('Location not found');
+      }
+
+      // Unset current for all locations of this machine, then set the selected one
+      await queryRunner.manager.update(MachineLocation,
+        { machineId: location.machineId },
+        { isCurrent: false },
+      );
+
+      location.isCurrent = true;
+      const saved = await queryRunner.manager.save(location);
+      await queryRunner.commitTransaction();
+      return saved;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    // Unset current for all locations of this machine
-    await this.locationRepository.update(
-      { machineId: location.machineId },
-      { isCurrent: false },
-    );
-
-    // Set this one as current
-    location.isCurrent = true;
-    return this.locationRepository.save(location);
   }
 }

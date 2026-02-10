@@ -18,7 +18,6 @@ async function bootstrap() {
   appLogger.log('Starting VendCash API...');
   appLogger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   appLogger.log(`PORT: ${process.env.PORT || 3000}`);
-  appLogger.log(`DB_HOST: ${process.env.DB_HOST}`);
 
   // Security headers (must be before CORS)
   app.use(
@@ -52,9 +51,12 @@ async function bootstrap() {
   // Global prefix
   app.setGlobalPrefix('api');
 
-  // CORS
+  // CORS — support multiple origins separated by commas
+  const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+    .split(',')
+    .map(origin => origin.trim());
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
     credentials: true,
   });
 
@@ -81,24 +83,8 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3000;
 
-  // Enable graceful shutdown hooks
+  // Enable graceful shutdown hooks (handles SIGTERM/SIGINT automatically)
   app.enableShutdownHooks();
-
-  // Handle SIGTERM for graceful shutdown
-  process.on('SIGTERM', async () => {
-    appLogger.log('SIGTERM received, shutting down gracefully...');
-    await app.close();
-    appLogger.log('Application shut down complete');
-    process.exit(0);
-  });
-
-  // Handle SIGINT for graceful shutdown
-  process.on('SIGINT', async () => {
-    appLogger.log('SIGINT received, shutting down gracefully...');
-    await app.close();
-    appLogger.log('Application shut down complete');
-    process.exit(0);
-  });
 
   try {
     await app.listen(port, '0.0.0.0');

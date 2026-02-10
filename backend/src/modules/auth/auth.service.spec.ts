@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
@@ -15,6 +15,7 @@ describe('AuthService', () => {
   let jwtService: jest.Mocked<JwtService>;
   let _configService: jest.Mocked<ConfigService>;
   let refreshTokenRepository: jest.Mocked<Repository<RefreshToken>>;
+  let mockQueryRunner: any;
 
   const mockUser: User = {
     id: 'user-123',
@@ -70,6 +71,27 @@ describe('AuthService', () => {
             findOne: jest.fn(),
             update: jest.fn(),
             delete: jest.fn(),
+          },
+        },
+        {
+          provide: DataSource,
+          useFactory: () => {
+            mockQueryRunner = {
+              connect: jest.fn(),
+              startTransaction: jest.fn(),
+              commitTransaction: jest.fn(),
+              rollbackTransaction: jest.fn(),
+              release: jest.fn(),
+              manager: {
+                findOne: jest.fn(),
+                save: jest.fn(),
+                create: jest.fn(),
+                update: jest.fn(),
+              },
+            };
+            return {
+              createQueryRunner: jest.fn().mockReturnValue(mockQueryRunner),
+            };
           },
         },
       ],
@@ -147,8 +169,9 @@ describe('AuthService', () => {
 
   describe('refreshTokens', () => {
     it('should return new tokens when valid refresh token', async () => {
-      refreshTokenRepository.findOne.mockResolvedValue(mockRefreshToken);
-      refreshTokenRepository.save.mockResolvedValue({ ...mockRefreshToken, isRevoked: true });
+      mockQueryRunner.manager.findOne.mockResolvedValue(mockRefreshToken);
+      mockQueryRunner.manager.save.mockResolvedValue({ ...mockRefreshToken, isRevoked: true });
+      usersService.findById.mockResolvedValue(mockUser);
 
       const result = await service.refreshTokens('mock-refresh-token');
 
@@ -157,7 +180,7 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException when token not found', async () => {
-      refreshTokenRepository.findOne.mockResolvedValue(null);
+      mockQueryRunner.manager.findOne.mockResolvedValue(null);
 
       await expect(service.refreshTokens('invalid-token')).rejects.toThrow(
         UnauthorizedException,
@@ -169,7 +192,7 @@ describe('AuthService', () => {
         ...mockRefreshToken,
         expiresAt: new Date(Date.now() - 1000),
       };
-      refreshTokenRepository.findOne.mockResolvedValue(expiredToken);
+      mockQueryRunner.manager.findOne.mockResolvedValue(expiredToken);
 
       await expect(service.refreshTokens('expired-token')).rejects.toThrow(
         UnauthorizedException,
@@ -177,11 +200,8 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException when user inactive', async () => {
-      const tokenWithInactiveUser = {
-        ...mockRefreshToken,
-        user: { ...mockUser, isActive: false },
-      };
-      refreshTokenRepository.findOne.mockResolvedValue(tokenWithInactiveUser);
+      mockQueryRunner.manager.findOne.mockResolvedValue(mockRefreshToken);
+      usersService.findById.mockResolvedValue({ ...mockUser, isActive: false } as User);
 
       await expect(service.refreshTokens('mock-refresh-token')).rejects.toThrow(
         UnauthorizedException,

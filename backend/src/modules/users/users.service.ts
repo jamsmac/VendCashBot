@@ -22,7 +22,15 @@ export class UsersService {
     }
 
     const user = this.userRepository.create(createUserDto);
-    return this.userRepository.save(user);
+    try {
+      return await this.userRepository.save(user);
+    } catch (error: unknown) {
+      // Handle race condition: unique constraint violation on telegramId
+      if (error instanceof Error && 'code' in error && (error as any).code === '23505') {
+        throw new ConflictException('User with this Telegram ID already exists');
+      }
+      throw error;
+    }
   }
 
   async findAll(role?: UserRole, includeInactive = false): Promise<User[]> {
@@ -57,7 +65,14 @@ export class UsersService {
 
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
     const user = await this.findByIdOrFail(id);
-    Object.assign(user, updateUserDto);
+
+    // Explicitly pick allowed fields to prevent mass assignment
+    if (updateUserDto.name !== undefined) user.name = updateUserDto.name;
+    if (updateUserDto.telegramUsername !== undefined) user.telegramUsername = updateUserDto.telegramUsername;
+    if (updateUserDto.telegramFirstName !== undefined) user.telegramFirstName = updateUserDto.telegramFirstName;
+    if (updateUserDto.phone !== undefined) user.phone = updateUserDto.phone;
+    if (updateUserDto.isActive !== undefined) user.isActive = updateUserDto.isActive;
+
     return this.userRepository.save(user);
   }
 

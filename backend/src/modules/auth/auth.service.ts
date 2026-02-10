@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, LessThan, DataSource } from 'typeorm';
 import * as crypto from 'crypto';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
@@ -34,6 +34,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
+    private readonly dataSource: DataSource,
   ) { }
 
   async findUsersByRole(role: string): Promise<User[]> {
@@ -48,10 +49,16 @@ export class AuthService {
       throw new UnauthorizedException('Invalid Telegram authentication data');
     }
 
-    // Check if auth_date is not too old (max 24 hours)
+    // Check if auth_date is within valid range
     const authDate = authData.auth_date;
     const now = Math.floor(Date.now() / 1000);
     const ageSeconds = now - authDate;
+    // Reject future dates (with 60s tolerance for clock skew)
+    if (ageSeconds < -60) {
+      this.logger.warn(`Future auth_date for user ID: ${authData.id}, age: ${ageSeconds}s`);
+      throw new UnauthorizedException('Invalid authentication data');
+    }
+    // Reject auth data older than 24 hours
     if (ageSeconds > 86400) {
       this.logger.warn(`Expired Telegram auth for user ID: ${authData.id}, age: ${ageSeconds}s`);
       throw new UnauthorizedException('Telegram authentication data expired');
@@ -110,7 +117,21 @@ export class AuthService {
       .update(dataCheckArr)
       .digest('hex');
 
-    return calculatedHash === hash;
+    // Use timing-safe comparison to prevent timing attacks
+    const calculatedBuffer = Buffer.from(calculatedHash, 'hex');
+    const hashBuffer = Buffer.from(hash, 'hex');
+    if (calculatedBuffer.length !== hashBuffer.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(calculatedBuffer, hashBuffer);
+  }
+
+  /**
+   * Hash a refresh token for secure storage.
+   * We store hashed tokens so a database breach doesn't expose usable tokens.
+   */
+  private hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
   }
 
   async login(user: User): Promise<{ accessToken: string; refreshToken: string; user: User }> {
@@ -122,13 +143,14 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
 
-    // Generate refresh token
+    // Generate refresh token — store hash, return plaintext to client
     const refreshTokenValue = crypto.randomBytes(64).toString('hex');
+    const hashedToken = this.hashToken(refreshTokenValue);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30); // 30 days expiry
 
     await this.refreshTokenRepository.save({
-      token: refreshTokenValue,
+      token: hashedToken,
       userId: user.id,
       expiresAt,
     });
@@ -149,34 +171,71 @@ export class AuthService {
   }
 
   async refreshTokens(refreshTokenValue: string): Promise<{ accessToken: string; refreshToken: string }> {
-    const token = await this.refreshTokenRepository.findOne({
-      where: { token: refreshTokenValue, isRevoked: false },
-      relations: ['user'],
-    });
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (!token) {
-      this.logger.warn('Refresh token not found or already revoked');
-      throw new UnauthorizedException('Invalid or expired refresh token');
+    try {
+      // Hash the incoming token to match against stored hash
+      const hashedToken = this.hashToken(refreshTokenValue);
+
+      // Lock the token row to prevent concurrent refresh with the same token
+      const token = await queryRunner.manager.findOne(RefreshToken, {
+        where: { token: hashedToken, isRevoked: false },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!token) {
+        this.logger.warn('Refresh token not found or already revoked');
+        throw new UnauthorizedException('Invalid or expired refresh token');
+      }
+
+      if (token.expiresAt < new Date()) {
+        this.logger.warn(`Expired refresh token for user: ${token.userId}`);
+        throw new UnauthorizedException('Invalid or expired refresh token');
+      }
+
+      // Load user relation separately (FOR UPDATE doesn't work with LEFT JOIN)
+      const user = await this.usersService.findById(token.userId);
+
+      if (!user?.isActive) {
+        this.logger.warn(`Inactive user attempted token refresh: ${token.userId}`);
+        throw new UnauthorizedException('User inactive');
+      }
+
+      // Revoke old token (rotation) — atomically within the transaction
+      token.isRevoked = true;
+      await queryRunner.manager.save(token);
+
+      // Generate new tokens
+      const payload: JwtPayload = {
+        sub: user.id,
+        telegramId: user.telegramId,
+        role: user.role,
+      };
+      const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
+
+      const newRefreshTokenValue = crypto.randomBytes(64).toString('hex');
+      const newHashedToken = this.hashToken(newRefreshTokenValue);
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+
+      await queryRunner.manager.save(queryRunner.manager.create(RefreshToken, {
+        token: newHashedToken,
+        userId: user.id,
+        expiresAt,
+      }));
+
+      await queryRunner.commitTransaction();
+
+      this.logger.log(`Token refreshed for user: ${token.userId}`);
+      return { accessToken, refreshToken: newRefreshTokenValue };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    if (token.expiresAt < new Date()) {
-      this.logger.warn(`Expired refresh token for user: ${token.userId}`);
-      throw new UnauthorizedException('Invalid or expired refresh token');
-    }
-
-    if (!token.user?.isActive) {
-      this.logger.warn(`Inactive user attempted token refresh: ${token.userId}`);
-      throw new UnauthorizedException('User inactive');
-    }
-
-    // Revoke old token (rotation)
-    token.isRevoked = true;
-    await this.refreshTokenRepository.save(token);
-
-    // Issue new tokens
-    const { accessToken, refreshToken } = await this.login(token.user);
-    this.logger.log(`Token refreshed for user: ${token.userId}`);
-    return { accessToken, refreshToken };
   }
 
   async revokeAllUserTokens(userId: string): Promise<void> {

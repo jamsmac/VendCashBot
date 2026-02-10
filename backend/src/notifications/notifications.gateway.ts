@@ -32,7 +32,7 @@ export interface NotificationPayload {
         'http://localhost:5173',
       ].filter((url): url is string => Boolean(url));
 
-      if (allowedOrigins.some(allowed => origin.startsWith(allowed))) {
+      if (allowedOrigins.some(allowed => origin === allowed)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));

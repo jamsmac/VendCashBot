@@ -106,8 +106,8 @@ export default function App() {
         <Route path="collections/history" element={<HistoryEntry />} />
         <Route path="collections/history/by-machine" element={<HistoryByMachine />} />
         <Route path="collections/history/by-date" element={<HistoryByDate />} />
-        <Route path="collections/history/excel-import" element={<ExcelImport />} />
-        <Route path="reports" element={<Reports />} />
+        <Route path="collections/history/excel-import" element={<ManagerRoute><ExcelImport /></ManagerRoute>} />
+        <Route path="reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
         <Route
           path="machines"
           element={
@@ -125,6 +125,9 @@ export default function App() {
           }
         />
       </Route>
+
+      {/* Catch-all 404 */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

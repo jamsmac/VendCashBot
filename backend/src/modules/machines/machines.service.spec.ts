@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { MachinesService } from './machines.service';
 import { Machine, MachineStatus } from './entities/machine.entity';
@@ -57,6 +57,24 @@ describe('MachinesService', () => {
             save: jest.fn(),
             findOne: jest.fn(),
             find: jest.fn(),
+          },
+        },
+        {
+          provide: DataSource,
+          useValue: {
+            createQueryRunner: jest.fn().mockReturnValue({
+              connect: jest.fn(),
+              startTransaction: jest.fn(),
+              commitTransaction: jest.fn(),
+              rollbackTransaction: jest.fn(),
+              release: jest.fn(),
+              manager: {
+                findOne: jest.fn(),
+                save: jest.fn(),
+                create: jest.fn(),
+                update: jest.fn(),
+              },
+            }),
           },
         },
       ],
