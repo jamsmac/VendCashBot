@@ -191,8 +191,8 @@ describe('AuthController', () => {
       const result = await controller.logout(mockUser, mockResponse);
 
       expect(authService.revokeAllUserTokens).toHaveBeenCalledWith(mockUser.id);
-      expect(mockResponse.clearCookie).toHaveBeenCalledWith('access_token', { path: '/' });
-      expect(mockResponse.clearCookie).toHaveBeenCalledWith('refresh_token', { path: '/' });
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith('access_token', expect.objectContaining({ path: '/' }));
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith('refresh_token', expect.objectContaining({ path: '/' }));
       expect(result).toEqual({ success: true });
     });
   });

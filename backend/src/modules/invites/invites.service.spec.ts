@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { InvitesService } from './invites.service';
 import { Invite } from './entities/invite.entity';
@@ -53,6 +53,22 @@ describe('InvitesService', () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn().mockReturnValue(24), // 24 hours expiration
+          },
+        },
+        {
+          provide: DataSource,
+          useValue: {
+            createQueryRunner: jest.fn().mockReturnValue({
+              connect: jest.fn(),
+              startTransaction: jest.fn(),
+              commitTransaction: jest.fn(),
+              rollbackTransaction: jest.fn(),
+              release: jest.fn(),
+              manager: {
+                findOne: jest.fn(),
+                save: jest.fn(),
+              },
+            }),
           },
         },
       ],

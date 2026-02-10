@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { machinesApi, MachineLocation } from '../api/machines'
@@ -31,6 +31,10 @@ export default function HistoryByDate() {
     { id: generateId(), machineId: '', time: defaultTime, amount: '', locationId: '', locations: [] },
   ])
 
+  // Keep a ref to rows for use in effects without stale closures
+  const rowsRef = useRef(rows)
+  rowsRef.current = rows
+
   const { data: machines } = useQuery({
     queryKey: ['machines'],
     queryFn: () => machinesApi.getAll(),
@@ -61,7 +65,9 @@ export default function HistoryByDate() {
   // Update locations for all rows when date changes
   useEffect(() => {
     if (selectedDate) {
-      rows.forEach(row => {
+      // Use ref to avoid stale closure over rows
+      const currentRows = rowsRef.current
+      currentRows.forEach(row => {
         if (row.machineId && row.locations.length > 0) {
           machinesApi.getLocationForDate(row.machineId, selectedDate).then(loc => {
             if (loc) {
@@ -74,7 +80,8 @@ export default function HistoryByDate() {
   }, [selectedDate])
 
   const mutation = useMutation({
-    mutationFn: (data: any) => collectionsApi.bulkCreate(data),
+    mutationFn: (data: { collections: { machineId: string; collectedAt: string; amount: number; locationId?: string }[]; source: string }) =>
+      collectionsApi.bulkCreate(data),
     onSuccess: (result) => {
       toast.success(`Создано ${result.created} записей`)
       if (result.failed > 0) {
@@ -82,7 +89,7 @@ export default function HistoryByDate() {
       }
       navigate('/collections')
     },
-    onError: (error: any) => {
+    onError: (error: Error & { response?: { data?: { message?: string } } }) => {
       toast.error(error.response?.data?.message || 'Ошибка сохранения')
     },
   })

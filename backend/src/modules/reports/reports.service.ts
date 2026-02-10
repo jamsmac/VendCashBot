@@ -39,6 +39,8 @@ export interface OperatorReport {
 @Injectable()
 export class ReportsService {
   private readonly CACHE_TTL = 60000; // 1 minute cache for reports
+  // Track active cache keys for reliable invalidation without Redis pattern matching
+  private readonly activeCacheKeys = new Set<string>();
 
   constructor(
     @InjectRepository(Collection)
@@ -94,7 +96,7 @@ export class ReportsService {
       })
       .getRawOne();
 
-    const totalAmount = parseFloat(result.totalAmount) || 0;
+    const totalAmount = Math.round(Number(result.totalAmount) * 100) / 100 || 0;
     const receivedCount = parseInt(result.receivedCount) || 0;
 
     const report: SummaryReport = {
@@ -107,6 +109,7 @@ export class ReportsService {
       averageAmount: receivedCount > 0 ? totalAmount / receivedCount : 0,
     };
 
+    this.activeCacheKeys.add(cacheKey);
     await this.cacheManager.set(cacheKey, report, this.CACHE_TTL);
     return report;
   }
@@ -148,10 +151,10 @@ export class ReportsService {
     const data: MachineReport[] = results.map((r) => ({
       machine: { id: r.machineId, code: r.machineCode, name: r.machineName },
       collectionsCount: parseInt(r.collectionsCount) || 0,
-      totalAmount: parseFloat(r.totalAmount) || 0,
+      totalAmount: Math.round(Number(r.totalAmount) * 100) / 100 || 0,
       averageAmount:
         parseInt(r.collectionsCount) > 0
-          ? parseFloat(r.totalAmount) / parseInt(r.collectionsCount)
+          ? Math.round((Number(r.totalAmount) / parseInt(r.collectionsCount)) * 100) / 100
           : 0,
     }));
 
@@ -169,6 +172,7 @@ export class ReportsService {
       totals,
     };
 
+    this.activeCacheKeys.add(cacheKey);
     await this.cacheManager.set(cacheKey, report, this.CACHE_TTL);
     return report;
   }
@@ -206,7 +210,7 @@ export class ReportsService {
     const data: DateReport[] = results.map((r) => ({
       date: r.date,
       collectionsCount: parseInt(r.collectionsCount) || 0,
-      totalAmount: parseFloat(r.totalAmount) || 0,
+      totalAmount: Math.round(Number(r.totalAmount) * 100) / 100 || 0,
     }));
 
     const totals = data.reduce(
@@ -223,6 +227,7 @@ export class ReportsService {
       totals,
     };
 
+    this.activeCacheKeys.add(cacheKey);
     await this.cacheManager.set(cacheKey, report, this.CACHE_TTL);
     return report;
   }
@@ -269,7 +274,7 @@ export class ReportsService {
         telegramUsername: r.operatorUsername,
       },
       collectionsCount: parseInt(r.collectionsCount) || 0,
-      totalAmount: parseFloat(r.totalAmount) || 0,
+      totalAmount: Math.round(Number(r.totalAmount) * 100) / 100 || 0,
     }));
 
     const totals = data.reduce(
@@ -286,6 +291,7 @@ export class ReportsService {
       totals,
     };
 
+    this.activeCacheKeys.add(cacheKey);
     await this.cacheManager.set(cacheKey, report, this.CACHE_TTL);
     return report;
   }
@@ -338,29 +344,22 @@ export class ReportsService {
 
     const result = {
       pending,
-      todayAmount: parseFloat(todayResult?.total) || 0,
-      monthAmount: parseFloat(monthResult?.total) || 0,
+      todayAmount: Math.round(Number(todayResult?.total) * 100) / 100 || 0,
+      monthAmount: Math.round(Number(monthResult?.total) * 100) / 100 || 0,
     };
 
     // Short TTL for today summary (30 seconds)
+    this.activeCacheKeys.add(cacheKey);
     await this.cacheManager.set(cacheKey, result, 30000);
     return result;
   }
 
-  // Invalidate cache when data changes
+  // Invalidate all tracked cache keys
   async invalidateCache(): Promise<void> {
-    const cacheKeys = [
-      'report:summary:*',
-      'report:by-machine:*',
-      'report:by-date:*',
-      'report:by-operator:*',
-      'report:today-summary',
-    ];
-    // Delete cache keys individually (cache-manager v5+ doesn't have reset())
-    for (const pattern of cacheKeys) {
-      // For now, we delete specific known keys since pattern deletion requires Redis
-      const baseKey = pattern.replace(':*', '');
-      await this.cacheManager.del(baseKey);
+    const keysToDelete = [...this.activeCacheKeys];
+    this.activeCacheKeys.clear();
+    for (const key of keysToDelete) {
+      await this.cacheManager.del(key);
     }
   }
 }

@@ -198,6 +198,15 @@ export default function TelegramMapPicker() {
     }, 1000)
   }
 
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // Get current location
   const getCurrentLocation = () => {
     if (!navigator.geolocation) {

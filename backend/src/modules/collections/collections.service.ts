@@ -14,6 +14,7 @@ import { Cache } from 'cache-manager';
 import { Collection, CollectionStatus, CollectionSource } from './entities/collection.entity';
 import { CollectionHistory } from './entities/collection-history.entity';
 import { MachinesService } from '../machines/machines.service';
+import { Machine } from '../machines/entities/machine.entity';
 import { TelegramService } from '../../telegram/telegram.service';
 import { CreateCollectionDto } from './dto/create-collection.dto';
 import { ReceiveCollectionDto } from './dto/receive-collection.dto';
@@ -132,6 +133,37 @@ export class CollectionsService {
       collections: [] as Collection[],
     };
 
+    // Pre-load all machines to avoid N+1 queries
+    const machineIds = [...new Set(dto.collections.map(c => c.machineId).filter(Boolean))] as string[];
+    const machineCodes = [...new Set(dto.collections.map(c => c.machineCode).filter(Boolean))] as string[];
+
+    const machineMap = new Map<string, Machine>();
+    const codeToMachineMap = new Map<string, Machine>();
+
+    // Batch load machines by ID (parallel)
+    if (machineIds.length > 0) {
+      const machines = await Promise.all(
+        machineIds.map(id => this.machinesService.findById(id)),
+      );
+      machineIds.forEach((id, idx) => {
+        if (machines[idx]) {
+          machineMap.set(id, machines[idx]);
+        }
+      });
+    }
+
+    // Batch load machines by code (parallel)
+    if (machineCodes.length > 0) {
+      const machines = await Promise.all(
+        machineCodes.map(code => this.machinesService.findByCode(code)),
+      );
+      machineCodes.forEach((code, idx) => {
+        if (machines[idx]) {
+          codeToMachineMap.set(code, machines[idx]);
+        }
+      });
+    }
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -140,12 +172,12 @@ export class CollectionsService {
       for (let i = 0; i < dto.collections.length; i++) {
         const item = dto.collections[i];
         try {
-          // Validate machine exists
+          // Look up machine from pre-loaded cache
           let machine;
           if (item.machineId) {
-            machine = await this.machinesService.findById(item.machineId);
+            machine = machineMap.get(item.machineId);
           } else if (item.machineCode) {
-            machine = await this.machinesService.findByCode(item.machineCode);
+            machine = codeToMachineMap.get(item.machineCode);
           }
 
           if (!machine) {
@@ -342,13 +374,20 @@ export class CollectionsService {
     await queryRunner.startTransaction();
 
     try {
-      // First lock the row without relations
-      await queryRunner.manager.findOne(Collection, {
+      // Lock the row first, then verify status before loading relations
+      const lockedCollection = await queryRunner.manager.findOne(Collection, {
         where: { id },
         lock: { mode: 'pessimistic_write' },
       });
 
-      // Now load with relations
+      if (!lockedCollection) {
+        throw new NotFoundException('Collection not found');
+      }
+      if (lockedCollection.status !== CollectionStatus.RECEIVED) {
+        throw new BadRequestException('Can only edit received collections');
+      }
+
+      // Now load with relations for the response
       const collection = await queryRunner.manager.findOne(Collection, {
         where: { id },
         relations: ['machine', 'operator', 'manager'],
@@ -356,9 +395,6 @@ export class CollectionsService {
 
       if (!collection) {
         throw new NotFoundException('Collection not found');
-      }
-      if (collection.status !== CollectionStatus.RECEIVED) {
-        throw new BadRequestException('Can only edit received collections');
       }
 
       // Log history within transaction
@@ -450,6 +486,15 @@ export class CollectionsService {
     errors: { id: string; error: string }[];
     total: number;
   }> {
+    // Safety check: when using filters, at least one filter must be specified
+    // to prevent accidentally cancelling ALL collections
+    if (dto.useFilters) {
+      const hasAnyFilter = dto.status || dto.machineId || dto.operatorId || dto.source || dto.from || dto.to;
+      if (!hasAnyFilter) {
+        throw new BadRequestException('At least one filter must be specified when using useFilters');
+      }
+    }
+
     const results = {
       cancelled: 0,
       failed: 0,
@@ -598,12 +643,18 @@ export class CollectionsService {
     const windowBefore = new Date(collectedAt.getTime() - windowMs);
     const windowAfter = new Date(collectedAt.getTime() + windowMs);
 
-    return this.collectionRepository.findOne({
-      where: {
-        machineId,
-        collectedAt: Between(windowBefore, windowAfter),
-      },
-      relations: ['machine', 'operator'],
-    });
+    return this.collectionRepository
+      .createQueryBuilder('collection')
+      .leftJoinAndSelect('collection.machine', 'machine')
+      .leftJoinAndSelect('collection.operator', 'operator')
+      .where('collection.machineId = :machineId', { machineId })
+      .andWhere('collection.collectedAt BETWEEN :windowBefore AND :windowAfter', {
+        windowBefore,
+        windowAfter,
+      })
+      .andWhere('collection.status != :cancelled', {
+        cancelled: CollectionStatus.CANCELLED,
+      })
+      .getOne();
   }
 }

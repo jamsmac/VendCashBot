@@ -127,9 +127,9 @@ export class AuthController {
     @Body('role') role: string,
     @Res({ passthrough: true }) res: Response,
   ) {
-    // Block dev-login in production for security
-    if (process.env.NODE_ENV === 'production') {
-      throw new ForbiddenException('Dev login is disabled in production');
+    // Block dev-login in all environments except explicit 'development'
+    if (process.env.NODE_ENV !== 'development') {
+      throw new ForbiddenException('Dev login is only available in development environment');
     }
 
     // Find a user with the requested role
@@ -203,9 +203,9 @@ export class AuthController {
   ) {
     await this.authService.revokeAllUserTokens(user.id);
 
-    // Clear cookies
-    res.clearCookie('access_token', { path: '/' });
-    res.clearCookie('refresh_token', { path: '/' });
+    // Clear cookies — must mirror COOKIE_OPTIONS for browser to actually remove them
+    res.clearCookie('access_token', COOKIE_OPTIONS);
+    res.clearCookie('refresh_token', COOKIE_OPTIONS);
 
     return { success: true };
   }

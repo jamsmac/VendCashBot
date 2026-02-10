@@ -3,15 +3,28 @@ import { User, UserRole } from './modules/users/entities/user.entity';
 import { Machine } from './modules/machines/entities/machine.entity';
 import 'dotenv/config';
 
+// Support DATABASE_URL (Railway) or individual DB_* env vars
+const dbConfig = process.env.DATABASE_URL
+  ? {
+      type: 'postgres' as const,
+      url: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production'
+        ? { rejectUnauthorized: !!process.env.DATABASE_CA_CERT }
+        : false,
+    }
+  : {
+      type: 'postgres' as const,
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432', 10),
+      username: process.env.DB_USERNAME || 'vendcash',
+      password: process.env.DB_PASSWORD || 'vendcash',
+      database: process.env.DB_DATABASE || 'vendcash',
+    };
+
 const dataSource = new DataSource({
-  type: 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432', 10),
-  username: process.env.DB_USERNAME || 'vendcash',
-  password: process.env.DB_PASSWORD || 'vendcash',
-  database: process.env.DB_DATABASE || 'vendcash',
+  ...dbConfig,
   entities: [User, Machine],
-  synchronize: true,
+  synchronize: false,
 });
 
 const machines = [

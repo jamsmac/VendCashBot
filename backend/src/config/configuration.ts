@@ -2,7 +2,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // Helper for environment variables (used by warnIfDefault and for explicit env access)
 function getEnv(name: string, defaultValue?: string): string {
-  return process.env[name] || defaultValue || '';
+  return process.env[name] ?? defaultValue ?? '';
 }
 
 // Warn about insecure defaults in development

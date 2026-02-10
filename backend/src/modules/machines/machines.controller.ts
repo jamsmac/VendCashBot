@@ -7,7 +7,6 @@ import {
   Body,
   Param,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -16,8 +15,6 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { MachinesService } from './machines.service';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole, User } from '../users/entities/user.entity';
@@ -31,7 +28,6 @@ import {
 
 @ApiTags('machines')
 @Controller('machines')
-@UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class MachinesController {
   constructor(private readonly machinesService: MachinesService) {}

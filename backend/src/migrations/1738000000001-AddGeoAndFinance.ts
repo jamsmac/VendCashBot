@@ -25,10 +25,10 @@ export class AddGeoAndFinance1738000000001 implements MigrationInterface {
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP TABLE "bank_deposits"`);
-        await queryRunner.query(`ALTER TABLE "collections" DROP COLUMN "longitude"`);
-        await queryRunner.query(`ALTER TABLE "collections" DROP COLUMN "latitude"`);
-        await queryRunner.query(`ALTER TABLE "machines" DROP COLUMN "longitude"`);
-        await queryRunner.query(`ALTER TABLE "machines" DROP COLUMN "latitude"`);
+        await queryRunner.query(`DROP TABLE IF EXISTS "bank_deposits"`);
+        await queryRunner.query(`ALTER TABLE "collections" DROP COLUMN IF EXISTS "longitude"`);
+        await queryRunner.query(`ALTER TABLE "collections" DROP COLUMN IF EXISTS "latitude"`);
+        await queryRunner.query(`ALTER TABLE "machines" DROP COLUMN IF EXISTS "longitude"`);
+        await queryRunner.query(`ALTER TABLE "machines" DROP COLUMN IF EXISTS "latitude"`);
     }
 }

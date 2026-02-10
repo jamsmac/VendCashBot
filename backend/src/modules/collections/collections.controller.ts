@@ -6,13 +6,10 @@ import {
   Body,
   Param,
   Query,
-  UseGuards,
   ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CollectionsService } from './collections.service';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole, User } from '../users/entities/user.entity';
@@ -26,7 +23,6 @@ import { BulkCancelCollectionDto } from './dto/bulk-cancel-collection.dto';
 
 @ApiTags('collections')
 @Controller('collections')
-@UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class CollectionsController {
   constructor(private readonly collectionsService: CollectionsService) {}
@@ -76,7 +72,8 @@ export class CollectionsController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create collection (from bot)' })
+  @Roles(UserRole.OPERATOR)
+  @ApiOperation({ summary: 'Create collection (from bot, operator only)' })
   async create(@Body() dto: CreateCollectionDto, @CurrentUser() user: User) {
     return this.collectionsService.create(dto, user.id);
   }

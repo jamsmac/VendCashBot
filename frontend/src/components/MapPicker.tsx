@@ -67,11 +67,14 @@ export default function MapPicker({
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Update parent when position changes
+  // Note: onLocationSelect is intentionally excluded from deps to prevent infinite loops
+  // when parent doesn't memoize the callback
   useEffect(() => {
     if (position) {
       onLocationSelect(position[0], position[1])
     }
-  }, [position, onLocationSelect])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position])
 
   // Reverse geocoding to get address from coordinates
   const reverseGeocode = useCallback(async (lat: number, lng: number) => {
@@ -137,6 +140,15 @@ export default function MapPicker({
       }
     }, 1000)
   }
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // Get current location
   const getCurrentLocation = () => {
