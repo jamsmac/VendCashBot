@@ -5,7 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, LessThan } from 'typeorm';
 import * as crypto from 'crypto';
 import { UsersService } from '../users/users.service';
-import { User } from '../users/entities/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
 import { Invite } from '../invites/entities/invite.entity';
 import { InvitesService } from '../invites/invites.service';
 import { RefreshToken } from './entities/refresh-token.entity';
@@ -41,7 +41,7 @@ export class AuthService {
   ) { }
 
   async findUsersByRole(role: string): Promise<User[]> {
-    return this.usersService.findAll(role as any);
+    return this.usersService.findAll(role as UserRole);
   }
 
   async validateTelegramAuth(authData: TelegramAuthData): Promise<User> {

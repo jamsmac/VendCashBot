@@ -6,7 +6,7 @@ import { CollectionStatus, CollectionSource } from '../entities/collection.entit
 @ValidatorConstraint({ name: 'isDateRangeValid', async: false })
 class IsDateRangeValidConstraint implements ValidatorConstraintInterface {
   validate(_value: string, args: ValidationArguments) {
-    const obj = args.object as any;
+    const obj = args.object as { from?: string; to?: string };
     if (!obj.from || !obj.to) return true;
     return new Date(obj.from) <= new Date(obj.to);
   }

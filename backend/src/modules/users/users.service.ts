@@ -26,7 +26,7 @@ export class UsersService {
       return await this.userRepository.save(user);
     } catch (error: unknown) {
       // Handle race condition: unique constraint violation on telegramId
-      if (error instanceof Error && 'code' in error && (error as any).code === '23505') {
+      if (error instanceof Error && 'code' in error && (error as Record<string, unknown>).code === '23505') {
         throw new ConflictException('User with this Telegram ID already exists');
       }
       throw error;

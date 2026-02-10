@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, LessThanOrEqual, MoreThanOrEqual, IsNull, Or } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { Machine, MachineStatus } from './entities/machine.entity';
 import { MachineLocation } from './entities/machine-location.entity';
 import { CreateMachineDto } from './dto/create-machine.dto';

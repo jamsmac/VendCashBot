@@ -3684,7 +3684,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  private async showCollectMachines(ctx: any, page: number): Promise<void> {
+  private async showCollectMachines(ctx: MyContext, page: number): Promise<void> {
     const pageSize = 10;
     const machines = await this.machinesService.findAllActive();
 
