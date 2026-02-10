@@ -104,7 +104,13 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "**/*.service.ts",
+      "**/*.controller.ts",
+      "**/*.gateway.ts",
+      "**/*.strategy.ts",
+      "!**/*.spec.ts",
+      "!**/*.e2e-spec.ts",
+      "!**/telegram/**"
     ],
     "coverageDirectory": "../coverage",
     "coverageReporters": ["text", "lcov", "json-summary"],
