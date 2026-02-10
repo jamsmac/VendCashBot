@@ -22,7 +22,7 @@ import { RefreshToken } from './entities/refresh-token.entity';
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get('jwt.secret'),
         signOptions: {
-          expiresIn: configService.get('jwt.expiresIn'),
+          expiresIn: configService.get('jwt.accessExpiresIn'),
         },
       }),
       inject: [ConfigService],

@@ -26,8 +26,9 @@ import { User } from '../users/entities/user.entity';
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  // Use 'none' for cross-origin cookies (frontend and backend on different domains)
-  sameSite: process.env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
+  // 'lax' is safe because frontend proxies /api/ via nginx (same-origin).
+  // 'none' would weaken CSRF protection unnecessarily.
+  sameSite: 'lax' as const,
   path: '/',
 };
 

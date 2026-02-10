@@ -203,12 +203,14 @@ export class AuthService {
       role: user.role,
     };
 
-    const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
+    // expiresIn is configured via JwtModule from config (jwt.accessExpiresIn, default '15m')
+    const accessToken = this.jwtService.sign(payload);
 
     // Generate refresh token
+    const refreshDays = this.configService.get<number>('jwt.refreshDays') || 30;
     const refreshTokenValue = crypto.randomBytes(64).toString('hex');
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30); // 30 days expiry
+    expiresAt.setDate(expiresAt.getDate() + refreshDays);
 
     await this.refreshTokenRepository.save({
       token: refreshTokenValue,
