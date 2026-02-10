@@ -192,7 +192,7 @@ export default function ExcelImport() {
 
       const collections = collectionsWithMachines
         .filter((c) => c._hasValidMachine)
-        .map(({ _hasValidMachine, ...rest }) => rest)
+        .map(({ _hasValidMachine: _unused, ...rest }) => rest)
 
       if (collections.length === 0) {
         toast.error('Нет записей с валидными кодами аппаратов')

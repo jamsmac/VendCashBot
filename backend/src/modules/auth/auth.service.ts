@@ -38,7 +38,6 @@ export class AuthService {
     private readonly dataSource: DataSource,
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
-    private readonly dataSource: DataSource,
   ) { }
 
   async findUsersByRole(role: string): Promise<User[]> {

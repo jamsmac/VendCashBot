@@ -109,7 +109,7 @@ export default function Login() {
 
   // Setup global callbacks once
   useEffect(() => {
-    ;(window as any).TelegramLoginAuth = (user: TelegramUser) => {
+    (window as any).TelegramLoginAuth = (user: TelegramUser) => {
       loginHandlerRef.current(user)
     }
     ;(window as any).TelegramRegisterAuth = (user: TelegramUser) => {
