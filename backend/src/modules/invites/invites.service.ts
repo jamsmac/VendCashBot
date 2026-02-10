@@ -56,7 +56,8 @@ export class InvitesService {
     const query = this.inviteRepository.createQueryBuilder('invite')
       .leftJoinAndSelect('invite.createdBy', 'createdBy')
       .leftJoinAndSelect('invite.usedBy', 'usedBy')
-      .orderBy('invite.createdAt', 'DESC');
+      .orderBy('invite.createdAt', 'DESC')
+      .take(500);
 
     if (createdById) {
       query.andWhere('invite.createdById = :createdById', { createdById });

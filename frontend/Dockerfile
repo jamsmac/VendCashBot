@@ -8,15 +8,19 @@ RUN npm ci
 
 COPY . .
 
-# Production environment variables for Railway
-# Use /api to leverage nginx proxy (same-origin for cookies)
-ENV VITE_API_URL=/api
-ENV VITE_TELEGRAM_BOT_USERNAME=vendhubcashbot
+# Build-time environment variables (overridable via Railway)
+ARG VITE_API_URL=/api
+ARG VITE_TELEGRAM_BOT_USERNAME=VendCashBot
+ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_TELEGRAM_BOT_USERNAME=${VITE_TELEGRAM_BOT_USERNAME}
 
 RUN npm run build
 
 # Production stage - nginx
 FROM nginx:alpine AS production
+
+# Limit worker processes (auto detects host CPUs, not container limits)
+RUN sed -i 's/worker_processes\s*auto/worker_processes 2/' /etc/nginx/nginx.conf
 
 # Copy built assets
 COPY --from=builder /app/dist /usr/share/nginx/html

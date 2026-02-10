@@ -230,8 +230,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
     const message =
       `🆕 <b>Новая инкассация!</b>\n\n` +
-      `📍 Автомат: <b>${machineName}</b>\n` +
-      `👤 Оператор: ${operatorName}\n` +
+      `📍 Автомат: <b>${this.escapeHtml(machineName)}</b>\n` +
+      `👤 Оператор: ${this.escapeHtml(operatorName)}\n` +
       `🕐 Время: ${collectedAt.toLocaleString('ru-RU', { timeZone: 'Asia/Tashkent' })}\n\n` +
       `<i>Ожидает приёма в системе.</i>`;
 
@@ -293,6 +293,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
+      if (inviteCode.length > 64) {
+        await ctx.reply('❌ Неверная ссылка приглашения.');
+        return;
+      }
+
       // Validate invite first (non-locking check for user-friendly error messages)
       const validation = await this.invitesService.validateInvite(inviteCode);
 
@@ -327,8 +332,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           role: validation.role!,
         });
 
-        // Atomically claim invite with pessimistic locking (prevents TOCTOU race)
-        await this.invitesService.claimInvite(inviteCode, user.id);
+        try {
+          // Atomically claim invite with pessimistic locking (prevents TOCTOU race)
+          await this.invitesService.claimInvite(inviteCode, user.id);
+        } catch (claimError) {
+          // If invite claim fails, delete the orphaned user
+          await this.usersService.deleteById(user.id);
+          throw claimError;
+        }
         ctx.user = user;
 
         const safeName = this.escapeHtml(user.name);

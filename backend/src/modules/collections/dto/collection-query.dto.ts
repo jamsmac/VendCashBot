@@ -1,7 +1,19 @@
-import { IsOptional, IsUUID, IsEnum, IsDateString, IsNumber, Min, Max, IsString } from 'class-validator';
+import { IsOptional, IsUUID, IsEnum, IsDateString, IsNumber, Min, Max, IsString, Validate, ValidatorConstraint, ValidatorConstraintInterface, ValidationArguments } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { CollectionStatus, CollectionSource } from '../entities/collection.entity';
+
+@ValidatorConstraint({ name: 'isDateRangeValid', async: false })
+class IsDateRangeValidConstraint implements ValidatorConstraintInterface {
+  validate(_value: string, args: ValidationArguments) {
+    const obj = args.object as any;
+    if (!obj.from || !obj.to) return true;
+    return new Date(obj.from) <= new Date(obj.to);
+  }
+  defaultMessage() {
+    return 'Дата "от" должна быть раньше или равна дате "до"';
+  }
+}
 
 export class CollectionQueryDto {
   @ApiProperty({ enum: CollectionStatus, required: false })
@@ -9,12 +21,12 @@ export class CollectionQueryDto {
   @IsOptional()
   status?: CollectionStatus;
 
-  @ApiProperty({ description: 'Machine ID', required: false })
+  @ApiProperty({ description: 'ID автомата', required: false })
   @IsUUID()
   @IsOptional()
   machineId?: string;
 
-  @ApiProperty({ description: 'Operator ID', required: false })
+  @ApiProperty({ description: 'ID оператора', required: false })
   @IsUUID()
   @IsOptional()
   operatorId?: string;
@@ -24,14 +36,15 @@ export class CollectionQueryDto {
   @IsOptional()
   source?: CollectionSource;
 
-  @ApiProperty({ description: 'From date', required: false })
+  @ApiProperty({ description: 'Дата от', required: false })
   @IsDateString()
   @IsOptional()
   from?: string;
 
-  @ApiProperty({ description: 'To date', required: false })
+  @ApiProperty({ description: 'Дата до', required: false })
   @IsDateString()
   @IsOptional()
+  @Validate(IsDateRangeValidConstraint)
   to?: string;
 
   @ApiProperty({ description: 'Sort by field', required: false })

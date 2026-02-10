@@ -21,8 +21,8 @@ class BulkCollectionItemDto {
 
   @ApiProperty({ description: 'Amount in UZS', required: false })
   @IsNumber()
-  @Min(0)
-  @Max(1000000000, { message: 'Amount cannot exceed 1,000,000,000 UZS' })
+  @Min(1, { message: 'Сумма должна быть больше 0' })
+  @Max(1000000000, { message: 'Сумма не может превышать 1,000,000,000 сум' })
   @IsOptional()
   amount?: number;
 
@@ -41,7 +41,7 @@ class BulkCollectionItemDto {
 export class BulkCreateCollectionDto {
   @ApiProperty({ type: [BulkCollectionItemDto] })
   @IsArray()
-  @ArrayMaxSize(1000, { message: 'Maximum 1000 collections per request' })
+  @ArrayMaxSize(1000, { message: 'Максимум 1000 инкассаций за один запрос' })
   @ValidateNested({ each: true })
   @Type(() => BulkCollectionItemDto)
   collections: BulkCollectionItemDto[];

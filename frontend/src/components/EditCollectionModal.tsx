@@ -38,7 +38,7 @@ export default function EditCollectionModal({ collection, onClose, onSubmit }: E
       <div className="bg-white rounded-xl w-full max-w-md">
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="font-semibold text-lg">Редактирование инкассации</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+          <button onClick={onClose} disabled={isSubmitting} className="p-1 hover:bg-gray-100 rounded-lg disabled:opacity-50">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -68,6 +68,8 @@ export default function EditCollectionModal({ collection, onClose, onSubmit }: E
             </label>
             <input
               type="number"
+              min="1"
+              step="1"
               className="input"
               placeholder="Введите новую сумму"
               {...register('amount', {
@@ -105,7 +107,7 @@ export default function EditCollectionModal({ collection, onClose, onSubmit }: E
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="btn btn-secondary flex-1">
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="btn btn-secondary flex-1">
               Отмена
             </button>
             <button

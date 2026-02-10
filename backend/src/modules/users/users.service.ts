@@ -111,4 +111,8 @@ export class UsersService {
       where: roles.map((role) => ({ role, isActive: true })),
     });
   }
+
+  async deleteById(id: string): Promise<void> {
+    await this.userRepository.delete(id);
+  }
 }

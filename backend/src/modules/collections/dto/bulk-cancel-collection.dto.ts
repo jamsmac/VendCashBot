@@ -11,6 +11,7 @@ import {
   IsDateString,
   IsBoolean,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { CollectionStatus, CollectionSource } from '../entities/collection.entity';
 
@@ -21,8 +22,8 @@ export class BulkCancelCollectionDto {
   })
   @ValidateIf((o) => !o.useFilters)
   @IsArray()
-  @ArrayMinSize(1, { message: 'At least one collection ID is required' })
-  @ArrayMaxSize(500, { message: 'Maximum 500 collections per request' })
+  @ArrayMinSize(1, { message: 'Укажите хотя бы один ID инкассации' })
+  @ArrayMaxSize(500, { message: 'Максимум 500 инкассаций за один запрос' })
   @IsUUID('4', { each: true })
   ids?: string[];
 
@@ -71,6 +72,7 @@ export class BulkCancelCollectionDto {
   to?: string;
 
   @ApiProperty({ description: 'Reason for bulk cancellation', required: false })
+  @Transform(({ value }) => typeof value === 'string' ? value.trim().replace(/<[^>]*>/g, '') : value)
   @IsString()
   @MaxLength(500)
   @IsOptional()

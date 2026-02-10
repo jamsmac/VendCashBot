@@ -28,7 +28,7 @@ export default function CancelCollectionModal({ collection, onClose, onSubmit }:
       <div className="bg-white rounded-xl w-full max-w-md">
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="font-semibold text-lg">Отмена инкассации</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+          <button onClick={onClose} disabled={isSubmitting} className="p-1 hover:bg-gray-100 rounded-lg disabled:opacity-50">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -44,7 +44,7 @@ export default function CancelCollectionModal({ collection, onClose, onSubmit }:
               <span className="text-gray-500">👷 Оператор:</span>
               <span>{collection.operator.name}</span>
             </div>
-            {collection.amount != null && (
+            {collection.amount !== null && collection.amount !== undefined && (
               <div className="flex items-center gap-2">
                 <span className="text-gray-500">💰 Сумма:</span>
                 <span className="font-medium">
@@ -74,7 +74,7 @@ export default function CancelCollectionModal({ collection, onClose, onSubmit }:
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="btn btn-secondary flex-1">
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="btn btn-secondary flex-1">
               Назад
             </button>
             <button
