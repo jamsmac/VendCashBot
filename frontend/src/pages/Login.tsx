@@ -24,6 +24,8 @@ declare global {
 
 type Mode = 'login' | 'register'
 
+const BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'vendhubcashbot'
+
 export default function Login() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -38,11 +40,9 @@ export default function Login() {
   const [inviteRole, setInviteRole] = useState<string | null>(null)
   const [inviteChecking, setInviteChecking] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loginWidgetFailed, setLoginWidgetFailed] = useState(false)
+  const [registerWidgetFailed, setRegisterWidgetFailed] = useState(false)
 
-  const loginWidgetRef = useRef<HTMLDivElement>(null)
-  const registerWidgetRef = useRef<HTMLDivElement>(null)
-  const loginWidgetLoaded = useRef(false)
-  const registerWidgetLoaded = useRef(false)
   const isMounted = useRef(true)
 
   // Redirect if already authenticated
@@ -52,7 +52,14 @@ export default function Login() {
     }
   }, [isAuthenticated, authLoading, navigate])
 
+  // Cleanup on unmount
+  useEffect(() => {
+    isMounted.current = true
+    return () => { isMounted.current = false }
+  }, [])
+
   // Login handler
+  const loginHandlerRef = useRef<(user: TelegramUser) => void>(() => {})
   const handleLogin = useCallback(async (telegramUser: TelegramUser) => {
     if (isSubmitting) return
     setIsSubmitting(true)
@@ -76,8 +83,10 @@ export default function Login() {
       if (isMounted.current) setIsSubmitting(false)
     }
   }, [login, navigate, isSubmitting])
+  loginHandlerRef.current = handleLogin
 
   // Register handler
+  const registerHandlerRef = useRef<(user: TelegramUser) => void>(() => {})
   const handleRegister = useCallback(async (telegramUser: TelegramUser) => {
     if (isSubmitting || !inviteCode.trim()) return
     setIsSubmitting(true)
@@ -96,54 +105,90 @@ export default function Login() {
       if (isMounted.current) setIsSubmitting(false)
     }
   }, [register, navigate, isSubmitting, inviteCode])
-
-  // Refs for latest handlers
-  const loginHandlerRef = useRef(handleLogin)
-  loginHandlerRef.current = handleLogin
-  const registerHandlerRef = useRef(handleRegister)
   registerHandlerRef.current = handleRegister
 
-  // Load Telegram widget into a container
-  const loadWidget = (container: HTMLDivElement, callbackName: string) => {
-    const script = document.createElement('script')
-    script.src = 'https://telegram.org/js/telegram-widget.js?22'
-    script.setAttribute('data-telegram-login', import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'vendhubcashbot')
-    script.setAttribute('data-size', 'large')
-    script.setAttribute('data-radius', '8')
-    script.setAttribute('data-onauth', `${callbackName}(user)`)
-    script.setAttribute('data-request-access', 'write')
-    script.crossOrigin = 'anonymous'
-    script.async = true
-    container.appendChild(script)
-  }
-
-  // Setup login widget
+  // Setup global callbacks once
   useEffect(() => {
-    isMounted.current = true
-
-    // Setup global callbacks
     ;(window as any).TelegramLoginAuth = (user: TelegramUser) => {
       loginHandlerRef.current(user)
     }
     ;(window as any).TelegramRegisterAuth = (user: TelegramUser) => {
       registerHandlerRef.current(user)
     }
-
-    if (!loginWidgetLoaded.current && loginWidgetRef.current) {
-      loadWidget(loginWidgetRef.current, 'TelegramLoginAuth')
-      loginWidgetLoaded.current = true
-    }
-
-    return () => { isMounted.current = false }
   }, [])
 
-  // Load register widget when invite is validated
-  useEffect(() => {
-    if (inviteValid && !registerWidgetLoaded.current && registerWidgetRef.current) {
-      loadWidget(registerWidgetRef.current, 'TelegramRegisterAuth')
-      registerWidgetLoaded.current = true
+  // Load Telegram widget into a container
+  const loadWidget = useCallback((container: HTMLDivElement, callbackName: string, onFail: () => void) => {
+    // Clear any previous content
+    container.innerHTML = ''
+
+    const script = document.createElement('script')
+    script.src = 'https://telegram.org/js/telegram-widget.js?22'
+    script.setAttribute('data-telegram-login', BOT_USERNAME)
+    script.setAttribute('data-size', 'large')
+    script.setAttribute('data-radius', '8')
+    script.setAttribute('data-onauth', `${callbackName}(user)`)
+    script.setAttribute('data-request-access', 'write')
+    script.async = true
+
+    // Detect if widget fails to load (timeout-based since Telegram widget doesn't fire error events reliably)
+    const timeout = setTimeout(() => {
+      // Check if the iframe was actually created
+      const iframe = container.querySelector('iframe')
+      if (!iframe) {
+        onFail()
+      }
+    }, 5000)
+
+    script.onload = () => {
+      // After script loads, give iframe a moment to appear
+      setTimeout(() => {
+        const iframe = container.querySelector('iframe')
+        if (!iframe) {
+          clearTimeout(timeout)
+          onFail()
+        } else {
+          clearTimeout(timeout)
+        }
+      }, 2000)
     }
-  }, [inviteValid])
+
+    script.onerror = () => {
+      clearTimeout(timeout)
+      onFail()
+    }
+
+    container.appendChild(script)
+  }, [])
+
+  // Load login widget when login tab is active
+  const loginWidgetRef = useCallback((node: HTMLDivElement | null) => {
+    if (node && mode === 'login') {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        if (node.childNodes.length === 0) {
+          setLoginWidgetFailed(false)
+          loadWidget(node, 'TelegramLoginAuth', () => {
+            if (isMounted.current) setLoginWidgetFailed(true)
+          })
+        }
+      }, 100)
+    }
+  }, [mode, loadWidget])
+
+  // Load register widget when invite is validated
+  const registerWidgetRef = useCallback((node: HTMLDivElement | null) => {
+    if (node && inviteValid) {
+      setTimeout(() => {
+        if (node.childNodes.length === 0) {
+          setRegisterWidgetFailed(false)
+          loadWidget(node, 'TelegramRegisterAuth', () => {
+            if (isMounted.current) setRegisterWidgetFailed(true)
+          })
+        }
+      }, 100)
+    }
+  }, [inviteValid, loadWidget])
 
   // Validate invite code (with auto-check from URL)
   useEffect(() => {
@@ -180,6 +225,19 @@ export default function Login() {
     if (role === 'manager') return 'Менеджер'
     return role || ''
   }
+
+  const WidgetFallbackMessage = () => (
+    <div className="text-center py-2">
+      <p className="text-amber-600 text-sm mb-2">
+        ⚠️ Telegram виджет не загрузился
+      </p>
+      <p className="text-gray-500 text-xs">
+        Убедитесь, что домен <code className="bg-gray-100 px-1 rounded">{window.location.hostname}</code> настроен
+        в <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">@BotFather</a> →
+        /setdomain для бота <code className="bg-gray-100 px-1 rounded">@{BOT_USERNAME}</code>
+      </p>
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-600 to-primary-800 flex items-center justify-center p-4">
@@ -219,7 +277,7 @@ export default function Login() {
             <p className="text-gray-700 text-center text-sm">
               Войдите через Telegram для доступа к системе
             </p>
-            <div ref={loginWidgetRef} className="flex justify-center min-h-[50px]">
+            <div ref={loginWidgetRef} className="flex justify-center min-h-[50px] items-center">
               {(isSubmitting || authLoading) && (
                 <div className="flex items-center gap-2 text-gray-500">
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600" />
@@ -227,6 +285,7 @@ export default function Login() {
                 </div>
               )}
             </div>
+            {loginWidgetFailed && <WidgetFallbackMessage />}
             <p className="text-center text-xs text-gray-400">
               Нет аккаунта? Перейдите во вкладку «Регистрация»
             </p>
@@ -247,10 +306,7 @@ export default function Login() {
                 onChange={(e) => {
                   setInviteCode(e.target.value.toUpperCase())
                   setInviteValid(null)
-                  registerWidgetLoaded.current = false
-                  if (registerWidgetRef.current) {
-                    registerWidgetRef.current.innerHTML = ''
-                  }
+                  setRegisterWidgetFailed(false)
                 }}
                 placeholder="Код приглашения"
                 maxLength={32}
@@ -276,7 +332,7 @@ export default function Login() {
                   Нажмите кнопку ниже, чтобы зарегистрироваться через Telegram
                 </p>
 
-                <div ref={registerWidgetRef} className="flex justify-center min-h-[50px]">
+                <div ref={registerWidgetRef} className="flex justify-center min-h-[50px] items-center">
                   {isSubmitting && (
                     <div className="flex items-center gap-2 text-gray-500">
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600" />
@@ -284,6 +340,7 @@ export default function Login() {
                     </div>
                   )}
                 </div>
+                {registerWidgetFailed && <WidgetFallbackMessage />}
               </div>
             )}
 
