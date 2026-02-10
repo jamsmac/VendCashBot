@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService, TelegramAuthData } from './auth.service';
+import { InvitesService } from '../invites/invites.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
 import { Response, Request } from 'express';
@@ -50,6 +51,12 @@ describe('AuthController', () => {
             login: jest.fn(),
             refreshTokens: jest.fn(),
             revokeAllUserTokens: jest.fn(),
+          },
+        },
+        {
+          provide: InvitesService,
+          useValue: {
+            validateInvite: jest.fn(),
           },
         },
       ],

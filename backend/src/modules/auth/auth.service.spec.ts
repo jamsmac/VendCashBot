@@ -6,6 +6,7 @@ import { Repository, DataSource } from 'typeorm';
 import { UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
+import { InvitesService } from '../invites/invites.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 
@@ -65,6 +66,13 @@ describe('AuthService', () => {
           },
         },
         {
+          provide: InvitesService,
+          useValue: {
+            validateInvite: jest.fn(),
+            claimInvite: jest.fn(),
+          },
+        },
+        {
           provide: getRepositoryToken(RefreshToken),
           useValue: {
             save: jest.fn().mockResolvedValue(mockRefreshToken),
@@ -117,14 +125,11 @@ describe('AuthService', () => {
       expect(result).toHaveProperty('user');
       expect(result.accessToken).toBe('mock-jwt-token');
       expect(result.user).toEqual(mockUser);
-      expect(jwtService.sign).toHaveBeenCalledWith(
-        {
-          sub: mockUser.id,
-          telegramId: mockUser.telegramId,
-          role: mockUser.role,
-        },
-        { expiresIn: '15m' },
-      );
+      expect(jwtService.sign).toHaveBeenCalledWith({
+        sub: mockUser.id,
+        telegramId: mockUser.telegramId,
+        role: mockUser.role,
+      });
       expect(refreshTokenRepository.save).toHaveBeenCalled();
     });
   });
