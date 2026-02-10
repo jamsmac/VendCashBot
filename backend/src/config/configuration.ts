@@ -73,7 +73,8 @@ export default () => {
     },
     jwt: {
       secret: jwtSecret || 'dev-only-secret-do-not-use-in-production',
-      expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+      accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
+      refreshDays: parseInt(process.env.JWT_REFRESH_DAYS || '30', 10),
     },
     telegram: {
       botToken: telegramBotToken,

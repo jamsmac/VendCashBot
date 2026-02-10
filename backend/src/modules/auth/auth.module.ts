@@ -8,11 +8,13 @@ import { AuthService } from './auth.service';
 import { AuthCleanupService } from './auth-cleanup.service';
 import { JwtStrategy } from './jwt.strategy';
 import { UsersModule } from '../users/users.module';
+import { InvitesModule } from '../invites/invites.module';
 import { RefreshToken } from './entities/refresh-token.entity';
 
 @Module({
   imports: [
     UsersModule,
+    InvitesModule,
     TypeOrmModule.forFeature([RefreshToken]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
@@ -20,7 +22,7 @@ import { RefreshToken } from './entities/refresh-token.entity';
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get('jwt.secret'),
         signOptions: {
-          expiresIn: configService.get('jwt.expiresIn'),
+          expiresIn: configService.get('jwt.accessExpiresIn'),
         },
       }),
       inject: [ConfigService],

@@ -9,6 +9,7 @@ interface AuthState {
   isLoading: boolean
   isInitialized: boolean
   login: (telegramData: TelegramAuthData) => Promise<void>
+  register: (telegramData: TelegramAuthData, inviteCode: string) => Promise<void>
   devLogin: (role: string) => Promise<void>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
@@ -24,6 +25,20 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   login: async (telegramData: TelegramAuthData) => {
     try {
       const response = await authApi.telegramLogin(telegramData)
+      set({
+        user: response.user,
+        isAuthenticated: true,
+        isLoading: false,
+      })
+    } catch (error) {
+      set({ user: null, isAuthenticated: false, isLoading: false })
+      throw error
+    }
+  },
+
+  register: async (telegramData: TelegramAuthData, inviteCode: string) => {
+    try {
+      const response = await authApi.register({ ...telegramData, code: inviteCode })
       set({
         user: response.user,
         isAuthenticated: true,

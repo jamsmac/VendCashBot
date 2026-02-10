@@ -1,11 +1,13 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, DataSource } from 'typeorm';
+import { Repository, DataSource, LessThan } from 'typeorm';
 import * as crypto from 'crypto';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
+import { Invite } from '../invites/entities/invite.entity';
+import { InvitesService } from '../invites/invites.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 
 export interface TelegramAuthData {
@@ -32,6 +34,8 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly invitesService: InvitesService,
+    private readonly dataSource: DataSource,
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
     private readonly dataSource: DataSource,
@@ -134,6 +138,85 @@ export class AuthService {
     return crypto.createHash('sha256').update(token).digest('hex');
   }
 
+  /**
+   * Register a new user via Telegram auth + invite code (web panel registration).
+   * Entire flow runs in a single transaction with pessimistic locking
+   * to prevent TOCTOU race conditions (no orphan users if invite claim fails).
+   */
+  async registerWithTelegramAndInvite(authData: TelegramAuthData, inviteCode: string): Promise<User> {
+    // 1. Verify Telegram auth (stateless — safe outside transaction)
+    const isValid = this.verifyTelegramAuth(authData);
+    if (!isValid) {
+      this.logger.warn(`Invalid Telegram auth hash for registration, user ID: ${authData.id}`);
+      throw new UnauthorizedException('Неверные данные авторизации Telegram');
+    }
+
+    // 2. Check auth_date freshness (stateless — safe outside transaction)
+    const now = Math.floor(Date.now() / 1000);
+    if (now - authData.auth_date > 86400) {
+      throw new UnauthorizedException('Данные авторизации устарели. Попробуйте ещё раз.');
+    }
+
+    // 3. All DB operations in a single transaction
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 3a. Check if user already exists (inside transaction)
+      const existingUser = await queryRunner.manager.findOne(User, {
+        where: { telegramId: authData.id },
+      });
+      if (existingUser) {
+        throw new BadRequestException('Вы уже зарегистрированы. Используйте кнопку входа.');
+      }
+
+      // 3b. Lock and validate invite atomically (pessimistic write lock)
+      const invite = await queryRunner.manager.findOne(Invite, {
+        where: { code: inviteCode },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!invite) {
+        throw new BadRequestException('Код приглашения не найден.');
+      }
+      if (invite.usedById) {
+        throw new BadRequestException('Код приглашения уже использован.');
+      }
+      if (invite.isExpired) {
+        throw new BadRequestException('Срок действия приглашения истёк.');
+      }
+
+      // 3c. Create user (inside transaction — will be rolled back on failure)
+      const name = (authData.first_name || '') + (authData.last_name ? ` ${authData.last_name}` : '');
+      const user = queryRunner.manager.create(User, {
+        telegramId: authData.id,
+        telegramUsername: authData.username,
+        telegramFirstName: authData.first_name,
+        name: name.trim() || `User ${authData.id}`,
+        role: invite.role,
+      });
+      const savedUser = await queryRunner.manager.save(user);
+
+      // 3d. Claim invite (inside same transaction)
+      invite.usedById = savedUser.id;
+      invite.usedAt = new Date();
+      await queryRunner.manager.save(invite);
+
+      // 4. Commit — both user creation and invite claim succeed atomically
+      await queryRunner.commitTransaction();
+
+      this.logger.log(`User registered via web: ${savedUser.id} (${savedUser.name}), role: ${savedUser.role}`);
+      return savedUser;
+    } catch (error) {
+      // Rollback — no orphan users, no partially-claimed invites
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
   async login(user: User): Promise<{ accessToken: string; refreshToken: string; user: User }> {
     const payload: JwtPayload = {
       sub: user.id,
@@ -141,13 +224,15 @@ export class AuthService {
       role: user.role,
     };
 
-    const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
+    // expiresIn is configured via JwtModule from config (jwt.accessExpiresIn, default '15m')
+    const accessToken = this.jwtService.sign(payload);
 
-    // Generate refresh token — store hash, return plaintext to client
+    // Generate refresh token
+    const refreshDays = this.configService.get<number>('jwt.refreshDays') || 30;
     const refreshTokenValue = crypto.randomBytes(64).toString('hex');
     const hashedToken = this.hashToken(refreshTokenValue);
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30); // 30 days expiry
+    expiresAt.setDate(expiresAt.getDate() + refreshDays);
 
     await this.refreshTokenRepository.save({
       token: hashedToken,

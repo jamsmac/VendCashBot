@@ -33,6 +33,16 @@ export const authApi = {
     return response.data
   },
 
+  register: async (data: TelegramLoginData & { code: string }): Promise<LoginResponse> => {
+    const response = await apiClient.post('/auth/register', data)
+    return response.data
+  },
+
+  validateInvite: async (code: string): Promise<{ valid: boolean; role?: string }> => {
+    const response = await apiClient.get(`/auth/validate-invite/${encodeURIComponent(code)}`)
+    return response.data
+  },
+
   devLogin: async (role: string): Promise<LoginResponse> => {
     const response = await apiClient.post('/auth/dev-login', { role })
     return response.data
