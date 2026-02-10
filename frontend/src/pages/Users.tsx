@@ -5,6 +5,7 @@ import { usersApi, invitesApi } from '../api/users'
 import { User } from '../api/auth'
 import { Plus, Edit, X, Check, XCircle, Copy, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { getErrorMessage } from '../utils/getErrorMessage'
 import { format } from 'date-fns'
 
 const BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'vendhubcashbot'
@@ -36,8 +37,8 @@ export default function Users() {
       const link = `https://t.me/${BOT_USERNAME}?start=invite_${invite.code}`
       setInviteLink(link)
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Ошибка')
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error))
     },
   })
 
@@ -47,8 +48,8 @@ export default function Users() {
       queryClient.invalidateQueries({ queryKey: ['pending-invites'] })
       toast.success('Приглашение удалено')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Ошибка удаления')
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, 'Ошибка удаления'))
     },
   })
 
@@ -60,8 +61,8 @@ export default function Users() {
       toast.success('Пользователь обновлён')
       closeEditModal()
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Ошибка')
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error))
     },
   })
 
@@ -72,8 +73,8 @@ export default function Users() {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       toast.success('Статус изменён')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Ошибка изменения статуса')
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, 'Ошибка изменения статуса'))
     },
   })
 

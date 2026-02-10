@@ -10,6 +10,7 @@ import CancelCollectionModal from '../../components/CancelCollectionModal'
 import BulkCancelModal from '../../components/BulkCancelModal'
 import { useAuthStore } from '../../contexts/AuthContext'
 import toast from 'react-hot-toast'
+import { getErrorMessage } from '../../utils/getErrorMessage'
 
 export default function CollectionsList() {
     const [query, setQuery] = useState<CollectionQuery>({ page: 1, limit: 20 })
@@ -39,8 +40,8 @@ export default function CollectionsList() {
             toast.success('Инкассация принята!')
             setSelectedCollection(null)
             refetch()
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Ошибка')
+        } catch (error: unknown) {
+            toast.error(getErrorMessage(error))
         }
     }
 
@@ -51,8 +52,8 @@ export default function CollectionsList() {
             toast.success('Сумма инкассации изменена!')
             setEditCollection(null)
             refetch()
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Ошибка')
+        } catch (error: unknown) {
+            toast.error(getErrorMessage(error))
         }
     }
 
@@ -63,8 +64,8 @@ export default function CollectionsList() {
             toast.success('Инкассация отменена')
             setCancelCollection(null)
             refetch()
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Ошибка')
+        } catch (error: unknown) {
+            toast.error(getErrorMessage(error))
         }
     }
 
@@ -144,8 +145,8 @@ export default function CollectionsList() {
             setShowBulkCancel(null)
             setSelectedIds(new Set())
             refetch()
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Ошибка массовой отмены')
+        } catch (error: unknown) {
+            toast.error(getErrorMessage(error, 'Ошибка массовой отмены'))
         } finally {
             setIsBulkCancelling(false)
         }

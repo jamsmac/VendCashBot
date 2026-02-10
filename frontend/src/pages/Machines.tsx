@@ -20,6 +20,7 @@ import {
   Star,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { getErrorMessage } from '../utils/getErrorMessage'
 import MapPicker from '../components/MapPicker'
 
 interface MachineForm {
@@ -92,8 +93,8 @@ export default function Machines() {
       toast.success('Автомат создан')
       closeModal()
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Ошибка')
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error))
     },
   })
 
@@ -105,8 +106,8 @@ export default function Machines() {
       toast.success('Автомат обновлён')
       closeModal()
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Ошибка')
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error))
     },
   })
 
@@ -117,8 +118,8 @@ export default function Machines() {
       queryClient.invalidateQueries({ queryKey: ['machines'] })
       toast.success('Статус изменён')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Ошибка изменения статуса')
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, 'Ошибка изменения статуса'))
     },
   })
 
@@ -139,8 +140,8 @@ export default function Machines() {
       setLocationCoords({})
       setShowLocationMap(false)
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Ошибка')
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error))
     },
   })
 
@@ -150,8 +151,8 @@ export default function Machines() {
       queryClient.invalidateQueries({ queryKey: ['machine-locations'] })
       toast.success('Адрес удалён')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Ошибка')
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error))
     },
   })
 
@@ -161,8 +162,8 @@ export default function Machines() {
       queryClient.invalidateQueries({ queryKey: ['machine-locations'] })
       toast.success('Текущий адрес изменён')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Ошибка')
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error))
     },
   })
 

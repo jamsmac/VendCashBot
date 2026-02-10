@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import { Plus, Wallet, TrendingDown, ArrowDownRight } from 'lucide-react'
 import DepositModal from '../../components/DepositModal'
 import toast from 'react-hot-toast'
+import { getErrorMessage } from '../../utils/getErrorMessage'
 
 export default function BankDeposits() {
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -26,8 +27,8 @@ export default function BankDeposits() {
             setIsModalOpen(false)
             refetchBalance()
             refetchDeposits()
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Ошибка')
+        } catch (error: unknown) {
+            toast.error(getErrorMessage(error))
         }
     }
 

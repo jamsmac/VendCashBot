@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Bell, X, CheckCheck } from 'lucide-react'
-import { useNotificationsStore } from '../hooks/useNotifications'
+import { useNotificationsStore, NotificationData } from '../hooks/useNotifications'
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
 
@@ -37,7 +37,7 @@ export default function NotificationBell() {
     }
   }
 
-  const getNotificationText = (type: string, data: any) => {
+  const getNotificationText = (type: string, data: NotificationData) => {
     switch (type) {
       case 'collection_created':
         return `Новая инкассация с автомата ${data.machine?.code || '—'}`

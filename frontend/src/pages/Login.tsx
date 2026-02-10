@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../contexts/AuthContext'
 import { authApi } from '../api/auth'
 import toast from 'react-hot-toast'
+import { getErrorMessage } from '../utils/getErrorMessage'
 
 interface TelegramUser {
   id: number
@@ -19,6 +20,8 @@ declare global {
     TelegramLoginWidget: {
       dataOnauth: (user: TelegramUser) => void
     }
+    TelegramLoginAuth?: (user: TelegramUser) => void
+    TelegramRegisterAuth?: (user: TelegramUser) => void
   }
 }
 
@@ -69,9 +72,9 @@ export default function Login() {
         toast.success('Добро пожаловать!')
         navigate('/', { replace: true })
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (isMounted.current) {
-        const msg = error.response?.data?.message || 'Ошибка авторизации'
+        const msg = getErrorMessage(error, 'Ошибка авторизации')
         if (msg.includes('not registered') || msg.includes('не зарегистрирован')) {
           toast.error('Вы не зарегистрированы. Введите код приглашения для регистрации.')
           setMode('register')
@@ -96,9 +99,9 @@ export default function Login() {
         toast.success('Регистрация успешна! Добро пожаловать!')
         navigate('/', { replace: true })
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (isMounted.current) {
-        const msg = error.response?.data?.message || 'Ошибка регистрации'
+        const msg = getErrorMessage(error, 'Ошибка регистрации')
         toast.error(msg)
       }
     } finally {
@@ -109,10 +112,10 @@ export default function Login() {
 
   // Setup global callbacks once
   useEffect(() => {
-    (window as any).TelegramLoginAuth = (user: TelegramUser) => {
+    window.TelegramLoginAuth = (user: TelegramUser) => {
       loginHandlerRef.current(user)
     }
-    ;(window as any).TelegramRegisterAuth = (user: TelegramUser) => {
+    window.TelegramRegisterAuth = (user: TelegramUser) => {
       registerHandlerRef.current(user)
     }
   }, [])

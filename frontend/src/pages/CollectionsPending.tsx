@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import { Clock } from 'lucide-react'
 import ReceiveModal from '../components/ReceiveModal'
 import toast from 'react-hot-toast'
+import { getErrorMessage } from '../utils/getErrorMessage'
 
 export default function CollectionsPending() {
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null)
@@ -21,8 +22,8 @@ export default function CollectionsPending() {
       toast.success('Инкассация принята!')
       setSelectedCollection(null)
       refetch()
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Ошибка')
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error))
     }
   }
 

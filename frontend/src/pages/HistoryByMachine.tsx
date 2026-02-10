@@ -5,6 +5,7 @@ import { machinesApi, Machine } from '../api/machines'
 import { collectionsApi } from '../api/collections'
 import { Plus, Trash2, MapPin } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { getErrorMessage } from '../utils/getErrorMessage'
 
 const generateId = (): string => {
   try {
@@ -54,7 +55,7 @@ export default function HistoryByMachine() {
   }
 
   const mutation = useMutation({
-    mutationFn: (data: any) => collectionsApi.bulkCreate(data),
+    mutationFn: (data: Parameters<typeof collectionsApi.bulkCreate>[0]) => collectionsApi.bulkCreate(data),
     onSuccess: (result) => {
       toast.success(`Создано ${result.created} записей`)
       if (result.failed > 0) {
@@ -62,8 +63,8 @@ export default function HistoryByMachine() {
       }
       navigate('/collections')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Ошибка сохранения')
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, 'Ошибка сохранения'))
     },
   })
 

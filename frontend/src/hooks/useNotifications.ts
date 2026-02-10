@@ -4,10 +4,17 @@ import { create } from 'zustand'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '../contexts/AuthContext'
 
+export interface NotificationData {
+  machine?: { code: string }
+  amount?: number
+  code?: string
+  rejectionReason?: string
+}
+
 interface Notification {
   id: string
   type: 'collection_created' | 'collection_received' | 'collection_cancelled' | 'machine_approved' | 'machine_rejected'
-  data: any
+  data: NotificationData
   timestamp: Date
   read: boolean
 }
@@ -65,7 +72,7 @@ export const useNotificationsStore = create<NotificationsState>((set) => ({
   },
 }))
 
-const getNotificationMessage = (type: string, data: any): string => {
+const getNotificationMessage = (type: string, data: NotificationData): string => {
   switch (type) {
     case 'collection_created':
       return `Новая инкассация: ${data.machine?.code || 'Автомат'}`
@@ -109,7 +116,7 @@ export function useNotifications() {
       console.log('WebSocket disconnected:', reason)
     })
 
-    socketRef.current.on('notification', (payload: { type: string; data: any; timestamp: Date }) => {
+    socketRef.current.on('notification', (payload: { type: string; data: NotificationData; timestamp: Date }) => {
       addNotification({
         type: payload.type as Notification['type'],
         data: payload.data,

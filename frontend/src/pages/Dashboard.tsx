@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { useState } from 'react'
 import ReceiveModal from '../components/ReceiveModal'
 import toast from 'react-hot-toast'
+import { getErrorMessage } from '../utils/getErrorMessage'
 
 export default function Dashboard() {
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null)
@@ -27,8 +28,8 @@ export default function Dashboard() {
       toast.success('Инкассация принята!')
       setSelectedCollection(null)
       refetchPending()
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Ошибка')
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error))
     }
   }
 

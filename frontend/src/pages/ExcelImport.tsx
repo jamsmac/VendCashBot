@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, X } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { getErrorMessage } from '../utils/getErrorMessage'
 import { collectionsApi } from '../api/collections'
 import { machinesApi } from '../api/machines'
 
@@ -213,8 +214,8 @@ export default function ExcelImport() {
       if (result.failed > 0) {
         toast.error(`Ошибок: ${result.failed}`)
       }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Ошибка импорта')
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Ошибка импорта'))
     } finally {
       setIsLoading(false)
     }
