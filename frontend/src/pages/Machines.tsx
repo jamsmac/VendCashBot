@@ -317,16 +317,16 @@ export default function Machines() {
       {/* Table */}
       <div className="card overflow-hidden">
         <table className="w-full">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-gray-700/50">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Код</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Название</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Адрес</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Статус</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Действия</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Код</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Название</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Адрес</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Статус</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Действия</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
             {isLoading ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
@@ -341,10 +341,10 @@ export default function Machines() {
               </tr>
             ) : (
               machines?.map((machine) => (
-                <tr key={machine.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-mono text-sm">{machine.code}</td>
-                  <td className="px-4 py-3 font-medium">{machine.name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">
+                <tr key={machine.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <td className="px-4 py-3 font-mono text-sm text-gray-900 dark:text-gray-100">{machine.code}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{machine.name}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
                     <div className="flex items-center gap-1">
                       {machine.latitude && machine.longitude && (
                         <MapPin className="w-3 h-3 text-primary-500" />
@@ -363,14 +363,14 @@ export default function Machines() {
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => openModal(machine)}
-                        className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg"
+                        className="p-2 text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg"
                         title="Редактировать"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => openLocationsModal(machine)}
-                        className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
+                        className="p-2 text-gray-500 dark:text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg"
                         title="История адресов"
                       >
                         <History className="w-4 h-4" />
@@ -385,8 +385,8 @@ export default function Machines() {
                         disabled={toggleActiveMutation.isPending}
                         className={`p-2 rounded-lg disabled:opacity-50 ${
                           machine.isActive
-                            ? 'text-red-500 hover:bg-red-50'
-                            : 'text-green-500 hover:bg-green-50'
+                            ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30'
+                            : 'text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30'
                         }`}
                         title={machine.isActive ? 'Деактивировать' : 'Активировать'}
                       >
@@ -408,12 +408,12 @@ export default function Machines() {
       {/* Machine Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
-              <h2 className="font-semibold text-lg">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
+              <h2 className="font-semibold text-lg text-gray-900 dark:text-gray-100">
                 {editingMachine ? 'Редактировать автомат' : 'Добавить автомат'}
               </h2>
-              <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded-lg">
+              <button onClick={closeModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500 dark:text-gray-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -534,15 +534,15 @@ export default function Machines() {
       {/* Locations History Modal */}
       {showLocationsModal && selectedMachineForLocations && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
               <div>
-                <h2 className="font-semibold text-lg">История адресов</h2>
-                <p className="text-sm text-gray-500">
+                <h2 className="font-semibold text-lg text-gray-900 dark:text-gray-100">История адресов</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   {selectedMachineForLocations.name} ({selectedMachineForLocations.code})
                 </p>
               </div>
-              <button onClick={closeLocationsModal} className="p-1 hover:bg-gray-100 rounded-lg">
+              <button onClick={closeLocationsModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500 dark:text-gray-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -550,8 +550,8 @@ export default function Machines() {
             <div className="p-4">
               {/* Add location form */}
               {showAddLocationForm ? (
-                <div className="mb-6 p-4 border rounded-lg bg-gray-50">
-                  <h3 className="font-medium mb-3">Добавить адрес</h3>
+                <div className="mb-6 p-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                  <h3 className="font-medium mb-3 text-gray-900 dark:text-gray-100">Добавить адрес</h3>
                   <form onSubmit={handleSubmitLocation(onSubmitLocation)} className="space-y-4">
                     <div>
                       <div className="flex items-center justify-between mb-1">
@@ -662,7 +662,7 @@ export default function Machines() {
                     <div
                       key={loc.id}
                       className={`p-4 border rounded-lg ${
-                        loc.isCurrent ? 'border-primary-500 bg-primary-50' : ''
+                        loc.isCurrent ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-600'
                       }`}
                     >
                       <div className="flex items-start justify-between">
@@ -671,9 +671,9 @@ export default function Machines() {
                             {loc.isCurrent && (
                               <Star className="w-4 h-4 text-primary-500 fill-primary-500" />
                             )}
-                            <p className="font-medium">{loc.address}</p>
+                            <p className="font-medium text-gray-900 dark:text-gray-100">{loc.address}</p>
                           </div>
-                          <p className="text-sm text-gray-500 mt-1">
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                             {formatDate(loc.validFrom)}
                             {loc.validTo ? ` — ${formatDate(loc.validTo)}` : ' — по настоящее время'}
                           </p>
@@ -687,7 +687,7 @@ export default function Machines() {
                           {!loc.isCurrent && (
                             <button
                               onClick={() => setCurrentLocationMutation.mutate(loc.id)}
-                              className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg"
+                              className="p-2 text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg"
                               title="Сделать текущим"
                             >
                               <Star className="w-4 h-4" />
@@ -699,7 +699,7 @@ export default function Machines() {
                                 deleteLocationMutation.mutate(loc.id)
                               }
                             }}
-                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                            className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
                             title="Удалить"
                           >
                             <Trash2 className="w-4 h-4" />

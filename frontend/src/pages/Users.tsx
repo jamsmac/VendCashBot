@@ -142,28 +142,28 @@ export default function Users() {
       {/* Users Table */}
       <div className="card overflow-hidden">
         <table className="w-full">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-gray-700/50">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Имя</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Роль</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Telegram</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Статус</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Действия</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Имя</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Роль</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Telegram</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Статус</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Действия</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
             {usersLoading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   Загрузка...
                 </td>
               </tr>
             ) : (
               users?.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{user.name}</td>
+                <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{user.name}</td>
                   <td className="px-4 py-3">{getRoleBadge(user.role)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">
+                  <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
                     {user.telegramUsername ? `@${user.telegramUsername}` : '—'}
                   </td>
                   <td className="px-4 py-3">
@@ -177,7 +177,7 @@ export default function Users() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => openEditModal(user)}
-                        className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg"
+                        className="p-2 text-gray-500 dark:text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
@@ -192,8 +192,8 @@ export default function Users() {
                           disabled={toggleActiveMutation.isPending}
                           className={`p-2 rounded-lg disabled:opacity-50 ${
                             user.isActive
-                              ? 'text-red-500 hover:bg-red-50'
-                              : 'text-green-500 hover:bg-green-50'
+                              ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30'
+                              : 'text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30'
                           }`}
                         >
                           {user.isActive ? (
@@ -215,26 +215,26 @@ export default function Users() {
       {/* Pending Invites */}
       {pendingInvites && pendingInvites.length > 0 && (
         <div className="card overflow-hidden">
-          <div className="p-4 border-b border-gray-200">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-600">
             <h2 className="font-semibold">📨 Ожидающие приглашения</h2>
           </div>
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-gray-700/50">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Роль</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Создано</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Истекает</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Действия</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Роль</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Создано</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Истекает</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Действия</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {pendingInvites.map((invite) => (
-                <tr key={invite.id} className="hover:bg-gray-50">
+                <tr key={invite.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <td className="px-4 py-3">{getRoleBadge(invite.role)}</td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
                     {format(new Date(invite.createdAt), 'dd.MM HH:mm')}
                   </td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
                     {format(new Date(invite.expiresAt), 'dd.MM HH:mm')}
                   </td>
                   <td className="px-4 py-3">
@@ -245,14 +245,14 @@ export default function Users() {
                           navigator.clipboard.writeText(link)
                           toast.success('Ссылка скопирована')
                         }}
-                        className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg"
+                        className="p-2 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg"
                       >
                         <Copy className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => deleteInviteMutation.mutate(invite.id)}
                         disabled={deleteInviteMutation.isPending}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-50"
+                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg disabled:opacity-50"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -268,8 +268,8 @@ export default function Users() {
       {/* Invite Modal */}
       {showInviteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="font-semibold text-lg">
                 {inviteLink ? '✅ Ссылка создана!' : '📨 Пригласить сотрудника'}
               </h2>
@@ -278,7 +278,7 @@ export default function Users() {
                   setShowInviteModal(false)
                   setInviteLink('')
                 }}
-                className="p-1 hover:bg-gray-100 rounded-lg"
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -287,23 +287,23 @@ export default function Users() {
             <div className="p-4">
               {!inviteLink ? (
                 <div className="space-y-4">
-                  <p className="text-gray-600">Выберите роль:</p>
+                  <p className="text-gray-600 dark:text-gray-300">Выберите роль:</p>
                   <div className="space-y-3">
                     <button
                       onClick={() => createInviteMutation.mutate('operator')}
                       disabled={createInviteMutation.isPending}
-                      className="w-full p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left"
+                      className="w-full p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 text-left"
                     >
-                      <div className="font-medium">👷 Оператор</div>
-                      <div className="text-sm text-gray-500">Отмечает сбор в Telegram</div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">👷 Оператор</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">Отмечает сбор в Telegram</div>
                     </button>
                     <button
                       onClick={() => createInviteMutation.mutate('manager')}
                       disabled={createInviteMutation.isPending}
-                      className="w-full p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left"
+                      className="w-full p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 text-left"
                     >
-                      <div className="font-medium">📊 Менеджер</div>
-                      <div className="text-sm text-gray-500">
+                      <div className="font-medium text-gray-900 dark:text-gray-100">📊 Менеджер</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
                         Принимает инкассации, просматривает отчёты
                       </div>
                     </button>
@@ -311,14 +311,14 @@ export default function Users() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <p className="text-gray-600">Отправьте эту ссылку сотруднику:</p>
-                  <div className="p-3 bg-gray-50 rounded-lg break-all font-mono text-sm">
+                  <p className="text-gray-600 dark:text-gray-300">Отправьте эту ссылку сотруднику:</p>
+                  <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg break-all font-mono text-sm text-gray-900 dark:text-gray-100">
                     {inviteLink}
                   </div>
                   <button onClick={copyInviteLink} className="btn btn-primary w-full">
                     📋 Копировать
                   </button>
-                  <p className="text-sm text-gray-500 text-center">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
                     ⏰ Ссылка действует 24 часа
                   </p>
                 </div>
@@ -331,16 +331,16 @@ export default function Users() {
       {/* Edit User Modal */}
       {showEditModal && editingUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="font-semibold text-lg">✏️ Редактировать</h2>
-              <button onClick={closeEditModal} className="p-1 hover:bg-gray-100 rounded-lg">
+              <button onClick={closeEditModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="p-4 space-y-4">
-              <div className="text-sm text-gray-500 space-y-1">
+              <div className="text-sm text-gray-500 dark:text-gray-400 space-y-1">
                 <div>
                   👤 Telegram:{' '}
                   {editingUser.telegramUsername ? `@${editingUser.telegramUsername}` : '—'}

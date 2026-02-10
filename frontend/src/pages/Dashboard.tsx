@@ -44,11 +44,11 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="card p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-              <Clock className="w-6 h-6 text-yellow-600" />
+            <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl flex items-center justify-center">
+              <Clock className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Ожидают приёма</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Ожидают приёма</p>
               <p className="text-2xl font-bold">
                 {dashboardLoading ? '...' : dashboard?.pending || 0}
               </p>
@@ -58,30 +58,30 @@ export default function Dashboard() {
 
         <div className="card p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-              <Banknote className="w-6 h-6 text-green-600" />
+            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
+              <Banknote className="w-6 h-6 text-green-600 dark:text-green-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Сегодня</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Сегодня</p>
               <p className="text-2xl font-bold">
                 {dashboardLoading ? '...' : `${formatAmount(dashboard?.todayAmount || 0)}`}
               </p>
-              <p className="text-xs text-gray-400">сум</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">сум</p>
             </div>
           </div>
         </div>
 
         <div className="card p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <Calendar className="w-6 h-6 text-blue-600" />
+            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
+              <Calendar className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">За месяц</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">За месяц</p>
               <p className="text-2xl font-bold">
                 {dashboardLoading ? '...' : `${formatAmount(dashboard?.monthAmount || 0)}`}
               </p>
-              <p className="text-xs text-gray-400">сум</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">сум</p>
             </div>
           </div>
         </div>
@@ -89,27 +89,27 @@ export default function Dashboard() {
 
       {/* Pending collections */}
       <div className="card">
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-600 flex items-center justify-between">
           <h2 className="font-semibold">⏳ Ожидают приёма</h2>
           <span className="badge badge-warning">{pending?.length || 0}</span>
         </div>
 
         {pendingLoading ? (
-          <div className="p-8 text-center text-gray-500">Загрузка...</div>
+          <div className="p-8 text-center text-gray-500 dark:text-gray-400">Загрузка...</div>
         ) : pending && pending.length > 0 ? (
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-gray-100 dark:divide-gray-700">
             {pending.slice(0, 10).map((collection) => (
               <div
                 key={collection.id}
-                className="p-4 flex items-center justify-between hover:bg-gray-50"
+                className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-                    <Clock className="w-5 h-5 text-yellow-600" />
+                  <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
                   </div>
                   <div>
-                    <div className="font-medium">{collection.machine.name}</div>
-                    <div className="text-sm text-gray-500">
+                    <div className="font-medium text-gray-900 dark:text-gray-100">{collection.machine.name}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
                       {format(new Date(collection.collectedAt), 'HH:mm:ss')} • {collection.operator.name}
                     </div>
                   </div>
@@ -124,7 +124,7 @@ export default function Dashboard() {
             ))}
           </div>
         ) : (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-gray-500 dark:text-gray-400">
             ✅ Нет ожидающих приёма
           </div>
         )}

@@ -238,8 +238,8 @@ export default function CollectionsList() {
 
             {/* Selection Action Bar */}
             {isManagerOrAdmin && selectedIds.size > 0 && (
-                <div className="card p-3 flex items-center justify-between bg-red-50 border border-red-200">
-                    <span className="text-sm font-medium text-red-700">
+                <div className="card p-3 flex items-center justify-between bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <span className="text-sm font-medium text-red-700 dark:text-red-400">
                         Выбрано: {selectedIds.size}
                     </span>
                     <div className="flex items-center gap-2">
@@ -263,7 +263,7 @@ export default function CollectionsList() {
             <div className="card overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-gray-50 dark:bg-gray-700/50">
                             <tr>
                                 {isManagerOrAdmin && (
                                     <th className="px-4 py-3 w-10">
@@ -275,30 +275,30 @@ export default function CollectionsList() {
                                         />
                                     </th>
                                 )}
-                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Время</th>
-                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Автомат</th>
-                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Оператор</th>
-                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Сумма</th>
-                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Статус</th>
-                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Действия</th>
+                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Время</th>
+                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Автомат</th>
+                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Оператор</th>
+                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Сумма</th>
+                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Статус</th>
+                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Действия</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={isManagerOrAdmin ? 7 : 6} className="px-4 py-8 text-center text-gray-500">
+                                    <td colSpan={isManagerOrAdmin ? 7 : 6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                                         Загрузка...
                                     </td>
                                 </tr>
                             ) : data?.data.length === 0 ? (
                                 <tr>
-                                    <td colSpan={isManagerOrAdmin ? 7 : 6} className="px-4 py-8 text-center text-gray-500">
+                                    <td colSpan={isManagerOrAdmin ? 7 : 6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                                         Нет данных
                                     </td>
                                 </tr>
                             ) : (
                                 data?.data.map((collection) => (
-                                    <tr key={collection.id} className={`hover:bg-gray-50 ${selectedIds.has(collection.id) ? 'bg-blue-50' : ''}`}>
+                                    <tr key={collection.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${selectedIds.has(collection.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
                                         {isManagerOrAdmin && (
                                             <td className="px-4 py-3">
                                                 {collection.status !== 'cancelled' ? (
@@ -313,18 +313,18 @@ export default function CollectionsList() {
                                                 )}
                                             </td>
                                         )}
-                                        <td className="px-4 py-3 text-sm">
+                                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
                                             <div>{format(new Date(collection.collectedAt), 'dd.MM.yyyy')}</div>
-                                            <div className="text-gray-500">
+                                            <div className="text-gray-500 dark:text-gray-400">
                                                 {format(new Date(collection.collectedAt), 'HH:mm:ss')}
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <div className="font-medium">{collection.machine.name}</div>
-                                            <div className="text-sm text-gray-500">{collection.machine.code}</div>
+                                            <div className="font-medium text-gray-900 dark:text-gray-100">{collection.machine.name}</div>
+                                            <div className="text-sm text-gray-500 dark:text-gray-400">{collection.machine.code}</div>
                                         </td>
-                                        <td className="px-4 py-3 text-sm">{collection.operator.name}</td>
-                                        <td className="px-4 py-3 text-sm font-medium">
+                                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{collection.operator.name}</td>
+                                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
                                             {collection.amount
                                                 ? `${Number(collection.amount).toLocaleString('ru-RU')} сум`
                                                 : '—'}
@@ -342,7 +342,7 @@ export default function CollectionsList() {
                                                         </button>
                                                         <button
                                                             onClick={() => setCancelCollection(collection)}
-                                                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                                                            className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
                                                             title="Отменить"
                                                         >
                                                             <Trash2 className="w-4 h-4" />
@@ -353,14 +353,14 @@ export default function CollectionsList() {
                                                     <>
                                                         <button
                                                             onClick={() => setEditCollection(collection)}
-                                                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
+                                                            className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
                                                             title="Редактировать сумму"
                                                         >
                                                             <Edit className="w-4 h-4" />
                                                         </button>
                                                         <button
                                                             onClick={() => setCancelCollection(collection)}
-                                                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                                                            className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
                                                             title="Отменить"
                                                         >
                                                             <Trash2 className="w-4 h-4" />
@@ -378,8 +378,8 @@ export default function CollectionsList() {
 
                 {/* Pagination */}
                 {totalPages > 1 && (
-                    <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
-                        <div className="text-sm text-gray-500">
+                    <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
                             Всего: {data?.total || 0}
                         </div>
                         <div className="flex items-center gap-2">

@@ -70,7 +70,7 @@ export default function Reports() {
 
       {/* Date range */}
       <div className="card p-4 flex flex-wrap items-center gap-4">
-        <span className="text-sm text-gray-500">Период:</span>
+        <span className="text-sm text-gray-500 dark:text-gray-400">Период:</span>
         <input
           type="date"
           className="input w-auto"
@@ -92,15 +92,15 @@ export default function Reports() {
 
       {/* Tabs */}
       <div className="card overflow-hidden">
-        <div className="flex border-b border-gray-200">
+        <div className="flex border-b border-gray-200 dark:border-gray-600">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
                 activeTab === tab.id
-                  ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50 dark:bg-primary-900/30'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50'
               }`}
             >
               {tab.label}
@@ -112,40 +112,40 @@ export default function Reports() {
         {activeTab === 'machine' && (
           <div className="overflow-x-auto">
             {loadingMachine ? (
-              <div className="p-8 text-center text-gray-500">Загрузка...</div>
+              <div className="p-8 text-center text-gray-500 dark:text-gray-400">Загрузка...</div>
             ) : !byMachine?.data?.length ? (
-              <div className="p-8 text-center text-gray-500">Нет данных за выбранный период</div>
+              <div className="p-8 text-center text-gray-500 dark:text-gray-400">Нет данных за выбранный период</div>
             ) : (
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-gray-700/50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Код</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Название</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">Кол-во</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">Сумма</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">Среднее</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Код</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Название</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500 dark:text-gray-400">Кол-во</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500 dark:text-gray-400">Сумма</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500 dark:text-gray-400">Среднее</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {byMachine?.data?.map((item) => (
-                    <tr key={item.machine.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-mono">{item.machine.code}</td>
-                      <td className="px-4 py-3">{item.machine.name}</td>
-                      <td className="px-4 py-3 text-right">{item.collectionsCount}</td>
-                      <td className="px-4 py-3 text-right font-medium">
+                    <tr key={item.machine.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-gray-100">{item.machine.code}</td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-gray-100">{item.machine.name}</td>
+                      <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">{item.collectionsCount}</td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-gray-100">
                         {formatAmount(item.totalAmount)}
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-500">
+                      <td className="px-4 py-3 text-right text-gray-500 dark:text-gray-400">
                         {formatAmount(Math.round(item.averageAmount))}
                       </td>
                     </tr>
                   ))}
                   {byMachine?.totals && (
-                    <tr className="bg-gray-50 font-semibold">
+                    <tr className="bg-gray-50 dark:bg-gray-700/50 font-semibold">
                       <td className="px-4 py-3"></td>
-                      <td className="px-4 py-3">ИТОГО</td>
-                      <td className="px-4 py-3 text-right">{byMachine.totals.collectionsCount}</td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-gray-900 dark:text-gray-100">ИТОГО</td>
+                      <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">{byMachine.totals.collectionsCount}</td>
+                      <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">
                         {formatAmount(byMachine.totals.totalAmount)}
                       </td>
                       <td className="px-4 py-3"></td>
@@ -161,33 +161,33 @@ export default function Reports() {
         {activeTab === 'date' && (
           <div className="overflow-x-auto">
             {loadingDate ? (
-              <div className="p-8 text-center text-gray-500">Загрузка...</div>
+              <div className="p-8 text-center text-gray-500 dark:text-gray-400">Загрузка...</div>
             ) : !byDate?.data?.length ? (
-              <div className="p-8 text-center text-gray-500">Нет данных за выбранный период</div>
+              <div className="p-8 text-center text-gray-500 dark:text-gray-400">Нет данных за выбранный период</div>
             ) : (
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-gray-700/50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Дата</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">Кол-во</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">Сумма</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Дата</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500 dark:text-gray-400">Кол-во</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500 dark:text-gray-400">Сумма</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {byDate?.data?.map((item) => (
-                    <tr key={item.date} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">{item.date}</td>
-                      <td className="px-4 py-3 text-right">{item.collectionsCount}</td>
-                      <td className="px-4 py-3 text-right font-medium">
+                    <tr key={item.date} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <td className="px-4 py-3 text-gray-900 dark:text-gray-100">{item.date}</td>
+                      <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">{item.collectionsCount}</td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-gray-100">
                         {formatAmount(item.totalAmount)}
                       </td>
                     </tr>
                   ))}
                   {byDate?.totals && (
-                    <tr className="bg-gray-50 font-semibold">
-                      <td className="px-4 py-3">ИТОГО</td>
-                      <td className="px-4 py-3 text-right">{byDate.totals.collectionsCount}</td>
-                      <td className="px-4 py-3 text-right">
+                    <tr className="bg-gray-50 dark:bg-gray-700/50 font-semibold">
+                      <td className="px-4 py-3 text-gray-900 dark:text-gray-100">ИТОГО</td>
+                      <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">{byDate.totals.collectionsCount}</td>
+                      <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">
                         {formatAmount(byDate.totals.totalAmount)}
                       </td>
                     </tr>
@@ -202,38 +202,38 @@ export default function Reports() {
         {activeTab === 'operator' && (
           <div className="overflow-x-auto">
             {loadingOperator ? (
-              <div className="p-8 text-center text-gray-500">Загрузка...</div>
+              <div className="p-8 text-center text-gray-500 dark:text-gray-400">Загрузка...</div>
             ) : !byOperator?.data?.length ? (
-              <div className="p-8 text-center text-gray-500">Нет данных за выбранный период</div>
+              <div className="p-8 text-center text-gray-500 dark:text-gray-400">Нет данных за выбранный период</div>
             ) : (
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-gray-700/50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Оператор</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Telegram</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">Кол-во</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">Сумма</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Оператор</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Telegram</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500 dark:text-gray-400">Кол-во</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500 dark:text-gray-400">Сумма</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {byOperator?.data?.map((item) => (
-                    <tr key={item.operator.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">{item.operator.name}</td>
-                      <td className="px-4 py-3 text-gray-500">
+                    <tr key={item.operator.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <td className="px-4 py-3 text-gray-900 dark:text-gray-100">{item.operator.name}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
                         {item.operator.telegramUsername ? `@${item.operator.telegramUsername}` : '—'}
                       </td>
-                      <td className="px-4 py-3 text-right">{item.collectionsCount}</td>
-                      <td className="px-4 py-3 text-right font-medium">
+                      <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">{item.collectionsCount}</td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-gray-100">
                         {formatAmount(item.totalAmount)}
                       </td>
                     </tr>
                   ))}
                   {byOperator?.totals && (
-                    <tr className="bg-gray-50 font-semibold">
-                      <td className="px-4 py-3">ИТОГО</td>
+                    <tr className="bg-gray-50 dark:bg-gray-700/50 font-semibold">
+                      <td className="px-4 py-3 text-gray-900 dark:text-gray-100">ИТОГО</td>
                       <td className="px-4 py-3"></td>
-                      <td className="px-4 py-3 text-right">{byOperator.totals.collectionsCount}</td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">{byOperator.totals.collectionsCount}</td>
+                      <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">
                         {formatAmount(byOperator.totals.totalAmount)}
                       </td>
                     </tr>
