@@ -40,6 +40,9 @@ Icon?
 # Test
 coverage/
 
+# Railway
+railway.json
+
 # Docker
 .docker/
 
