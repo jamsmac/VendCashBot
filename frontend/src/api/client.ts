@@ -76,6 +76,25 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // Forbidden
+    if (status === 403) {
+      toast.error('Доступ запрещён. Недостаточно прав.')
+      return Promise.reject(error)
+    }
+
+    // Not Found
+    if (status === 404) {
+      toast.error('Ресурс не найден.')
+      return Promise.reject(error)
+    }
+
+    // Bad Request - show specific error message if available
+    if (status === 400) {
+      const errorMessage = (error.response?.data as { message?: string })?.message
+      toast.error(errorMessage || 'Неверный запрос.')
+      return Promise.reject(error)
+    }
+
     // Handle 401 Unauthorized
     if (status === 401 && !originalRequest._retry) {
       // Don't retry refresh endpoint - session is truly expired
