@@ -10,6 +10,20 @@ import { UserRole } from '../users/entities/user.entity';
 describe('InvitesService', () => {
   let service: InvitesService;
   let repository: jest.Mocked<Repository<Invite>>;
+  let dataSource: jest.Mocked<DataSource>;
+  let configService: { get: jest.Mock };
+
+  let mockQueryRunner: {
+    connect: jest.Mock;
+    startTransaction: jest.Mock;
+    commitTransaction: jest.Mock;
+    rollbackTransaction: jest.Mock;
+    release: jest.Mock;
+    manager: {
+      findOne: jest.Mock;
+      save: jest.Mock;
+    };
+  };
 
   const mockInvite = {
     id: 'invite-123',
@@ -36,6 +50,18 @@ describe('InvitesService', () => {
   };
 
   beforeEach(async () => {
+    mockQueryRunner = {
+      connect: jest.fn(),
+      startTransaction: jest.fn(),
+      commitTransaction: jest.fn(),
+      rollbackTransaction: jest.fn(),
+      release: jest.fn(),
+      manager: {
+        findOne: jest.fn(),
+        save: jest.fn(),
+      },
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         InvitesService,
@@ -59,17 +85,7 @@ describe('InvitesService', () => {
         {
           provide: DataSource,
           useValue: {
-            createQueryRunner: jest.fn().mockReturnValue({
-              connect: jest.fn(),
-              startTransaction: jest.fn(),
-              commitTransaction: jest.fn(),
-              rollbackTransaction: jest.fn(),
-              release: jest.fn(),
-              manager: {
-                findOne: jest.fn(),
-                save: jest.fn(),
-              },
-            }),
+            createQueryRunner: jest.fn().mockReturnValue(mockQueryRunner),
           },
         },
       ],
@@ -77,6 +93,8 @@ describe('InvitesService', () => {
 
     service = module.get<InvitesService>(InvitesService);
     repository = module.get(getRepositoryToken(Invite));
+    dataSource = module.get(DataSource);
+    configService = module.get(ConfigService);
   });
 
   it('should be defined', () => {
@@ -109,6 +127,22 @@ describe('InvitesService', () => {
       await expect(service.create('user-123', UserRole.ADMIN)).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    it('should default to 24 hours expiration when config returns falsy', async () => {
+      configService.get.mockReturnValue(undefined);
+
+      repository.create.mockReturnValue(mockInvite);
+      repository.save.mockResolvedValue(mockInvite);
+
+      await service.create('user-123', UserRole.OPERATOR);
+
+      // The create call should have expiresAt roughly 24 hours from now
+      const createArg = repository.create.mock.calls[0][0] as any;
+      const expectedMs = 24 * 60 * 60 * 1000;
+      const diff = createArg.expiresAt.getTime() - Date.now();
+      expect(diff).toBeGreaterThan(expectedMs - 1000);
+      expect(diff).toBeLessThan(expectedMs + 1000);
     });
   });
 
@@ -218,16 +252,20 @@ describe('InvitesService', () => {
     });
 
     it('should throw BadRequestException when invite expired', async () => {
-      const expiredInvite = {
-        ...mockInvite,
-        expiresAt: new Date(Date.now() - 1000), // expired
-        isExpired: true,
-        isValid: false,
-      } as unknown as Invite;
+      const expiredInvite = Object.create(Object.prototype, {
+        id: { value: 'invite-123', writable: true, enumerable: true },
+        code: { value: 'ABC12345', writable: true, enumerable: true },
+        role: { value: UserRole.OPERATOR, writable: true, enumerable: true },
+        createdById: { value: 'user-123', writable: true, enumerable: true },
+        usedById: { value: null, writable: true, enumerable: true },
+        usedAt: { value: null, writable: true, enumerable: true },
+        expiresAt: { value: new Date(Date.now() - 1000), writable: true, enumerable: true },
+        isExpired: { get: () => true, enumerable: true },
+      }) as unknown as Invite;
       repository.findOne.mockResolvedValue(expiredInvite);
 
       await expect(service.markAsUsed('invite-123', 'new-user')).rejects.toThrow(
-        BadRequestException,
+        'Invite has expired',
       );
     });
   });
@@ -315,6 +353,94 @@ describe('InvitesService', () => {
     });
   });
 
+  describe('claimInvite', () => {
+    it('should claim a valid invite within a transaction', async () => {
+      const validInvite = {
+        ...mockInvite,
+        usedById: null,
+        isExpired: false,
+      } as unknown as Invite;
+      const savedInvite = {
+        ...validInvite,
+        usedById: 'new-user',
+        usedAt: expect.any(Date),
+      } as unknown as Invite;
+
+      mockQueryRunner.manager.findOne.mockResolvedValue(validInvite);
+      mockQueryRunner.manager.save.mockResolvedValue(savedInvite);
+
+      const result = await service.claimInvite('ABC12345', 'new-user');
+
+      expect(result).toEqual(savedInvite);
+      expect(mockQueryRunner.connect).toHaveBeenCalled();
+      expect(mockQueryRunner.startTransaction).toHaveBeenCalled();
+      expect(mockQueryRunner.manager.findOne).toHaveBeenCalledWith(Invite, {
+        where: { code: 'ABC12345' },
+        lock: { mode: 'pessimistic_write' },
+      });
+      expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
+      expect(mockQueryRunner.release).toHaveBeenCalled();
+    });
+
+    it('should rollback and throw NotFoundException when invite not found', async () => {
+      mockQueryRunner.manager.findOne.mockResolvedValue(null);
+
+      await expect(service.claimInvite('INVALID', 'user')).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalled();
+      expect(mockQueryRunner.release).toHaveBeenCalled();
+      expect(mockQueryRunner.commitTransaction).not.toHaveBeenCalled();
+    });
+
+    it('should rollback and throw BadRequestException when invite already used', async () => {
+      const usedInvite = {
+        ...mockInvite,
+        usedById: 'existing-user',
+        isExpired: false,
+      } as unknown as Invite;
+      mockQueryRunner.manager.findOne.mockResolvedValue(usedInvite);
+
+      await expect(service.claimInvite('ABC12345', 'new-user')).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalled();
+      expect(mockQueryRunner.release).toHaveBeenCalled();
+      expect(mockQueryRunner.commitTransaction).not.toHaveBeenCalled();
+    });
+
+    it('should rollback and throw BadRequestException when invite expired', async () => {
+      const expiredInvite = {
+        ...mockInvite,
+        usedById: null,
+        isExpired: true,
+      } as unknown as Invite;
+      mockQueryRunner.manager.findOne.mockResolvedValue(expiredInvite);
+
+      await expect(service.claimInvite('ABC12345', 'new-user')).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalled();
+      expect(mockQueryRunner.release).toHaveBeenCalled();
+      expect(mockQueryRunner.commitTransaction).not.toHaveBeenCalled();
+    });
+
+    it('should release queryRunner even when an unexpected error occurs', async () => {
+      const dbError = new Error('Connection lost');
+      mockQueryRunner.manager.findOne.mockRejectedValue(dbError);
+
+      await expect(service.claimInvite('ABC12345', 'user')).rejects.toThrow(
+        'Connection lost',
+      );
+
+      expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalled();
+      expect(mockQueryRunner.release).toHaveBeenCalled();
+    });
+  });
+
   describe('deleteUnused', () => {
     it('should delete all unused invites', async () => {
       repository.delete.mockResolvedValue({ affected: 5 } as any);
@@ -322,6 +448,14 @@ describe('InvitesService', () => {
       const result = await service.deleteUnused();
 
       expect(result).toBe(5);
+    });
+
+    it('should return 0 when affected is undefined', async () => {
+      repository.delete.mockResolvedValue({ affected: undefined } as any);
+
+      const result = await service.deleteUnused();
+
+      expect(result).toBe(0);
     });
   });
 });

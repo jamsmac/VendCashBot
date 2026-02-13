@@ -346,6 +346,22 @@ describe('ReportsService', () => {
       expect(result.period.to).toBeDefined();
       expect(cacheManager.get).toHaveBeenCalledWith('report:by-date:default:default');
     });
+
+    it('should handle null collectionsCount and totalAmount in date results', async () => {
+      cacheManager.get.mockResolvedValue(null);
+      mockQueryBuilder.getRawMany.mockResolvedValue([
+        {
+          date: '2024-01-15',
+          collectionsCount: null,
+          totalAmount: null,
+        },
+      ]);
+
+      const result = await service.getByDate(query);
+
+      expect(result.data[0].collectionsCount).toBe(0);
+      expect(result.data[0].totalAmount).toBe(0);
+    });
   });
 
   describe('getByOperator', () => {

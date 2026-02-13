@@ -6,6 +6,11 @@ import { User, UserRole } from '../users/entities/user.entity';
 import { CreateMachineDto } from './dto/create-machine.dto';
 import { UpdateMachineDto } from './dto/update-machine.dto';
 import { RejectMachineDto } from './dto/reject-machine.dto';
+import {
+  CreateMachineLocationDto,
+  UpdateMachineLocationDto,
+} from './dto/machine-location.dto';
+import { MachineLocation } from './entities/machine-location.entity';
 
 describe('MachinesController', () => {
   let controller: MachinesController;
@@ -84,6 +89,13 @@ describe('MachinesController', () => {
             update: jest.fn(),
             deactivate: jest.fn(),
             activate: jest.fn(),
+            getLocations: jest.fn(),
+            getCurrentLocation: jest.fn(),
+            getLocationForDate: jest.fn(),
+            addLocation: jest.fn(),
+            updateLocation: jest.fn(),
+            deleteLocation: jest.fn(),
+            setCurrentLocation: jest.fn(),
           },
         },
       ],
@@ -372,6 +384,149 @@ describe('MachinesController', () => {
 
       expect(machinesService.activate).toHaveBeenCalledWith('machine-123');
       expect(result.isActive).toBe(true);
+    });
+  });
+
+  // ========== Machine Locations ==========
+
+  describe('getLocations', () => {
+    it('should return all locations for a machine', async () => {
+      const mockLocations = [
+        { id: 'loc-1', machineId: 'machine-123', address: 'Address 1', isCurrent: true },
+        { id: 'loc-2', machineId: 'machine-123', address: 'Address 2', isCurrent: false },
+      ] as unknown as MachineLocation[];
+      machinesService.getLocations.mockResolvedValue(mockLocations);
+
+      const result = await controller.getLocations('machine-123');
+
+      expect(machinesService.getLocations).toHaveBeenCalledWith('machine-123');
+      expect(result).toEqual(mockLocations);
+    });
+
+    it('should return empty array when no locations', async () => {
+      machinesService.getLocations.mockResolvedValue([]);
+
+      const result = await controller.getLocations('machine-123');
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getCurrentLocation', () => {
+    it('should return the current location for a machine', async () => {
+      const mockLocation = {
+        id: 'loc-1',
+        machineId: 'machine-123',
+        address: 'Current Address',
+        isCurrent: true,
+      } as unknown as MachineLocation;
+      machinesService.getCurrentLocation.mockResolvedValue(mockLocation);
+
+      const result = await controller.getCurrentLocation('machine-123');
+
+      expect(machinesService.getCurrentLocation).toHaveBeenCalledWith('machine-123');
+      expect(result).toEqual(mockLocation);
+    });
+
+    it('should return null when no current location', async () => {
+      machinesService.getCurrentLocation.mockResolvedValue(null);
+
+      const result = await controller.getCurrentLocation('machine-123');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('getLocationForDate', () => {
+    it('should return the location for a specific date', async () => {
+      const mockLocation = {
+        id: 'loc-1',
+        machineId: 'machine-123',
+        address: 'Past Address',
+        validFrom: '2024-01-01',
+        validTo: '2024-06-30',
+      } as unknown as MachineLocation;
+      machinesService.getLocationForDate.mockResolvedValue(mockLocation);
+
+      const result = await controller.getLocationForDate('machine-123', '2024-03-15');
+
+      expect(machinesService.getLocationForDate).toHaveBeenCalledWith(
+        'machine-123',
+        expect.any(Date),
+      );
+      expect(result).toEqual(mockLocation);
+    });
+  });
+
+  describe('addLocation', () => {
+    it('should add a new location to a machine', async () => {
+      const dto: CreateMachineLocationDto = {
+        address: 'New Location Address',
+        validFrom: '2024-06-01',
+        latitude: 55.75,
+        longitude: 37.62,
+        isCurrent: true,
+      };
+      const mockLocation = {
+        id: 'loc-new',
+        machineId: 'machine-123',
+        ...dto,
+      } as unknown as MachineLocation;
+      machinesService.addLocation.mockResolvedValue(mockLocation);
+
+      const result = await controller.addLocation('machine-123', dto);
+
+      expect(machinesService.addLocation).toHaveBeenCalledWith('machine-123', dto);
+      expect(result).toEqual(mockLocation);
+    });
+  });
+
+  describe('updateLocation', () => {
+    it('should update a machine location', async () => {
+      const dto: UpdateMachineLocationDto = {
+        address: 'Updated Address',
+        latitude: 56.0,
+      };
+      const mockUpdatedLocation = {
+        id: 'loc-1',
+        machineId: 'machine-123',
+        address: 'Updated Address',
+        latitude: 56.0,
+      } as unknown as MachineLocation;
+      machinesService.updateLocation.mockResolvedValue(mockUpdatedLocation);
+
+      const result = await controller.updateLocation('loc-1', dto);
+
+      expect(machinesService.updateLocation).toHaveBeenCalledWith('loc-1', dto);
+      expect(result).toEqual(mockUpdatedLocation);
+    });
+  });
+
+  describe('deleteLocation', () => {
+    it('should delete a machine location', async () => {
+      machinesService.deleteLocation.mockResolvedValue(undefined as any);
+
+      const result = await controller.deleteLocation('loc-1');
+
+      expect(machinesService.deleteLocation).toHaveBeenCalledWith('loc-1');
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe('setCurrentLocation', () => {
+    it('should set a location as current', async () => {
+      const mockLocation = {
+        id: 'loc-1',
+        machineId: 'machine-123',
+        address: 'Current Address',
+        isCurrent: true,
+      } as unknown as MachineLocation;
+      machinesService.setCurrentLocation.mockResolvedValue(mockLocation);
+
+      const result = await controller.setCurrentLocation('loc-1');
+
+      expect(machinesService.setCurrentLocation).toHaveBeenCalledWith('loc-1');
+      expect(result).toEqual(mockLocation);
     });
   });
 });

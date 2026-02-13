@@ -83,6 +83,39 @@ describe('UsersService', () => {
 
       await expect(service.create(createDto)).rejects.toThrow(ConflictException);
     });
+
+    it('should throw ConflictException on unique constraint violation (race condition)', async () => {
+      const createDto = {
+        telegramId: 123456789,
+        name: 'Test User',
+        role: UserRole.OPERATOR,
+      };
+
+      const dbError = new Error('duplicate key value violates unique constraint');
+      (dbError as any).code = '23505';
+
+      repository.findOne.mockResolvedValue(null);
+      repository.create.mockReturnValue(mockUser);
+      repository.save.mockRejectedValue(dbError);
+
+      await expect(service.create(createDto)).rejects.toThrow(ConflictException);
+    });
+
+    it('should re-throw non-unique-constraint errors from save', async () => {
+      const createDto = {
+        telegramId: 123456789,
+        name: 'Test User',
+        role: UserRole.OPERATOR,
+      };
+
+      const genericError = new Error('connection error');
+
+      repository.findOne.mockResolvedValue(null);
+      repository.create.mockReturnValue(mockUser);
+      repository.save.mockRejectedValue(genericError);
+
+      await expect(service.create(createDto)).rejects.toThrow('connection error');
+    });
   });
 
   describe('findAll', () => {
@@ -180,6 +213,31 @@ describe('UsersService', () => {
       expect(repository.save).toHaveBeenCalled();
     });
 
+    it('should update all optional fields when provided', async () => {
+      const updateDto = {
+        name: 'Updated Name',
+        telegramUsername: 'newusername',
+        telegramFirstName: 'NewFirst',
+        phone: '+9876543210',
+        isActive: false,
+      };
+      const userCopy = { ...mockUser };
+      const updatedUser = { ...mockUser, ...updateDto };
+
+      repository.findOne.mockResolvedValue(userCopy);
+      repository.save.mockResolvedValue(updatedUser);
+
+      const result = await service.update('user-123', updateDto);
+
+      expect(userCopy.name).toBe('Updated Name');
+      expect(userCopy.telegramUsername).toBe('newusername');
+      expect(userCopy.telegramFirstName).toBe('NewFirst');
+      expect(userCopy.phone).toBe('+9876543210');
+      expect(userCopy.isActive).toBe(false);
+      expect(repository.save).toHaveBeenCalledWith(userCopy);
+      expect(result).toEqual(updatedUser);
+    });
+
     it('should throw NotFoundException when user not found', async () => {
       repository.findOne.mockResolvedValue(null);
 
@@ -258,6 +316,16 @@ describe('UsersService', () => {
           { role: UserRole.ADMIN, isActive: true },
         ],
       });
+    });
+  });
+
+  describe('deleteById', () => {
+    it('should delete user by id', async () => {
+      repository.delete = jest.fn().mockResolvedValue({ affected: 1 });
+
+      await service.deleteById('user-123');
+
+      expect(repository.delete).toHaveBeenCalledWith('user-123');
     });
   });
 });

@@ -167,6 +167,19 @@ describe('SettingsService', () => {
       expect(result).toBe('Welcome!');
     });
 
+    it('setWelcomeTitle should set welcome_title setting', async () => {
+      repository.findOne.mockResolvedValue(null);
+      repository.create.mockReturnValue({} as Setting);
+      repository.save.mockResolvedValue({
+        key: SETTING_KEYS.WELCOME_TITLE,
+        value: 'New Title',
+      } as Setting);
+
+      await service.setWelcomeTitle('New Title');
+
+      expect(repository.save).toHaveBeenCalled();
+    });
+
     it('getWelcomeText should get welcome_text setting', async () => {
       repository.findOne.mockResolvedValue({
         ...mockSetting,
@@ -177,6 +190,19 @@ describe('SettingsService', () => {
       const result = await service.getWelcomeText();
 
       expect(result).toBe('Welcome text');
+    });
+
+    it('setWelcomeText should set welcome_text setting', async () => {
+      repository.findOne.mockResolvedValue(null);
+      repository.create.mockReturnValue({} as Setting);
+      repository.save.mockResolvedValue({
+        key: SETTING_KEYS.WELCOME_TEXT,
+        value: 'New welcome text',
+      } as Setting);
+
+      await service.setWelcomeText('New welcome text');
+
+      expect(repository.save).toHaveBeenCalled();
     });
   });
 
@@ -215,6 +241,19 @@ describe('SettingsService', () => {
       expect(result).toBe('Manager help');
     });
 
+    it('setHelpManager should set help_manager setting', async () => {
+      repository.findOne.mockResolvedValue(null);
+      repository.create.mockReturnValue({} as Setting);
+      repository.save.mockResolvedValue({
+        key: SETTING_KEYS.HELP_MANAGER,
+        value: 'New manager help',
+      } as Setting);
+
+      await service.setHelpManager('New manager help');
+
+      expect(repository.save).toHaveBeenCalled();
+    });
+
     it('getHelpAdmin should get help_admin setting', async () => {
       repository.findOne.mockResolvedValue({
         ...mockSetting,
@@ -225,6 +264,19 @@ describe('SettingsService', () => {
       const result = await service.getHelpAdmin();
 
       expect(result).toBe('Admin help');
+    });
+
+    it('setHelpAdmin should set help_admin setting', async () => {
+      repository.findOne.mockResolvedValue(null);
+      repository.create.mockReturnValue({} as Setting);
+      repository.save.mockResolvedValue({
+        key: SETTING_KEYS.HELP_ADMIN,
+        value: 'New admin help',
+      } as Setting);
+
+      await service.setHelpAdmin('New admin help');
+
+      expect(repository.save).toHaveBeenCalled();
     });
   });
 

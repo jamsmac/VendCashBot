@@ -8,8 +8,10 @@ import { CreateCollectionDto } from './dto/create-collection.dto';
 import { ReceiveCollectionDto } from './dto/receive-collection.dto';
 import { EditCollectionDto } from './dto/edit-collection.dto';
 import { CancelCollectionDto } from './dto/cancel-collection.dto';
+import { BulkCancelCollectionDto } from './dto/bulk-cancel-collection.dto';
 import { BulkCreateCollectionDto } from './dto/bulk-create-collection.dto';
 import { CollectionQueryDto } from './dto/collection-query.dto';
+import { ForbiddenException } from '@nestjs/common';
 
 describe('CollectionsController', () => {
   let controller: CollectionsController;
@@ -85,6 +87,7 @@ describe('CollectionsController', () => {
             receive: jest.fn(),
             edit: jest.fn(),
             cancel: jest.fn(),
+            bulkCancel: jest.fn(),
           },
         },
       ],
@@ -221,6 +224,18 @@ describe('CollectionsController', () => {
 
       expect(collectionsService.findByIdOrFail).toHaveBeenCalledWith('collection-123');
       expect(result).toEqual(mockCollection);
+    });
+
+    it('should throw ForbiddenException when operator views another operators collection', async () => {
+      const otherOperatorCollection = {
+        ...mockCollection,
+        operatorId: 'other-operator-456',
+      } as Collection;
+      collectionsService.findByIdOrFail.mockResolvedValue(otherOperatorCollection);
+
+      await expect(
+        controller.findOne('collection-123', mockUser),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -387,6 +402,37 @@ describe('CollectionsController', () => {
       const result = await controller.receive('collection-123', dto, mockManagerUser);
 
       expect(result.notes).toBe('Received with extra coins');
+    });
+  });
+
+  describe('bulkCancel', () => {
+    it('should bulk cancel collections by IDs', async () => {
+      const dto: BulkCancelCollectionDto = {
+        ids: ['collection-1', 'collection-2'],
+        reason: 'Duplicate entries',
+      };
+      const expectedResult = { cancelled: 2, failed: 0, errors: [] as { id: string; error: string }[], total: 2 };
+      collectionsService.bulkCancel.mockResolvedValue(expectedResult);
+
+      const result = await controller.bulkCancel(dto, mockManagerUser);
+
+      expect(collectionsService.bulkCancel).toHaveBeenCalledWith(dto, mockManagerUser.id);
+      expect(result).toEqual(expectedResult);
+    });
+
+    it('should bulk cancel collections by filters', async () => {
+      const dto: BulkCancelCollectionDto = {
+        useFilters: true,
+        source: CollectionSource.MANUAL_HISTORY,
+        reason: 'Wrong import',
+      };
+      const expectedResult = { cancelled: 5, failed: 0, errors: [] as { id: string; error: string }[], total: 5 };
+      collectionsService.bulkCancel.mockResolvedValue(expectedResult);
+
+      const result = await controller.bulkCancel(dto, mockManagerUser);
+
+      expect(collectionsService.bulkCancel).toHaveBeenCalledWith(dto, mockManagerUser.id);
+      expect(result).toEqual(expectedResult);
     });
   });
 
