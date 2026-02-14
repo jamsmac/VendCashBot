@@ -5,6 +5,7 @@ import { machinesApi, MachineLocation } from '../api/machines'
 import { collectionsApi } from '../api/collections'
 import { Plus, Trash2, MapPin } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { batchBulkCreate, BULK_CREATE_LIMIT } from '../utils/batchProcess'
 
 const generateId = (): string => {
   try {
@@ -80,8 +81,13 @@ export default function HistoryByDate() {
   }, [selectedDate])
 
   const mutation = useMutation({
-    mutationFn: (data: { collections: { machineId: string; collectedAt: string; amount: number; locationId?: string }[]; source: string }) =>
-      collectionsApi.bulkCreate(data),
+    mutationFn: async (data: { collections: { machineId: string; collectedAt: string; amount: number; locationId?: string }[]; source: string }) => {
+      // BE-003: Use batch processing if exceeding server limit
+      if (data.collections.length > BULK_CREATE_LIMIT) {
+        return batchBulkCreate(data.collections, data.source, collectionsApi.bulkCreate)
+      }
+      return collectionsApi.bulkCreate(data)
+    },
     onSuccess: (result) => {
       toast.success(`Создано ${result.created} записей`)
       if (result.failed > 0) {

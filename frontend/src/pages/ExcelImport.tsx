@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { getErrorMessage } from '../utils/getErrorMessage'
 import { collectionsApi } from '../api/collections'
 import { machinesApi } from '../api/machines'
+import { batchBulkCreate, BULK_CREATE_LIMIT } from '../utils/batchProcess'
 
 interface ParsedRow {
   machineCode: string
@@ -157,6 +158,8 @@ export default function ExcelImport() {
     }
   }
 
+  const [batchProgress, setBatchProgress] = useState<string>('')
+
   const handleImport = async () => {
     const validRows = parsedData.filter((row) => row.isValid)
     if (validRows.length === 0) {
@@ -165,6 +168,7 @@ export default function ExcelImport() {
     }
 
     setIsLoading(true)
+    setBatchProgress('')
     try {
       const machinesData = await machinesApi.getAll()
       const machineMap = new Map(machinesData.map((m) => [m.code.toUpperCase(), m.id]))
@@ -201,12 +205,30 @@ export default function ExcelImport() {
         return
       }
 
-      const result = await collectionsApi.bulkCreate({
+      // BE-003: Use batch processing for large imports (>1000 items)
+      const needsBatching = collections.length > BULK_CREATE_LIMIT
+      if (needsBatching) {
+        toast(`Импорт ${collections.length} записей батчами по ${BULK_CREATE_LIMIT}...`, {
+          icon: '📦',
+          duration: 3000,
+        })
+      }
+
+      const result = await batchBulkCreate(
         collections,
-        source: 'excel_import',
-      })
+        'excel_import',
+        collectionsApi.bulkCreate,
+        needsBatching
+          ? (progress) => {
+              setBatchProgress(
+                `Батч ${progress.currentBatch}/${progress.totalBatches} (${progress.processed}/${progress.total})`
+              )
+            }
+          : undefined,
+      )
 
       setImportResult(result)
+      setBatchProgress('')
 
       if (result.created > 0) {
         toast.success(`Импортировано ${result.created} записей`)
@@ -218,6 +240,7 @@ export default function ExcelImport() {
       toast.error(getErrorMessage(err, 'Ошибка импорта'))
     } finally {
       setIsLoading(false)
+      setBatchProgress('')
     }
   }
 
@@ -439,7 +462,7 @@ export default function ExcelImport() {
               disabled={isLoading || validCount === 0}
               className="btn btn-primary"
             >
-              {isLoading ? 'Импорт...' : `Импортировать ${validCount} записей`}
+              {isLoading ? (batchProgress || 'Импорт...') : `Импортировать ${validCount} записей`}
             </button>
           </div>
         </div>
