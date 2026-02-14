@@ -13,19 +13,19 @@ export default function Reports() {
 
   const { data: byMachine, isLoading: loadingMachine } = useQuery({
     queryKey: ['reports-by-machine', query],
-    queryFn: () => reportsApi.getByMachine(query),
+    queryFn: ({ signal }) => reportsApi.getByMachine(query, signal),
     enabled: activeTab === 'machine',
   })
 
   const { data: byDate, isLoading: loadingDate } = useQuery({
     queryKey: ['reports-by-date', query],
-    queryFn: () => reportsApi.getByDate(query),
+    queryFn: ({ signal }) => reportsApi.getByDate(query, signal),
     enabled: activeTab === 'date',
   })
 
   const { data: byOperator, isLoading: loadingOperator } = useQuery({
     queryKey: ['reports-by-operator', query],
-    queryFn: () => reportsApi.getByOperator(query),
+    queryFn: ({ signal }) => reportsApi.getByOperator(query, signal),
     enabled: activeTab === 'operator',
   })
 

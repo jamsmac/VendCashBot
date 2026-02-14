@@ -15,7 +15,7 @@ export default function Collections() {
   // Fetch pending count for the badge
   const { data: pending } = useQuery({
     queryKey: ['pending-count'],
-    queryFn: collectionsApi.getPending,
+    queryFn: ({ signal }) => collectionsApi.getPending(signal),
     refetchInterval: 30000,
   })
 

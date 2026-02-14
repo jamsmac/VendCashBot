@@ -12,7 +12,7 @@ export default function PendingCollections() {
 
     const { data: pending, isLoading, refetch } = useQuery({
         queryKey: ['pending-collections'],
-        queryFn: collectionsApi.getPending,
+        queryFn: ({ signal }) => collectionsApi.getPending(signal),
     })
 
     const handleReceive = async (amount: number, notes?: string) => {

@@ -19,13 +19,13 @@ export interface FinanceBalance {
 }
 
 export const financeApi = {
-    getBalance: async (): Promise<FinanceBalance> => {
-        const response = await apiClient.get('/finance/balance')
+    getBalance: async (signal?: AbortSignal): Promise<FinanceBalance> => {
+        const response = await apiClient.get('/finance/balance', { signal })
         return response.data
     },
 
-    getDeposits: async (): Promise<BankDeposit[]> => {
-        const response = await apiClient.get('/finance/deposits')
+    getDeposits: async (signal?: AbortSignal): Promise<BankDeposit[]> => {
+        const response = await apiClient.get('/finance/deposits', { signal })
         return response.data
     },
 

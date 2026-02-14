@@ -38,8 +38,8 @@ export const authApi = {
     return response.data
   },
 
-  validateInvite: async (code: string): Promise<{ valid: boolean; role?: string }> => {
-    const response = await apiClient.get(`/auth/validate-invite/${encodeURIComponent(code)}`)
+  validateInvite: async (code: string, signal?: AbortSignal): Promise<{ valid: boolean; role?: string }> => {
+    const response = await apiClient.get(`/auth/validate-invite/${encodeURIComponent(code)}`, { signal })
     return response.data
   },
 
@@ -48,8 +48,8 @@ export const authApi = {
     return response.data
   },
 
-  me: async (): Promise<User> => {
-    const response = await apiClient.get('/auth/me')
+  me: async (signal?: AbortSignal): Promise<User> => {
+    const response = await apiClient.get('/auth/me', { signal })
     return response.data
   },
 

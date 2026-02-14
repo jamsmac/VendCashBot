@@ -59,13 +59,13 @@ export interface UpdateMachineLocationData {
 }
 
 export const machinesApi = {
-  getAll: async (activeOnly = true): Promise<Machine[]> => {
-    const response = await apiClient.get('/machines', { params: { active: activeOnly } })
+  getAll: async (activeOnly = true, signal?: AbortSignal): Promise<Machine[]> => {
+    const response = await apiClient.get('/machines', { params: { active: activeOnly }, signal })
     return response.data
   },
 
-  getById: async (id: string): Promise<Machine> => {
-    const response = await apiClient.get(`/machines/${id}`)
+  getById: async (id: string, signal?: AbortSignal): Promise<Machine> => {
+    const response = await apiClient.get(`/machines/${id}`, { signal })
     return response.data
   },
 
@@ -90,19 +90,20 @@ export const machinesApi = {
   },
 
   // Machine Locations
-  getLocations: async (machineId: string): Promise<MachineLocation[]> => {
-    const response = await apiClient.get(`/machines/${machineId}/locations`)
+  getLocations: async (machineId: string, signal?: AbortSignal): Promise<MachineLocation[]> => {
+    const response = await apiClient.get(`/machines/${machineId}/locations`, { signal })
     return response.data
   },
 
-  getCurrentLocation: async (machineId: string): Promise<MachineLocation | null> => {
-    const response = await apiClient.get(`/machines/${machineId}/locations/current`)
+  getCurrentLocation: async (machineId: string, signal?: AbortSignal): Promise<MachineLocation | null> => {
+    const response = await apiClient.get(`/machines/${machineId}/locations/current`, { signal })
     return response.data
   },
 
-  getLocationForDate: async (machineId: string, date: string): Promise<MachineLocation | null> => {
+  getLocationForDate: async (machineId: string, date: string, signal?: AbortSignal): Promise<MachineLocation | null> => {
     const response = await apiClient.get(`/machines/${machineId}/locations/for-date`, {
       params: { date },
+      signal,
     })
     return response.data
   },

@@ -42,18 +42,18 @@ export interface BulkCancelResult {
 }
 
 export const collectionsApi = {
-  getAll: async (query: CollectionQuery = {}): Promise<{ data: Collection[]; total: number }> => {
-    const response = await apiClient.get('/collections', { params: query })
+  getAll: async (query: CollectionQuery = {}, signal?: AbortSignal): Promise<{ data: Collection[]; total: number }> => {
+    const response = await apiClient.get('/collections', { params: query, signal })
     return response.data
   },
 
-  getPending: async (): Promise<Collection[]> => {
-    const response = await apiClient.get('/collections/pending')
+  getPending: async (signal?: AbortSignal): Promise<Collection[]> => {
+    const response = await apiClient.get('/collections/pending', { signal })
     return response.data
   },
 
-  getById: async (id: string): Promise<Collection> => {
-    const response = await apiClient.get(`/collections/${id}`)
+  getById: async (id: string, signal?: AbortSignal): Promise<Collection> => {
+    const response = await apiClient.get(`/collections/${id}`, { signal })
     return response.data
   },
 
@@ -101,8 +101,8 @@ export const collectionsApi = {
     return response.data
   },
 
-  getHistory: async (id: string) => {
-    const response = await apiClient.get(`/collections/${id}/history`)
+  getHistory: async (id: string, signal?: AbortSignal) => {
+    const response = await apiClient.get(`/collections/${id}/history`, { signal })
     return response.data
   },
 }

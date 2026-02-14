@@ -13,12 +13,12 @@ export default function Dashboard() {
 
   const { data: dashboard, isLoading: dashboardLoading } = useQuery({
     queryKey: ['dashboard'],
-    queryFn: reportsApi.getDashboard,
+    queryFn: ({ signal }) => reportsApi.getDashboard(signal),
   })
 
   const { data: pending, isLoading: pendingLoading, refetch: refetchPending } = useQuery({
     queryKey: ['pending-collections'],
-    queryFn: collectionsApi.getPending,
+    queryFn: ({ signal }) => collectionsApi.getPending(signal),
   })
 
   const handleReceive = async (amount: number, notes?: string) => {

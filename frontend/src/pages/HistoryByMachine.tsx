@@ -33,12 +33,12 @@ export default function HistoryByMachine() {
 
   const { data: machines } = useQuery({
     queryKey: ['machines'],
-    queryFn: () => machinesApi.getAll(),
+    queryFn: ({ signal }) => machinesApi.getAll(true, signal),
   })
 
   const { data: locations } = useQuery({
     queryKey: ['machine-locations', selectedMachine?.id],
-    queryFn: () => selectedMachine ? machinesApi.getLocations(selectedMachine.id) : Promise.resolve([]),
+    queryFn: ({ signal }) => selectedMachine ? machinesApi.getLocations(selectedMachine.id, signal) : Promise.resolve([]),
     enabled: !!selectedMachine,
   })
 

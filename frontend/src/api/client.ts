@@ -50,6 +50,11 @@ const handleAuthFailure = () => {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
+    // FE-001: Silently reject cancelled requests (AbortController)
+    if (axios.isCancel(error)) {
+      return Promise.reject(error)
+    }
+
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
     // Network error (no response)

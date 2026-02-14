@@ -38,7 +38,7 @@ export default function HistoryByDate() {
 
   const { data: machines } = useQuery({
     queryKey: ['machines'],
-    queryFn: () => machinesApi.getAll(),
+    queryFn: ({ signal }) => machinesApi.getAll(true, signal),
   })
 
   // Load locations when machine is selected

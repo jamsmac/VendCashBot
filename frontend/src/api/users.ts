@@ -12,32 +12,14 @@ export interface Invite {
   createdAt: string
 }
 
-export interface PaginatedUsers {
-  data: User[]
-  meta: {
-    total: number
-    page: number
-    limit: number
-    totalPages: number
-  }
-}
-
-export interface UsersQueryParams {
-  page?: number
-  limit?: number
-  role?: string
-  includeInactive?: boolean
-  search?: string
-}
-
 export const usersApi = {
-  getAll: async (params: UsersQueryParams = {}): Promise<PaginatedUsers> => {
-    const response = await apiClient.get('/users', { params })
+  getAll: async (role?: string, includeInactive = false, signal?: AbortSignal): Promise<User[]> => {
+    const response = await apiClient.get('/users', { params: { role, includeInactive }, signal })
     return response.data
   },
 
-  getById: async (id: string): Promise<User> => {
-    const response = await apiClient.get(`/users/${id}`)
+  getById: async (id: string, signal?: AbortSignal): Promise<User> => {
+    const response = await apiClient.get(`/users/${id}`, { signal })
     return response.data
   },
 
@@ -56,20 +38,20 @@ export const usersApi = {
     return response.data
   },
 
-  getOperators: async (): Promise<User[]> => {
-    const response = await apiClient.get('/users/operators')
+  getOperators: async (signal?: AbortSignal): Promise<User[]> => {
+    const response = await apiClient.get('/users/operators', { signal })
     return response.data
   },
 }
 
 export const invitesApi = {
-  getAll: async (): Promise<Invite[]> => {
-    const response = await apiClient.get('/invites')
+  getAll: async (signal?: AbortSignal): Promise<Invite[]> => {
+    const response = await apiClient.get('/invites', { signal })
     return response.data
   },
 
-  getPending: async (): Promise<Invite[]> => {
-    const response = await apiClient.get('/invites/pending')
+  getPending: async (signal?: AbortSignal): Promise<Invite[]> => {
+    const response = await apiClient.get('/invites/pending', { signal })
     return response.data
   },
 

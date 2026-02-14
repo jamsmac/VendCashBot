@@ -1,26 +1,14 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { usersApi, invitesApi, UsersQueryParams } from '../api/users'
+import { usersApi, invitesApi } from '../api/users'
 import { User } from '../api/auth'
-import {
-  Plus,
-  Edit,
-  X,
-  Check,
-  XCircle,
-  Copy,
-  Trash2,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react'
+import { Plus, Edit, X, Check, XCircle, Copy, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getErrorMessage } from '../utils/getErrorMessage'
 import { format } from 'date-fns'
 
 const BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'vendhubcashbot'
-const PAGE_SIZE = 20
 
 export default function Users() {
   const queryClient = useQueryClient()
@@ -29,52 +17,18 @@ export default function Users() {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [inviteLink, setInviteLink] = useState('')
   const [showInactive, setShowInactive] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchInput, setSearchInput] = useState('')
 
-  const queryParams: UsersQueryParams = {
-    page: currentPage,
-    limit: PAGE_SIZE,
-    includeInactive: showInactive,
-    ...(searchQuery ? { search: searchQuery } : {}),
-  }
-
-  const { data: usersData, isLoading: usersLoading } = useQuery({
-    queryKey: ['users', queryParams],
-    queryFn: () => usersApi.getAll(queryParams),
+  const { data: users, isLoading: usersLoading } = useQuery({
+    queryKey: ['users', showInactive],
+    queryFn: ({ signal }) => usersApi.getAll(undefined, showInactive, signal),
   })
-
-  const users = usersData?.data
-  const meta = usersData?.meta
 
   const { data: pendingInvites } = useQuery({
     queryKey: ['pending-invites'],
-    queryFn: invitesApi.getPending,
+    queryFn: ({ signal }) => invitesApi.getPending(signal),
   })
 
   const { register, handleSubmit, reset } = useForm<{ name: string; phone: string }>()
-
-  // Reset to page 1 when filters change
-  const handleShowInactiveChange = (checked: boolean) => {
-    setShowInactive(checked)
-    setCurrentPage(1)
-  }
-
-  const handleSearch = useCallback(() => {
-    setSearchQuery(searchInput)
-    setCurrentPage(1)
-  }, [searchInput])
-
-  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleSearch()
-  }
-
-  const clearSearch = () => {
-    setSearchInput('')
-    setSearchQuery('')
-    setCurrentPage(1)
-  }
 
   const createInviteMutation = useMutation({
     mutationFn: invitesApi.create,
@@ -173,38 +127,13 @@ export default function Users() {
         </button>
       </div>
 
-      {/* Filters & Search */}
-      <div className="card p-4 space-y-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-          {/* Search */}
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Поиск по имени или Telegram..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              className="input pl-10 pr-8 w-full"
-            />
-            {searchInput && (
-              <button
-                onClick={clearSearch}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-          <button onClick={handleSearch} className="btn btn-secondary">
-            Найти
-          </button>
-        </div>
+      {/* Filters */}
+      <div className="card p-4">
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
             checked={showInactive}
-            onChange={(e) => handleShowInactiveChange(e.target.checked)}
+            onChange={(e) => setShowInactive(e.target.checked)}
             className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
           />
           <span className="text-sm">Показать неактивных</span>
@@ -230,14 +159,8 @@ export default function Users() {
                   Загрузка...
                 </td>
               </tr>
-            ) : !users?.length ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                  {searchQuery ? 'Ничего не найдено' : 'Нет пользователей'}
-                </td>
-              </tr>
             ) : (
-              users.map((user) => (
+              users?.map((user) => (
                 <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{user.name}</td>
                   <td className="px-4 py-3">{getRoleBadge(user.role)}</td>
@@ -288,50 +211,6 @@ export default function Users() {
             )}
           </tbody>
         </table>
-
-        {/* Pagination */}
-        {meta && meta.totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Показано {((meta.page - 1) * meta.limit) + 1}–{Math.min(meta.page * meta.limit, meta.total)} из {meta.total}
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                aria-label="Предыдущая страница"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              {generatePageNumbers(currentPage, meta.totalPages).map((p, i) =>
-                p === '...' ? (
-                  <span key={`dots-${i}`} className="px-2 text-gray-400">...</span>
-                ) : (
-                  <button
-                    key={p}
-                    onClick={() => setCurrentPage(p as number)}
-                    className={`w-8 h-8 rounded-lg text-sm font-medium ${
-                      currentPage === p
-                        ? 'bg-primary-600 text-white'
-                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ),
-              )}
-              <button
-                onClick={() => setCurrentPage((p) => Math.min(meta.totalPages, p + 1))}
-                disabled={currentPage === meta.totalPages}
-                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                aria-label="Следующая страница"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Pending Invites */}
@@ -502,30 +381,4 @@ export default function Users() {
       )}
     </div>
   )
-}
-
-/** Generate page number buttons: [1, 2, '...', 5, 6, 7, '...', 10] */
-function generatePageNumbers(
-  current: number,
-  total: number,
-): (number | '...')[] {
-  if (total <= 7) {
-    return Array.from({ length: total }, (_, i) => i + 1)
-  }
-
-  const pages: (number | '...')[] = [1]
-
-  if (current > 3) pages.push('...')
-
-  const start = Math.max(2, current - 1)
-  const end = Math.min(total - 1, current + 1)
-
-  for (let i = start; i <= end; i++) {
-    pages.push(i)
-  }
-
-  if (current < total - 2) pages.push('...')
-
-  pages.push(total)
-  return pages
 }

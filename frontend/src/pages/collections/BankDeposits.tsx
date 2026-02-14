@@ -12,12 +12,12 @@ export default function BankDeposits() {
 
     const { data: balance, refetch: refetchBalance } = useQuery({
         queryKey: ['finance-balance'],
-        queryFn: financeApi.getBalance,
+        queryFn: ({ signal }) => financeApi.getBalance(signal),
     })
 
     const { data: deposits, refetch: refetchDeposits } = useQuery({
         queryKey: ['finance-deposits'],
-        queryFn: financeApi.getDeposits,
+        queryFn: ({ signal }) => financeApi.getDeposits(signal),
     })
 
     const handleDeposit = async (data: { amount: number; notes: string; date: string }) => {

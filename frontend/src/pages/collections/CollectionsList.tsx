@@ -25,12 +25,12 @@ export default function CollectionsList() {
 
     const { data, isLoading, refetch } = useQuery({
         queryKey: ['collections', query],
-        queryFn: () => collectionsApi.getAll(query),
+        queryFn: ({ signal }) => collectionsApi.getAll(query, signal),
     })
 
     const { data: machines } = useQuery({
         queryKey: ['machines'],
-        queryFn: () => machinesApi.getAll(),
+        queryFn: ({ signal }) => machinesApi.getAll(true, signal),
     })
 
     const handleReceive = async (amount: number, notes?: string) => {

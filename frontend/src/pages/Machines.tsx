@@ -56,7 +56,7 @@ export default function Machines() {
 
   const { data: machines, isLoading } = useQuery({
     queryKey: ['machines', showInactive],
-    queryFn: () => machinesApi.getAll(!showInactive),
+    queryFn: ({ signal }) => machinesApi.getAll(!showInactive, signal),
   })
 
   const { data: locations, isLoading: isLoadingLocations } = useQuery({
