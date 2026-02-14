@@ -16,7 +16,7 @@ function parseDatabaseUrl(): { host: string; port: number; username: string; pas
       database: url.pathname.slice(1),
     };
   } catch {
-    console.error('Failed to parse DATABASE_URL');
+    process.stderr.write(JSON.stringify({ timestamp: new Date().toISOString(), level: 'error', context: 'DataSource', message: 'Failed to parse DATABASE_URL' }) + '\n');
     return null;
   }
 }

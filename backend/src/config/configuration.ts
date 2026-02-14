@@ -1,5 +1,14 @@
 const isProduction = process.env.NODE_ENV === 'production';
 
+/**
+ * QA-003: Structured log output for config warnings/errors.
+ * Uses JSON format so log aggregators can parse these during bootstrap.
+ */
+function configLog(level: 'warn' | 'error', message: string, meta?: Record<string, unknown>): void {
+  const entry = { timestamp: new Date().toISOString(), level, context: 'Configuration', message, ...meta };
+  process.stderr.write(JSON.stringify(entry) + '\n');
+}
+
 // Helper for environment variables (used by warnIfDefault and for explicit env access)
 function getEnv(name: string, defaultValue?: string): string {
   return process.env[name] ?? defaultValue ?? '';
@@ -9,7 +18,7 @@ function getEnv(name: string, defaultValue?: string): string {
 function warnIfDefault(name: string, defaultValue: string): string {
   const value = getEnv(name, defaultValue);
   if (value === defaultValue && !isProduction) {
-    console.warn(`⚠️  Warning: Using default value for ${name}. Set it in .env for security.`);
+    configLog('warn', `Using default value for ${name}. Set it in .env for security.`, { envVar: name });
   }
   return value;
 }
@@ -29,7 +38,7 @@ function parseDatabaseUrl(): { host: string; port: number; username: string; pas
       database: url.pathname.slice(1), // Remove leading /
     };
   } catch {
-    console.error('Failed to parse DATABASE_URL');
+    configLog('error', 'Failed to parse DATABASE_URL');
     return null;
   }
 }
@@ -41,7 +50,7 @@ export default () => {
     if (isProduction) {
       throw new Error('JWT_SECRET is required in production environment');
     }
-    console.warn('⚠️  JWT_SECRET is not set! Using insecure default. Set JWT_SECRET in .env');
+    configLog('warn', 'JWT_SECRET is not set! Using insecure default. Set JWT_SECRET in .env');
   }
   if (isProduction && jwtSecret && jwtSecret.length < 32) {
     throw new Error('JWT_SECRET must be at least 32 characters long for security');

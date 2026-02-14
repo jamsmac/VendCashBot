@@ -4,16 +4,30 @@ import 'winston-daily-rotate-file';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Console transport with colors for development
+/**
+ * QA-003: Structured JSON logging configuration.
+ *
+ * Development: Colored, human-readable console output (NestJS style)
+ * Production: JSON format on console (for log aggregators like ELK/Datadog)
+ *           + daily rotated JSON log files + separate error log files
+ */
+
+// Console transport: pretty in dev, JSON in production
 const consoleTransport = new winston.transports.Console({
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.ms(),
-    nestWinstonModuleUtilities.format.nestLike('VendCash', {
-      colors: !isProduction,
-      prettyPrint: !isProduction,
-    }),
-  ),
+  format: isProduction
+    ? winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.errors({ stack: true }),
+        winston.format.json(),
+      )
+    : winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.ms(),
+        nestWinstonModuleUtilities.format.nestLike('VendCash', {
+          colors: true,
+          prettyPrint: true,
+        }),
+      ),
 });
 
 // File transport with daily rotation for production
@@ -25,6 +39,7 @@ const fileRotateTransport = new winston.transports.DailyRotateFile({
   maxFiles: '14d',
   format: winston.format.combine(
     winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
     winston.format.json(),
   ),
 });
@@ -39,6 +54,7 @@ const errorFileTransport = new winston.transports.DailyRotateFile({
   level: 'error',
   format: winston.format.combine(
     winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
     winston.format.json(),
   ),
 });

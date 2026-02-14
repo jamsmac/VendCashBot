@@ -1,14 +1,31 @@
 import { DataSource } from 'typeorm';
 import { User, UserRole } from './modules/users/entities/user.entity';
 import { Machine } from './modules/machines/entities/machine.entity';
+import * as winston from 'winston';
 import 'dotenv/config';
+
+/**
+ * QA-003: Standalone Winston logger for seed script.
+ * Uses JSON format in production, pretty print in development.
+ */
+const isProduction = process.env.NODE_ENV === 'production';
+const logger = winston.createLogger({
+  level: 'info',
+  format: isProduction
+    ? winston.format.combine(winston.format.timestamp(), winston.format.json())
+    : winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple(),
+      ),
+  transports: [new winston.transports.Console()],
+});
 
 // Support DATABASE_URL (Railway) or individual DB_* env vars
 const dbConfig = process.env.DATABASE_URL
   ? {
       type: 'postgres' as const,
       url: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production'
+      ssl: isProduction
         ? { rejectUnauthorized: !!process.env.DATABASE_CA_CERT }
         : false,
     }
@@ -44,10 +61,10 @@ const machines = [
 ];
 
 async function seed() {
-  console.log('🌱 Starting seed...');
+  logger.info('Starting seed', { action: 'seed_start' });
 
   await dataSource.initialize();
-  console.log('✅ Database connected');
+  logger.info('Database connected', { action: 'db_connected' });
 
   const userRepository = dataSource.getRepository(User);
   const machineRepository = dataSource.getRepository(Machine);
@@ -55,7 +72,7 @@ async function seed() {
   // Create admin user
   const adminTelegramId = process.env.ADMIN_TELEGRAM_ID;
   if (!adminTelegramId) {
-    console.error('❌ ADMIN_TELEGRAM_ID is required!');
+    logger.error('ADMIN_TELEGRAM_ID is required', { action: 'seed_error' });
     process.exit(1);
   }
 
@@ -71,9 +88,9 @@ async function seed() {
       isActive: true,
     });
     await userRepository.save(admin);
-    console.log(`✅ Admin user created: ${admin.name} (TG ID: ${admin.telegramId})`);
+    logger.info('Admin user created', { action: 'admin_created', name: admin.name, telegramId: admin.telegramId });
   } else {
-    console.log(`ℹ️ Admin user already exists: ${existingAdmin.name}`);
+    logger.info('Admin user already exists', { action: 'admin_exists', name: existingAdmin.name });
   }
 
   // Create machines
@@ -89,17 +106,17 @@ async function seed() {
         isActive: true,
       });
       await machineRepository.save(machine);
-      console.log(`✅ Machine created: ${machine.name} (${machine.code})`);
+      logger.info('Machine created', { action: 'machine_created', name: machine.name, code: machine.code });
     } else {
-      console.log(`ℹ️ Machine already exists: ${existing.name}`);
+      logger.info('Machine already exists', { action: 'machine_exists', name: existing.name, code: existing.code });
     }
   }
 
-  console.log('\n🎉 Seed completed!');
+  logger.info('Seed completed', { action: 'seed_complete' });
   await dataSource.destroy();
 }
 
 seed().catch((error) => {
-  console.error('❌ Seed failed:', error);
+  logger.error('Seed failed', { action: 'seed_failed', error: error.message, stack: error.stack });
   process.exit(1);
 });
