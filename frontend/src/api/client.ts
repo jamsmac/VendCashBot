@@ -1,5 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import toast from 'react-hot-toast'
+import { captureException } from '../config/sentry'
 
 const API_URL = import.meta.env.VITE_API_URL || '/api'
 
@@ -69,8 +70,14 @@ apiClient.interceptors.response.use(
 
     const status = error.response.status
 
-    // Server errors (5xx)
+    // Server errors (5xx) — report to Sentry
     if (status >= 500) {
+      captureException(error, {
+        context: 'API 5xx',
+        url: originalRequest?.url,
+        method: originalRequest?.method,
+        status,
+      })
       toast.error('Ошибка сервера. Попробуйте позже.')
       return Promise.reject(error)
     }

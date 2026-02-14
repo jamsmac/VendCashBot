@@ -27,7 +27,8 @@
     "react-router-dom": "^6.21.2",
     "socket.io-client": "^4.8.3",
     "xlsx": "^0.18.5",
-    "zustand": "^4.4.7"
+    "zustand": "^4.4.7",
+    "@sentry/react": "^8.0.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

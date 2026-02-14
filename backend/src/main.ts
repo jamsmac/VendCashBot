@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { createLogger } from './config/logger.config';
+import { initSentry, captureException, flushSentry } from './config/sentry.config';
 
 /**
  * Global exception filter that prevents stack traces from leaking in production.
@@ -28,6 +29,13 @@ class GlobalExceptionFilter extends BaseExceptionFilter {
       exception instanceof Error ? exception.stack : String(exception),
     );
 
+    // QA-004: Report to Sentry
+    captureException(exception, {
+      context: 'GlobalExceptionFilter',
+      url: ctx.getRequest()?.url,
+      method: ctx.getRequest()?.method,
+    });
+
     // Return safe error response without stack trace
     const status = HttpStatus.INTERNAL_SERVER_ERROR;
     response.status(status).json({
@@ -41,6 +49,9 @@ class GlobalExceptionFilter extends BaseExceptionFilter {
 }
 
 async function bootstrap() {
+  // QA-004: Initialize Sentry before anything else
+  initSentry();
+
   const logger = createLogger();
 
   const app = await NestFactory.create(AppModule, {
@@ -127,6 +138,11 @@ async function bootstrap() {
 
   // Enable graceful shutdown hooks (handles SIGTERM/SIGINT automatically)
   app.enableShutdownHooks();
+
+  // QA-004: Flush Sentry events on shutdown
+  process.on('beforeExit', async () => {
+    await flushSentry();
+  });
 
   try {
     await app.listen(port, '0.0.0.0');

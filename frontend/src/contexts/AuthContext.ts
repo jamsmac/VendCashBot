@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { authApi, User, TelegramLoginData } from '../api/auth'
+import { setSentryUser } from '../config/sentry'
 
 export type TelegramAuthData = TelegramLoginData
 
@@ -25,6 +26,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   login: async (telegramData: TelegramAuthData) => {
     try {
       const response = await authApi.telegramLogin(telegramData)
+      setSentryUser({ id: response.user.id, role: response.user.role })
       set({
         user: response.user,
         isAuthenticated: true,
@@ -70,6 +72,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     } catch {
       // Ignore logout errors - clear state anyway
     }
+    setSentryUser(null)
     set({ user: null, isAuthenticated: false, isLoading: false })
   },
 

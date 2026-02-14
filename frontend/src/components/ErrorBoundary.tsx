@@ -1,4 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { captureException } from '../config/sentry';
 
 interface Props {
   children: ReactNode;
@@ -28,7 +29,11 @@ export class ErrorBoundary extends Component<Props, State> {
     if (import.meta.env.DEV) {
       console.error('ErrorBoundary caught an error:', error, errorInfo);
     }
-    // TODO: Send error to monitoring service (Sentry, etc.) in production
+    // QA-004: Send error to Sentry
+    captureException(error, {
+      componentStack: errorInfo.componentStack,
+      context: 'ErrorBoundary',
+    });
   }
 
   private handleReload = () => {
