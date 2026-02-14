@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { User, UserRole } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { PaginatedResult } from '../../common/dto/pagination-query.dto';
 
 @Injectable()
 export class UsersService {
@@ -45,6 +46,47 @@ export class UsersService {
     }
 
     return query.orderBy('user.createdAt', 'DESC').getMany();
+  }
+
+  async findAllPaginated(
+    page = 1,
+    limit = 20,
+    role?: UserRole,
+    includeInactive = false,
+    search?: string,
+  ): Promise<PaginatedResult<User>> {
+    const query = this.userRepository.createQueryBuilder('user');
+
+    if (role) {
+      query.andWhere('user.role = :role', { role });
+    }
+
+    if (!includeInactive) {
+      query.andWhere('user.isActive = :isActive', { isActive: true });
+    }
+
+    if (search && search.trim()) {
+      query.andWhere(
+        '(LOWER(user.name) LIKE :search OR LOWER(user.telegramUsername) LIKE :search)',
+        { search: `%${search.trim().toLowerCase()}%` },
+      );
+    }
+
+    const [data, total] = await query
+      .orderBy('user.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
   }
 
   async findById(id: string): Promise<User | null> {

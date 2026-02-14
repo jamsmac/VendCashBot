@@ -12,9 +12,27 @@ export interface Invite {
   createdAt: string
 }
 
+export interface PaginatedUsers {
+  data: User[]
+  meta: {
+    total: number
+    page: number
+    limit: number
+    totalPages: number
+  }
+}
+
+export interface UsersQueryParams {
+  page?: number
+  limit?: number
+  role?: string
+  includeInactive?: boolean
+  search?: string
+}
+
 export const usersApi = {
-  getAll: async (role?: string, includeInactive = false): Promise<User[]> => {
-    const response = await apiClient.get('/users', { params: { role, includeInactive } })
+  getAll: async (params: UsersQueryParams = {}): Promise<PaginatedUsers> => {
+    const response = await apiClient.get('/users', { params })
     return response.data
   },
 

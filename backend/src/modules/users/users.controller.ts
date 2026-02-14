@@ -22,14 +22,28 @@ export class UsersController {
 
   @Get()
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Get all users (admin only)' })
+  @ApiOperation({ summary: 'Get users with pagination (admin only)' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 20, max: 100)' })
   @ApiQuery({ name: 'role', required: false, enum: UserRole })
   @ApiQuery({ name: 'includeInactive', required: false, type: Boolean })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by name or telegram username' })
   async findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
     @Query('role') role?: UserRole,
     @Query('includeInactive') includeInactive?: string,
+    @Query('search') search?: string,
   ) {
-    return this.usersService.findAll(role, includeInactive === 'true');
+    const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit || '20', 10) || 20));
+    return this.usersService.findAllPaginated(
+      pageNum,
+      limitNum,
+      role,
+      includeInactive === 'true',
+      search,
+    );
   }
 
   @Get('operators')
