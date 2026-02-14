@@ -28,8 +28,9 @@ export interface NotificationPayload {
 
       const allowedOrigins: string[] = [
         process.env.FRONTEND_URL,
-        'http://localhost:3000',
-        'http://localhost:5173',
+        ...(process.env.NODE_ENV !== 'production'
+          ? ['http://localhost:3000', 'http://localhost:5173']
+          : []),
       ].filter((url): url is string => Boolean(url));
 
       if (allowedOrigins.some(allowed => origin === allowed)) {

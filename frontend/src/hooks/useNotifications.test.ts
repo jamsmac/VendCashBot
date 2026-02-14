@@ -336,7 +336,6 @@ describe('useNotificationsStore', () => {
 
     it('should handle mixed read and unread notifications', () => {
       let id1: string
-      let id2: string
 
       act(() => {
         useNotificationsStore.getState().addNotification({
@@ -349,7 +348,6 @@ describe('useNotificationsStore', () => {
           data: { amount: 50000 },
           timestamp: new Date(),
         })
-        id2 = useNotificationsStore.getState().notifications[0].id
         id1 = useNotificationsStore.getState().notifications[1].id
       })
 
@@ -450,7 +448,6 @@ describe('useNotificationsStore', () => {
     it('should handle complex workflow', () => {
       let id1: string
       let id2: string
-      let id3: string
 
       act(() => {
         // Add 3 notifications
@@ -470,7 +467,6 @@ describe('useNotificationsStore', () => {
           timestamp: new Date(),
         })
         const notifications = useNotificationsStore.getState().notifications
-        id3 = notifications[0].id
         id2 = notifications[1].id
         id1 = notifications[2].id
       })

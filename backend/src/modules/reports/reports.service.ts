@@ -39,8 +39,27 @@ export interface OperatorReport {
 @Injectable()
 export class ReportsService {
   private readonly CACHE_TTL = 60000; // 1 minute cache for reports
+  private readonly DASHBOARD_CACHE_TTL = 30000; // 30 seconds for dashboard
+  private static readonly MAX_CACHE_KEYS = 200; // Prevent unbounded growth
   // Track active cache keys for reliable invalidation without Redis pattern matching
   private readonly activeCacheKeys = new Set<string>();
+
+  /**
+   * Track a cache key with upper bound to prevent memory leak.
+   * When limit is reached, old keys are pruned (they'll expire naturally in Redis).
+   */
+  private trackCacheKey(key: string): void {
+    if (this.activeCacheKeys.size >= ReportsService.MAX_CACHE_KEYS) {
+      // Remove oldest entries (Set preserves insertion order)
+      const iterator = this.activeCacheKeys.values();
+      const halfSize = Math.floor(ReportsService.MAX_CACHE_KEYS / 2);
+      for (let i = 0; i < halfSize; i++) {
+        const oldest = iterator.next().value;
+        if (oldest) this.activeCacheKeys.delete(oldest);
+      }
+    }
+    this.activeCacheKeys.add(key);
+  }
 
   constructor(
     @InjectRepository(Collection)
@@ -109,7 +128,7 @@ export class ReportsService {
       averageAmount: receivedCount > 0 ? totalAmount / receivedCount : 0,
     };
 
-    this.activeCacheKeys.add(cacheKey);
+    this.trackCacheKey(cacheKey);
     await this.cacheManager.set(cacheKey, report, this.CACHE_TTL);
     return report;
   }
@@ -172,7 +191,7 @@ export class ReportsService {
       totals,
     };
 
-    this.activeCacheKeys.add(cacheKey);
+    this.trackCacheKey(cacheKey);
     await this.cacheManager.set(cacheKey, report, this.CACHE_TTL);
     return report;
   }
@@ -227,7 +246,7 @@ export class ReportsService {
       totals,
     };
 
-    this.activeCacheKeys.add(cacheKey);
+    this.trackCacheKey(cacheKey);
     await this.cacheManager.set(cacheKey, report, this.CACHE_TTL);
     return report;
   }
@@ -291,7 +310,7 @@ export class ReportsService {
       totals,
     };
 
-    this.activeCacheKeys.add(cacheKey);
+    this.trackCacheKey(cacheKey);
     await this.cacheManager.set(cacheKey, report, this.CACHE_TTL);
     return report;
   }
@@ -348,9 +367,9 @@ export class ReportsService {
       monthAmount: Math.round(Number(monthResult?.total) * 100) / 100 || 0,
     };
 
-    // Short TTL for today summary (30 seconds)
-    this.activeCacheKeys.add(cacheKey);
-    await this.cacheManager.set(cacheKey, result, 30000);
+    // Short TTL for today summary
+    this.trackCacheKey(cacheKey);
+    await this.cacheManager.set(cacheKey, result, this.DASHBOARD_CACHE_TTL);
     return result;
   }
 

@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { X } from 'lucide-react'
 import { Collection } from '../api/collections'
 import { format } from 'date-fns'
+import ModalOverlay from './ui/ModalOverlay'
 
 interface ReceiveModalProps {
   collection: Collection
@@ -29,8 +30,8 @@ export default function ReceiveModal({ collection, onClose, onSubmit }: ReceiveM
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-md">
+    <ModalOverlay onClose={onClose} disableClose={isSubmitting}>
+      <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md">
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="font-semibold text-lg">Приём инкассации</h2>
           <button onClick={onClose} disabled={isSubmitting} className="p-1 hover:bg-gray-100 rounded-lg disabled:opacity-50">
@@ -105,6 +106,6 @@ export default function ReceiveModal({ collection, onClose, onSubmit }: ReceiveM
           </div>
         </form>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }

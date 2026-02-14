@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getErrorMessage } from '../utils/getErrorMessage'
+import ModalOverlay from './ui/ModalOverlay'
 
 interface DepositModalProps {
     onClose: () => void
@@ -35,8 +36,8 @@ export default function DepositModal({ onClose, onSubmit, maxAmount }: DepositMo
     }
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden">
+        <ModalOverlay onClose={onClose} disableClose={loading}>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                     <h3 className="font-bold text-lg">Сдача денег в банк</h3>
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -108,6 +109,6 @@ export default function DepositModal({ onClose, onSubmit, maxAmount }: DepositMo
                     </div>
                 </form>
             </div>
-        </div>
+        </ModalOverlay>
     )
 }

@@ -1,11 +1,11 @@
 import { Controller, Get, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import * as ExcelJS from 'exceljs';
 import { ReportsService } from './reports.service';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { ReportQueryDto } from './dto/report-query.dto';
-import * as XLSX from 'xlsx';
 
 /**
  * Sanitize string values for Excel export to prevent formula injection.
@@ -74,57 +74,85 @@ export class ReportsController {
       this.reportsService.getByOperator(query),
     ]);
 
-    const wb = XLSX.utils.book_new();
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'VendCash';
+    wb.created = new Date();
 
-    // By Machine sheet (sanitize strings to prevent Excel formula injection)
-    const machineData = byMachine.data.map((item) => ({
-      'Код': sanitizeForExcel(item.machine.code),
-      'Название': sanitizeForExcel(item.machine.name),
-      'Кол-во': item.collectionsCount,
-      'Сумма': item.totalAmount,
-      'Среднее': Math.round(item.averageAmount),
-    }));
-    machineData.push({
-      'Код': '',
-      'Название': 'ИТОГО',
-      'Кол-во': byMachine.totals.collectionsCount,
-      'Сумма': byMachine.totals.totalAmount,
-      'Среднее': 0,
+    // By Machine sheet
+    const machineSheet = wb.addWorksheet('По автоматам');
+    machineSheet.columns = [
+      { header: 'Код', key: 'code', width: 15 },
+      { header: 'Название', key: 'name', width: 25 },
+      { header: 'Кол-во', key: 'count', width: 12 },
+      { header: 'Сумма', key: 'total', width: 18 },
+      { header: 'Среднее', key: 'avg', width: 15 },
+    ];
+    byMachine.data.forEach((item) => {
+      machineSheet.addRow({
+        code: sanitizeForExcel(item.machine.code),
+        name: sanitizeForExcel(item.machine.name),
+        count: item.collectionsCount,
+        total: item.totalAmount,
+        avg: Math.round(item.averageAmount),
+      });
     });
-    const machineSheet = XLSX.utils.json_to_sheet(machineData);
-    XLSX.utils.book_append_sheet(wb, machineSheet, 'По автоматам');
-
-    // By Date sheet (sanitize strings to prevent Excel formula injection)
-    const dateData = byDate.data.map((item) => ({
-      'Дата': sanitizeForExcel(item.date),
-      'Кол-во': item.collectionsCount,
-      'Сумма': item.totalAmount,
-    }));
-    dateData.push({
-      'Дата': 'ИТОГО',
-      'Кол-во': byDate.totals.collectionsCount,
-      'Сумма': byDate.totals.totalAmount,
+    machineSheet.addRow({
+      code: '',
+      name: 'ИТОГО',
+      count: byMachine.totals.collectionsCount,
+      total: byMachine.totals.totalAmount,
+      avg: 0,
     });
-    const dateSheet = XLSX.utils.json_to_sheet(dateData);
-    XLSX.utils.book_append_sheet(wb, dateSheet, 'По датам');
 
-    // By Operator sheet (sanitize strings to prevent Excel formula injection)
-    const operatorData = byOperator.data.map((item) => ({
-      'Оператор': sanitizeForExcel(item.operator.name),
-      'Telegram': sanitizeForExcel(item.operator.telegramUsername || '-'),
-      'Кол-во': item.collectionsCount,
-      'Сумма': item.totalAmount,
-    }));
-    operatorData.push({
-      'Оператор': 'ИТОГО',
-      'Telegram': '',
-      'Кол-во': byOperator.totals.collectionsCount,
-      'Сумма': byOperator.totals.totalAmount,
+    // By Date sheet
+    const dateSheet = wb.addWorksheet('По датам');
+    dateSheet.columns = [
+      { header: 'Дата', key: 'date', width: 15 },
+      { header: 'Кол-во', key: 'count', width: 12 },
+      { header: 'Сумма', key: 'total', width: 18 },
+    ];
+    byDate.data.forEach((item) => {
+      dateSheet.addRow({
+        date: sanitizeForExcel(item.date),
+        count: item.collectionsCount,
+        total: item.totalAmount,
+      });
     });
-    const operatorSheet = XLSX.utils.json_to_sheet(operatorData);
-    XLSX.utils.book_append_sheet(wb, operatorSheet, 'По операторам');
+    dateSheet.addRow({
+      date: 'ИТОГО',
+      count: byDate.totals.collectionsCount,
+      total: byDate.totals.totalAmount,
+    });
 
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    // By Operator sheet
+    const operatorSheet = wb.addWorksheet('По операторам');
+    operatorSheet.columns = [
+      { header: 'Оператор', key: 'operator', width: 25 },
+      { header: 'Telegram', key: 'telegram', width: 20 },
+      { header: 'Кол-во', key: 'count', width: 12 },
+      { header: 'Сумма', key: 'total', width: 18 },
+    ];
+    byOperator.data.forEach((item) => {
+      operatorSheet.addRow({
+        operator: sanitizeForExcel(item.operator.name),
+        telegram: sanitizeForExcel(item.operator.telegramUsername || '-'),
+        count: item.collectionsCount,
+        total: item.totalAmount,
+      });
+    });
+    operatorSheet.addRow({
+      operator: 'ИТОГО',
+      telegram: '',
+      count: byOperator.totals.collectionsCount,
+      total: byOperator.totals.totalAmount,
+    });
+
+    // Style header rows (bold)
+    [machineSheet, dateSheet, operatorSheet].forEach((sheet) => {
+      sheet.getRow(1).font = { bold: true };
+    });
+
+    const buffer = await wb.xlsx.writeBuffer();
 
     res.setHeader(
       'Content-Type',
@@ -134,6 +162,6 @@ export class ReportsController {
       'Content-Disposition',
       `attachment; filename=vendcash-report-${new Date().toISOString().split('T')[0]}.xlsx`,
     );
-    res.send(buffer);
+    res.send(Buffer.from(buffer));
   }
 }

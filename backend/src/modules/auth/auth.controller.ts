@@ -13,6 +13,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Response, Request } from 'express';
 import { AuthService, TelegramAuthData } from './auth.service';
 import { InvitesService } from '../invites/invites.service';
@@ -45,6 +46,7 @@ export class AuthController {
 
   @Public()
   @Post('telegram')
+  @Throttle({ short: { ttl: 60000, limit: 5 } }) // 5 attempts per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Authenticate via Telegram Login Widget' })
   async telegramAuth(
@@ -87,6 +89,7 @@ export class AuthController {
 
   @Public()
   @Post('register')
+  @Throttle({ short: { ttl: 60000, limit: 5 } }) // 5 attempts per minute
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register via Telegram + invite code' })
   async register(
@@ -165,6 +168,7 @@ export class AuthController {
 
   @Public()
   @Post('refresh')
+  @Throttle({ short: { ttl: 60000, limit: 10 } }) // 10 refreshes per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token using refresh token' })
   async refresh(

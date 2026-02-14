@@ -1,18 +1,33 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import Collections from './pages/Collections'
-import CollectionsPending from './pages/CollectionsPending'
-import HistoryEntry from './pages/HistoryEntry'
-import HistoryByMachine from './pages/HistoryByMachine'
-import HistoryByDate from './pages/HistoryByDate'
-import ExcelImport from './pages/ExcelImport'
-import Reports from './pages/Reports'
-import Machines from './pages/Machines'
-import Users from './pages/Users'
-import TelegramMapPicker from './pages/TelegramMapPicker'
+
+// Lazy-loaded pages (FE-004: code splitting)
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Collections = lazy(() => import('./pages/Collections'))
+const CollectionsPending = lazy(() => import('./pages/CollectionsPending'))
+const HistoryEntry = lazy(() => import('./pages/HistoryEntry'))
+const HistoryByMachine = lazy(() => import('./pages/HistoryByMachine'))
+const HistoryByDate = lazy(() => import('./pages/HistoryByDate'))
+const ExcelImport = lazy(() => import('./pages/ExcelImport'))
+const Reports = lazy(() => import('./pages/Reports'))
+const Machines = lazy(() => import('./pages/Machines'))
+const Users = lazy(() => import('./pages/Users'))
+const TelegramMapPicker = lazy(() => import('./pages/TelegramMapPicker'))
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center py-12">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+    </div>
+  )
+}
+
+function SuspenseWrapper({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<PageLoader />}>{children}</Suspense>
+}
 
 function getDefaultRoute(role?: string): string {
   if (role === 'admin' || role === 'manager') return '/dashboard'
@@ -82,7 +97,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/telegram/map" element={<TelegramMapPicker />} />
+      <Route path="/telegram/map" element={<SuspenseWrapper><TelegramMapPicker /></SuspenseWrapper>} />
 
       <Route
         path="/"
@@ -97,22 +112,22 @@ export default function App() {
           path="dashboard"
           element={
             <ManagerRoute>
-              <Dashboard />
+              <SuspenseWrapper><Dashboard /></SuspenseWrapper>
             </ManagerRoute>
           }
         />
-        <Route path="collections" element={<Collections />} />
-        <Route path="collections/pending" element={<CollectionsPending />} />
-        <Route path="collections/history" element={<HistoryEntry />} />
-        <Route path="collections/history/by-machine" element={<HistoryByMachine />} />
-        <Route path="collections/history/by-date" element={<HistoryByDate />} />
-        <Route path="collections/history/excel-import" element={<ManagerRoute><ExcelImport /></ManagerRoute>} />
-        <Route path="reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
+        <Route path="collections" element={<SuspenseWrapper><Collections /></SuspenseWrapper>} />
+        <Route path="collections/pending" element={<SuspenseWrapper><CollectionsPending /></SuspenseWrapper>} />
+        <Route path="collections/history" element={<SuspenseWrapper><HistoryEntry /></SuspenseWrapper>} />
+        <Route path="collections/history/by-machine" element={<SuspenseWrapper><HistoryByMachine /></SuspenseWrapper>} />
+        <Route path="collections/history/by-date" element={<SuspenseWrapper><HistoryByDate /></SuspenseWrapper>} />
+        <Route path="collections/history/excel-import" element={<ManagerRoute><SuspenseWrapper><ExcelImport /></SuspenseWrapper></ManagerRoute>} />
+        <Route path="reports" element={<ManagerRoute><SuspenseWrapper><Reports /></SuspenseWrapper></ManagerRoute>} />
         <Route
           path="machines"
           element={
             <ManagerRoute>
-              <Machines />
+              <SuspenseWrapper><Machines /></SuspenseWrapper>
             </ManagerRoute>
           }
         />
@@ -120,7 +135,7 @@ export default function App() {
           path="users"
           element={
             <AdminRoute>
-              <Users />
+              <SuspenseWrapper><Users /></SuspenseWrapper>
             </AdminRoute>
           }
         />

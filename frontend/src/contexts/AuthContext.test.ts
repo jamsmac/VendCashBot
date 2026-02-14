@@ -19,9 +19,13 @@ import { authApi } from '../api/auth'
 const mockUser = {
   id: '1',
   telegramId: 123456,
-  firstName: 'Test',
-  lastName: 'User',
-  role: 'user',
+  telegramUsername: 'testuser',
+  telegramFirstName: 'Test',
+  name: 'Test User',
+  role: 'operator' as const,
+  isActive: true,
+  createdAt: '2025-01-01T00:00:00Z',
+  updatedAt: '2025-01-01T00:00:00Z',
 }
 
 describe('AuthContext (useAuthStore)', () => {
@@ -218,7 +222,7 @@ describe('AuthContext (useAuthStore)', () => {
         isLoading: false,
       })
 
-      vi.mocked(authApi.logout).mockResolvedValueOnce(undefined)
+      vi.mocked(authApi.logout).mockResolvedValueOnce({ success: true })
 
       await act(async () => {
         await useAuthStore.getState().logout()

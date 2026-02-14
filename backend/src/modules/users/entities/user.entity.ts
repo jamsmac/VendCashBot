@@ -38,6 +38,15 @@ export class User {
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
+  @Column({ name: 'deactivated_at', type: 'timestamp', nullable: true })
+  deactivatedAt: Date;
+
+  @Column({ name: 'deactivated_by', nullable: true })
+  deactivatedBy: string;
+
+  @Column({ name: 'deactivation_reason', type: 'text', nullable: true })
+  deactivationReason: string;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

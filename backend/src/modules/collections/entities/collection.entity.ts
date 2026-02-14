@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Machine } from '../../machines/entities/machine.entity';
@@ -24,6 +25,9 @@ export enum CollectionSource {
 }
 
 @Entity('collections')
+@Index(['status', 'collectedAt']) // Reports query: WHERE status AND collectedAt BETWEEN
+@Index(['machineId', 'collectedAt']) // Reports by-machine query
+@Index(['operatorId', 'collectedAt']) // Reports by-operator query
 export class Collection {
   @PrimaryGeneratedColumn('uuid')
   id: string;

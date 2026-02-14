@@ -1,10 +1,44 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { BaseExceptionFilter } from '@nestjs/core';
 import helmet from 'helmet';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { createLogger } from './config/logger.config';
+
+/**
+ * Global exception filter that prevents stack traces from leaking in production.
+ */
+class GlobalExceptionFilter extends BaseExceptionFilter {
+  private readonly filterLogger = new Logger('GlobalExceptionFilter');
+
+  catch(exception: unknown, host: import('@nestjs/common').ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse();
+
+    if (exception instanceof HttpException) {
+      super.catch(exception, host);
+      return;
+    }
+
+    // Log full error for debugging
+    this.filterLogger.error(
+      'Unhandled exception:',
+      exception instanceof Error ? exception.stack : String(exception),
+    );
+
+    // Return safe error response without stack trace
+    const status = HttpStatus.INTERNAL_SERVER_ERROR;
+    response.status(status).json({
+      statusCode: status,
+      message: 'Internal server error',
+      ...(process.env.NODE_ENV !== 'production' && exception instanceof Error
+        ? { debug: exception.message }
+        : {}),
+    });
+  }
+}
 
 async function bootstrap() {
   const logger = createLogger();
@@ -25,10 +59,9 @@ async function bootstrap() {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'"],
           scriptSrc: [
             "'self'",
-            "'unsafe-inline'",
             'https://telegram.org',
             'https://oauth.telegram.org',
           ],
@@ -51,14 +84,23 @@ async function bootstrap() {
   // Global prefix
   app.setGlobalPrefix('api');
 
-  // CORS — support multiple origins separated by commas
-  const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  // CORS — support multiple origins separated by commas, reject wildcard
+  const rawOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
     .split(',')
-    .map(origin => origin.trim());
+    .map(origin => origin.trim())
+    .filter(origin => origin !== '*'); // Reject wildcard — breaks credentials
+  if (rawOrigins.length === 0) {
+    appLogger.warn('CORS: No valid origins configured. Defaulting to localhost.');
+    rawOrigins.push('http://localhost:5173');
+  }
   app.enableCors({
-    origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
+    origin: rawOrigins.length === 1 ? rawOrigins[0] : rawOrigins,
     credentials: true,
   });
+
+  // Global exception filter — prevents stack trace leaks in production (BE-006)
+  const httpAdapter = app.getHttpAdapter();
+  app.useGlobalFilters(new GlobalExceptionFilter(httpAdapter));
 
   // Validation
   app.useGlobalPipes(

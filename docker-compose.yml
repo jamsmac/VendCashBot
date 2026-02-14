@@ -9,6 +9,10 @@ services:
     image: postgres:15-alpine
     container_name: vendcash-db
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     environment:
       POSTGRES_USER: ${DB_USERNAME:-vendcash}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
@@ -28,6 +32,10 @@ services:
     image: redis:7-alpine
     container_name: vendcash-redis
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -46,6 +54,10 @@ services:
       dockerfile: Dockerfile
     container_name: vendcash-backend
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,6 +96,10 @@ services:
         VITE_TELEGRAM_BOT_USERNAME: ${VITE_TELEGRAM_BOT_USERNAME}
     container_name: vendcash-frontend
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
     depends_on:
       - backend
     ports:

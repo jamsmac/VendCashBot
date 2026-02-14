@@ -26,6 +26,11 @@ export interface JwtPayload {
   role: string;
 }
 
+/** Maximum age of Telegram auth data in seconds (24 hours) */
+const TELEGRAM_AUTH_MAX_AGE_SECONDS = 86400;
+/** Clock skew tolerance for future auth_date in seconds */
+const CLOCK_SKEW_TOLERANCE_SECONDS = 60;
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -57,12 +62,12 @@ export class AuthService {
     const now = Math.floor(Date.now() / 1000);
     const ageSeconds = now - authDate;
     // Reject future dates (with 60s tolerance for clock skew)
-    if (ageSeconds < -60) {
+    if (ageSeconds < -CLOCK_SKEW_TOLERANCE_SECONDS) {
       this.logger.warn(`Future auth_date for user ID: ${authData.id}, age: ${ageSeconds}s`);
       throw new UnauthorizedException('Invalid authentication data');
     }
     // Reject auth data older than 24 hours
-    if (ageSeconds > 86400) {
+    if (ageSeconds > TELEGRAM_AUTH_MAX_AGE_SECONDS) {
       this.logger.warn(`Expired Telegram auth for user ID: ${authData.id}, age: ${ageSeconds}s`);
       throw new UnauthorizedException('Telegram authentication data expired');
     }
@@ -103,6 +108,12 @@ export class AuthService {
     }
 
     const { hash, ...data } = authData;
+
+    // Validate hex format before Buffer.from to prevent silent truncation
+    if (!/^[0-9a-f]{64}$/i.test(hash)) {
+      this.logger.warn(`Invalid hash format received: length=${hash?.length}`);
+      return false;
+    }
 
     // Create data check string - IMPORTANT: filter out undefined/null values
     const dataCheckArr = Object.keys(data)
@@ -152,7 +163,7 @@ export class AuthService {
 
     // 2. Check auth_date freshness (stateless — safe outside transaction)
     const now = Math.floor(Date.now() / 1000);
-    if (now - authData.auth_date > 86400) {
+    if (now - authData.auth_date > TELEGRAM_AUTH_MAX_AGE_SECONDS) {
       throw new UnauthorizedException('Данные авторизации устарели. Попробуйте ещё раз.');
     }
 
@@ -297,12 +308,14 @@ export class AuthService {
         telegramId: user.telegramId,
         role: user.role,
       };
-      const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
+      const accessExpiresIn = this.configService.get<string>('jwt.accessExpiresIn') || '15m';
+      const accessToken = this.jwtService.sign(payload, { expiresIn: accessExpiresIn });
 
       const newRefreshTokenValue = crypto.randomBytes(64).toString('hex');
       const newHashedToken = this.hashToken(newRefreshTokenValue);
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30);
+      const refreshDaysConfig = this.configService.get<number>('jwt.refreshDays') || 30;
+      expiresAt.setDate(expiresAt.getDate() + refreshDaysConfig);
 
       await queryRunner.manager.save(queryRunner.manager.create(RefreshToken, {
         token: newHashedToken,

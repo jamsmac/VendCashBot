@@ -35,15 +35,16 @@ function parseDatabaseUrl(): { host: string; port: number; username: string; pas
 }
 
 export default () => {
-  // Critical: JWT secret must be set and strong in production
+  // Critical: JWT secret must be set in all environments
   const jwtSecret = process.env.JWT_SECRET;
-  if (isProduction) {
-    if (!jwtSecret) {
+  if (!jwtSecret) {
+    if (isProduction) {
       throw new Error('JWT_SECRET is required in production environment');
     }
-    if (jwtSecret.length < 32) {
-      throw new Error('JWT_SECRET must be at least 32 characters long for security');
-    }
+    console.warn('⚠️  JWT_SECRET is not set! Using insecure default. Set JWT_SECRET in .env');
+  }
+  if (isProduction && jwtSecret && jwtSecret.length < 32) {
+    throw new Error('JWT_SECRET must be at least 32 characters long for security');
   }
 
   // Critical: Telegram bot token must always be set
@@ -72,7 +73,7 @@ export default () => {
       ttl: parseInt(process.env.REDIS_TTL || '300', 10), // 5 minutes default
     },
     jwt: {
-      secret: jwtSecret || 'dev-only-secret-do-not-use-in-production',
+      secret: jwtSecret || (isProduction ? '' : 'dev-only-fallback-secret-min-32-characters'),
       accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
       refreshDays: parseInt(process.env.JWT_REFRESH_DAYS || '30', 10),
     },
