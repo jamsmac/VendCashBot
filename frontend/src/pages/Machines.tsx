@@ -176,11 +176,10 @@ export default function Machines() {
         location: machine.location || '',
         isActive: machine.isActive,
       })
-      setSelectedCoords({
-        lat: machine.latitude,
-        lng: machine.longitude,
-      })
-      setShowMap(!!(machine.latitude && machine.longitude))
+      const lat = machine.latitude != null ? Number(machine.latitude) : undefined
+      const lng = machine.longitude != null ? Number(machine.longitude) : undefined
+      setSelectedCoords({ lat, lng })
+      setShowMap(!!(lat && lng))
     } else {
       reset({ code: '', name: '', location: '', isActive: true })
       setSelectedCoords({})
@@ -477,10 +476,10 @@ export default function Machines() {
                   />
                 )}
 
-                {selectedCoords.lat && selectedCoords.lng && !showMap && (
+                {selectedCoords.lat != null && selectedCoords.lng != null && !showMap && (
                   <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                     <MapPin className="w-3 h-3" />
-                    Координаты: {selectedCoords.lat.toFixed(6)}, {selectedCoords.lng.toFixed(6)}
+                    Координаты: {Number(selectedCoords.lat).toFixed(6)}, {Number(selectedCoords.lng).toFixed(6)}
                   </p>
                 )}
               </div>
@@ -678,9 +677,9 @@ export default function Machines() {
                             {formatDate(loc.validFrom)}
                             {loc.validTo ? ` — ${formatDate(loc.validTo)}` : ' — по настоящее время'}
                           </p>
-                          {loc.latitude && loc.longitude && (
+                          {loc.latitude != null && loc.longitude != null && (
                             <p className="text-xs text-gray-400 mt-1">
-                              {loc.latitude.toFixed(6)}, {loc.longitude.toFixed(6)}
+                              {Number(loc.latitude).toFixed(6)}, {Number(loc.longitude).toFixed(6)}
                             </p>
                           )}
                         </div>

@@ -56,11 +56,15 @@ export default function MapPicker({
 }: MapPickerProps) {
   // Default to Tashkent, Uzbekistan
   const defaultCenter: [number, number] = [41.2995, 69.2401]
+  // Ensure coordinates are numbers (PostgreSQL decimals come as strings)
+  const initialLat = latitude != null ? Number(latitude) : undefined
+  const initialLng = longitude != null ? Number(longitude) : undefined
+  const hasInitialCoords = initialLat != null && initialLng != null && !isNaN(initialLat) && !isNaN(initialLng)
   const [position, setPosition] = useState<[number, number] | null>(
-    latitude && longitude ? [latitude, longitude] : null
+    hasInitialCoords ? [initialLat!, initialLng!] : null
   )
   const [center, setCenter] = useState<[number, number]>(
-    latitude && longitude ? [latitude, longitude] : defaultCenter
+    hasInitialCoords ? [initialLat!, initialLng!] : defaultCenter
   )
   const [searchQuery, setSearchQuery] = useState(address)
   const [isSearching, setIsSearching] = useState(false)
