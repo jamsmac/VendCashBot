@@ -173,7 +173,7 @@ export default function MapPicker({
   // Get current location
   const getCurrentLocation = () => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser')
+      alert('Геолокация не поддерживается вашим браузером')
       return
     }
 
@@ -187,7 +187,7 @@ export default function MapPicker({
       (error) => {
         Sentry.captureException(error, { tags: { component: 'MapPicker' } })
         setIsLocating(false)
-        alert('Could not get your location')
+        alert('Не удалось определить местоположение')
       },
       { enableHighAccuracy: true, timeout: 10000 }
     )
@@ -201,7 +201,7 @@ export default function MapPicker({
           type="text"
           value={searchQuery}
           onChange={(e) => handleSearchInput(e.target.value)}
-          placeholder="Search address or click on map..."
+          placeholder="Введите адрес или нажмите на карту..."
           className="input pr-20"
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
@@ -210,7 +210,7 @@ export default function MapPicker({
             onClick={() => searchAddress(searchQuery)}
             disabled={isSearching}
             className="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded"
-            title="Search"
+            title="Поиск"
           >
             <Search className={`w-4 h-4 ${isSearching ? 'animate-pulse' : ''}`} />
           </button>
@@ -219,7 +219,7 @@ export default function MapPicker({
             onClick={getCurrentLocation}
             disabled={isLocating}
             className="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded"
-            title="Use my location"
+            title="Моё местоположение"
           >
             <Navigation className={`w-4 h-4 ${isLocating ? 'animate-spin' : ''}`} />
           </button>
@@ -246,7 +246,7 @@ export default function MapPicker({
         {!position && (
           <div className="absolute bottom-3 left-3 right-3 bg-white/90 backdrop-blur-sm p-2 rounded-lg text-center text-sm text-gray-600">
             <MapPin className="w-4 h-4 inline-block mr-1" />
-            Click on map to select location
+            Нажмите на карту для выбора точки
           </div>
         )}
       </div>

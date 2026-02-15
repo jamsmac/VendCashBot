@@ -21,6 +21,7 @@ export interface CreateMachineData {
 }
 
 export interface UpdateMachineData {
+  code?: string
   name?: string
   location?: string
   latitude?: number

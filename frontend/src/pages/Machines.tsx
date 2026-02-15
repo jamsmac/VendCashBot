@@ -259,6 +259,7 @@ export default function Machines() {
       updateMutation.mutate({
         id: editingMachine.id,
         data: {
+          code: machineData.code,
           name: machineData.name,
           location: machineData.location,
           latitude: machineData.latitude,
