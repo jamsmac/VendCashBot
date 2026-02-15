@@ -25,10 +25,8 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     this.setState({ errorInfo });
-    // Log error to console in development
-    if (import.meta.env.DEV) {
-      console.error('ErrorBoundary caught an error:', error, errorInfo);
-    }
+    // Log error to console (always, for debugging)
+    console.error('ErrorBoundary caught an error:', error, errorInfo);
     // QA-004: Send error to Sentry
     captureException(error, {
       componentStack: errorInfo.componentStack,
@@ -61,10 +59,10 @@ export class ErrorBoundary extends Component<Props, State> {
               Произошла непредвиденная ошибка. Пожалуйста, обновите страницу или попробуйте позже.
             </p>
 
-            {import.meta.env.DEV && this.state.error && (
-              <details className="mb-4 text-left">
+            {this.state.error && (
+              <details className="mb-4 text-left" open>
                 <summary className="cursor-pointer text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
-                  Детали ошибки (только в dev)
+                  Детали ошибки
                 </summary>
                 <pre className="mt-2 p-3 bg-gray-100 dark:bg-gray-700 rounded text-xs overflow-auto max-h-40 text-red-600 dark:text-red-400">
                   {this.state.error.toString()}
