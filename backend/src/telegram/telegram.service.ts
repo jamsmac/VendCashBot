@@ -65,8 +65,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      // Log other errors
-      this.logger.error(`Error while handling update ${ctx.update.update_id}:`, error);
+      // Log other errors with full details
+      const errorMsg = error instanceof Error
+        ? `${error.name}: ${error.message}\n${error.stack}`
+        : JSON.stringify(error);
+      this.logger.error(`Error while handling update ${ctx.update.update_id}: ${errorMsg}`);
     });
 
     // Rate limiting middleware - prevent spam
