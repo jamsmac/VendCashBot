@@ -250,6 +250,7 @@ export class AuthService {
       expiresAt,
     });
 
+    this.logger.log(`User ${user.id} logged in via Telegram`);
     return {
       accessToken,
       refreshToken: refreshTokenValue,
@@ -340,6 +341,7 @@ export class AuthService {
       { userId, isRevoked: false },
       { isRevoked: true },
     );
+    this.logger.log(`All tokens revoked for user ${userId} (logout)`);
   }
 
   async cleanupExpiredTokens(): Promise<number> {

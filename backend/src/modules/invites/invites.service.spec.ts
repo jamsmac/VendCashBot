@@ -45,8 +45,10 @@ describe('InvitesService', () => {
     leftJoinAndSelect: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
     take: jest.fn().mockReturnThis(),
     getMany: jest.fn().mockResolvedValue([mockInvite]),
+    getManyAndCount: jest.fn().mockResolvedValue([[mockInvite], 1]),
   };
 
   beforeEach(async () => {
@@ -187,11 +189,13 @@ describe('InvitesService', () => {
   });
 
   describe('findAll', () => {
-    it('should return all invites', async () => {
+    it('should return paginated invites', async () => {
       const result = await service.findAll();
 
-      expect(result).toEqual([mockInvite]);
-      expect(mockQueryBuilder.getMany).toHaveBeenCalled();
+      expect(result).toEqual({ data: [mockInvite], total: 1 });
+      expect(mockQueryBuilder.getManyAndCount).toHaveBeenCalled();
+      expect(mockQueryBuilder.skip).toHaveBeenCalledWith(0);
+      expect(mockQueryBuilder.take).toHaveBeenCalledWith(20);
     });
 
     it('should filter by createdById when provided', async () => {
@@ -201,6 +205,13 @@ describe('InvitesService', () => {
         'invite.createdById = :createdById',
         { createdById: 'user-123' },
       );
+    });
+
+    it('should apply page and limit parameters', async () => {
+      await service.findAll(undefined, 2, 10);
+
+      expect(mockQueryBuilder.skip).toHaveBeenCalledWith(10);
+      expect(mockQueryBuilder.take).toHaveBeenCalledWith(10);
     });
   });
 

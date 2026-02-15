@@ -5,6 +5,7 @@ import { machinesApi } from '../../api/machines'
 import { format } from 'date-fns'
 import { Filter, ChevronLeft, ChevronRight, Edit, Trash2, XSquare } from 'lucide-react'
 import ReceiveModal from '../../components/ReceiveModal'
+import DistanceBadge from '../../components/DistanceBadge'
 import EditCollectionModal from '../../components/EditCollectionModal'
 import CancelCollectionModal from '../../components/CancelCollectionModal'
 import BulkCancelModal from '../../components/BulkCancelModal'
@@ -280,6 +281,7 @@ export default function CollectionsList() {
                                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Автомат</th>
                                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Оператор</th>
                                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Сумма</th>
+                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">📏 Расст.</th>
                                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Статус</th>
                                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Действия</th>
                             </tr>
@@ -287,13 +289,13 @@ export default function CollectionsList() {
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={isManagerOrAdmin ? 7 : 6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                    <td colSpan={isManagerOrAdmin ? 8 : 7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                                         Загрузка...
                                     </td>
                                 </tr>
                             ) : data?.data.length === 0 ? (
                                 <tr>
-                                    <td colSpan={isManagerOrAdmin ? 7 : 6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                    <td colSpan={isManagerOrAdmin ? 8 : 7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                                         Нет данных
                                     </td>
                                 </tr>
@@ -329,6 +331,9 @@ export default function CollectionsList() {
                                             {collection.amount
                                                 ? `${Number(collection.amount).toLocaleString('ru-RU')} сум`
                                                 : '—'}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <DistanceBadge distance={collection.distanceFromMachine} compact />
                                         </td>
                                         <td className="px-4 py-3">{getStatusBadge(collection.status)}</td>
                                         <td className="px-4 py-3">

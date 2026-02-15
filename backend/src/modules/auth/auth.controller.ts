@@ -17,6 +17,7 @@ import { Throttle } from '@nestjs/throttler';
 import { Response, Request } from 'express';
 import { AuthService, TelegramAuthData } from './auth.service';
 import { InvitesService } from '../invites/invites.service';
+import { UsersService } from '../users/users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
 import { RegisterByInviteDto } from './dto/register-by-invite.dto';
@@ -27,8 +28,11 @@ import { User } from '../users/entities/user.entity';
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  // 'lax' is safe because frontend proxies /api/ via nginx (same-origin).
-  // 'none' would weaken CSRF protection unnecessarily.
+  // CSRF Protection: SameSite='lax' is sufficient because:
+  // 1. Frontend proxies /api/ via nginx — all requests are same-origin
+  // 2. State-changing operations use POST (not GET) — lax blocks cross-origin POST
+  // 3. No cross-origin cookie sharing is needed
+  // If cross-origin deployment is ever required, implement double-submit cookie pattern.
   sameSite: 'lax' as const,
   path: '/',
 };
@@ -37,11 +41,13 @@ const ACCESS_TOKEN_MAX_AGE = 15 * 60 * 1000; // 15 minutes
 const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 @ApiTags('auth')
+@Throttle({ long: { ttl: 60000, limit: 15 } }) // max 15 requests per minute across ALL auth endpoints per IP
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly invitesService: InvitesService,
+    private readonly usersService: UsersService,
   ) { }
 
   @Public()
@@ -161,9 +167,10 @@ export class AuthController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get current user' })
-  async me(@CurrentUser() user: User): Promise<User> {
-    return user;
+  @ApiOperation({ summary: 'Get current user with modules' })
+  async me(@CurrentUser() user: User) {
+    const modules = await this.usersService.getUserModules(user.id);
+    return { ...user, modules };
   }
 
   @Public()

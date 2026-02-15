@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { X } from 'lucide-react'
-import { Collection } from '../api/collections'
+import { Collection, DISTANCE_WARNING_THRESHOLD } from '../api/collections'
 import { format } from 'date-fns'
 import ModalOverlay from './ui/ModalOverlay'
+import DistanceBadge from './DistanceBadge'
 
 interface ReceiveModalProps {
   collection: Collection
@@ -54,7 +55,21 @@ export default function ReceiveModal({ collection, onClose, onSubmit }: ReceiveM
               <span className="text-gray-500">⏰ Время сбора:</span>
               <span>{format(new Date(collection.collectedAt), 'dd.MM.yyyy HH:mm:ss')}</span>
             </div>
+            {collection.distanceFromMachine != null && (
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">📏 Расстояние:</span>
+                <DistanceBadge distance={collection.distanceFromMachine} />
+              </div>
+            )}
           </div>
+
+          {/* Warning banner for far-away collections */}
+          {collection.distanceFromMachine != null && collection.distanceFromMachine > DISTANCE_WARNING_THRESHOLD && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-700 dark:text-red-400">
+              ⚠️ <b>Внимание:</b> оператор находился в {Math.round(collection.distanceFromMachine)} м от автомата.
+              Это превышает допустимый порог ({DISTANCE_WARNING_THRESHOLD} м). Проверьте корректность инкассации.
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium mb-1">

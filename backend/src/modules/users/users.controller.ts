@@ -2,51 +2,44 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Patch,
   Delete,
   Body,
   Param,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { UserRole } from './entities/user.entity';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { UserRole, User } from './entities/user.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ALL_MODULES } from './entities/user-module.entity';
 
 @ApiTags('users')
 @Controller('users')
 @ApiBearerAuth()
+@RequireModule('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Get users with pagination (admin only)' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 20, max: 100)' })
+  @ApiOperation({ summary: 'Get all users (admin only)' })
   @ApiQuery({ name: 'role', required: false, enum: UserRole })
   @ApiQuery({ name: 'includeInactive', required: false, type: Boolean })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by name or telegram username' })
   async findAll(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
     @Query('role') role?: UserRole,
     @Query('includeInactive') includeInactive?: string,
-    @Query('search') search?: string,
   ) {
-    const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit || '20', 10) || 20));
-    return this.usersService.findAllPaginated(
-      pageNum,
-      limitNum,
-      role,
-      includeInactive === 'true',
-      search,
-    );
+    return this.usersService.findAll(role, includeInactive === 'true');
   }
 
   @Get('operators')
+  @RequireModule('collections')
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Get all operators' })
   async getOperators() {
@@ -67,10 +60,46 @@ export class UsersController {
     return this.usersService.findByIdOrFail(id);
   }
 
+  @Get(':id/modules')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get user modules (role defaults + custom grants)' })
+  async getUserModules(@Param('id') id: string) {
+    const modules = await this.usersService.getUserModules(id);
+    const customModules = await this.usersService.getCustomModules(id);
+    return { modules, customModules, allModules: ALL_MODULES };
+  }
+
+  @Put(':id/modules')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Set custom module grants for a user' })
+  async setUserModules(
+    @Param('id') id: string,
+    @Body() body: { modules: string[] },
+    @CurrentUser() admin: User,
+  ) {
+    if (!body.modules || !Array.isArray(body.modules)) {
+      throw new BadRequestException('modules must be an array of strings');
+    }
+    // Validate module names
+    const validModules = new Set<string>(ALL_MODULES);
+    const invalid = body.modules.filter((m) => !validModules.has(m));
+    if (invalid.length > 0) {
+      throw new BadRequestException(`Invalid modules: ${invalid.join(', ')}`);
+    }
+    const modules = await this.usersService.setUserModules(id, body.modules, admin.id);
+    return { modules };
+  }
+
   @Patch(':id')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Update user' })
   async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
+    // BE-L03: Reject empty update body
+    const hasFields = ['name', 'telegramUsername', 'telegramFirstName', 'phone', 'isActive']
+      .some(key => (updateUserDto as Record<string, unknown>)[key] !== undefined);
+    if (!hasFields) {
+      throw new BadRequestException('At least one field must be provided for update');
+    }
     return this.usersService.update(id, updateUserDto);
   }
 

@@ -60,6 +60,7 @@ describe('MachinesService', () => {
     andWhere: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
+    take: jest.fn().mockReturnThis(),
     getMany: jest.fn(),
     getOne: jest.fn(),
   };
@@ -94,6 +95,7 @@ describe('MachinesService', () => {
     mockMachineQueryBuilder.andWhere.mockClear().mockReturnThis();
     mockMachineQueryBuilder.where.mockClear().mockReturnThis();
     mockMachineQueryBuilder.orderBy.mockClear().mockReturnThis();
+    mockMachineQueryBuilder.take.mockClear().mockReturnThis();
     mockMachineQueryBuilder.getMany.mockReset();
     mockMachineQueryBuilder.getOne.mockReset();
 

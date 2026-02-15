@@ -2,15 +2,17 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserRole } from './entities/user.entity';
+import { UserModule, ROLE_DEFAULT_MODULES, AppModule } from './entities/user-module.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { PaginatedResult } from '../../common/dto/pagination-query.dto';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(UserModule)
+    private readonly userModuleRepository: Repository<UserModule>,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
@@ -46,47 +48,6 @@ export class UsersService {
     }
 
     return query.orderBy('user.createdAt', 'DESC').getMany();
-  }
-
-  async findAllPaginated(
-    page = 1,
-    limit = 20,
-    role?: UserRole,
-    includeInactive = false,
-    search?: string,
-  ): Promise<PaginatedResult<User>> {
-    const query = this.userRepository.createQueryBuilder('user');
-
-    if (role) {
-      query.andWhere('user.role = :role', { role });
-    }
-
-    if (!includeInactive) {
-      query.andWhere('user.isActive = :isActive', { isActive: true });
-    }
-
-    if (search && search.trim()) {
-      query.andWhere(
-        '(LOWER(user.name) LIKE :search OR LOWER(user.telegramUsername) LIKE :search)',
-        { search: `%${search.trim().toLowerCase()}%` },
-      );
-    }
-
-    const [data, total] = await query
-      .orderBy('user.createdAt', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getManyAndCount();
-
-    return {
-      data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit) || 1,
-      },
-    };
   }
 
   async findById(id: string): Promise<User | null> {
@@ -156,5 +117,68 @@ export class UsersService {
 
   async deleteById(id: string): Promise<void> {
     await this.userRepository.delete(id);
+  }
+
+  // ========== Module permissions ==========
+
+  /**
+   * Get all modules a user has access to (role defaults + custom grants)
+   */
+  async getUserModules(userId: string): Promise<string[]> {
+    const user = await this.findByIdOrFail(userId);
+
+    // Role defaults
+    const roleDefaults = ROLE_DEFAULT_MODULES[user.role] || [];
+
+    // Custom grants from DB
+    const customGrants = await this.userModuleRepository.find({
+      where: { userId },
+      select: ['module'],
+    });
+    const customModules = customGrants.map((g) => g.module);
+
+    // Combine and deduplicate
+    return [...new Set([...roleDefaults, ...customModules])];
+  }
+
+  /**
+   * Get only custom (non-default) module grants for a user
+   */
+  async getCustomModules(userId: string): Promise<string[]> {
+    const grants = await this.userModuleRepository.find({
+      where: { userId },
+      select: ['module'],
+    });
+    return grants.map((g) => g.module);
+  }
+
+  /**
+   * Set custom module grants for a user.
+   * Only stores modules that are NOT already in the role defaults.
+   */
+  async setUserModules(userId: string, modules: string[], grantedBy: string): Promise<string[]> {
+    const user = await this.findByIdOrFail(userId);
+
+    // Filter out modules that are already in role defaults
+    const roleDefaults = new Set(ROLE_DEFAULT_MODULES[user.role] || []);
+    const customModules = modules.filter((m) => !roleDefaults.has(m as AppModule));
+
+    // Delete existing custom grants
+    await this.userModuleRepository.delete({ userId });
+
+    // Insert new custom grants
+    if (customModules.length > 0) {
+      const entities = customModules.map((module) =>
+        this.userModuleRepository.create({
+          userId,
+          module,
+          grantedBy,
+        }),
+      );
+      await this.userModuleRepository.save(entities);
+    }
+
+    // Return full module list
+    return [...new Set([...Array.from(roleDefaults), ...customModules])];
   }
 }

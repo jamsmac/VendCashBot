@@ -4,6 +4,7 @@ import { useAuthStore } from '../contexts/AuthContext'
 import { authApi } from '../api/auth'
 import toast from 'react-hot-toast'
 import { getErrorMessage } from '../utils/getErrorMessage'
+import { BOT_USERNAME } from '../constants/telegram'
 
 interface TelegramUser {
   id: number
@@ -27,15 +28,18 @@ declare global {
 
 type Mode = 'login' | 'register'
 
-const BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'vendhubcashbot'
+const sanitizeInviteCode = (code: string | null): string => {
+  if (!code) return ''
+  return /^[A-Za-z0-9_-]{1,32}$/.test(code) ? code : ''
+}
 
 export default function Login() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { login, register, isAuthenticated, isLoading: authLoading } = useAuthStore()
 
-  // Check if invite code is in URL (?code=XXXX)
-  const urlInviteCode = searchParams.get('code') || ''
+  // Check if invite code is in URL (?code=XXXX) — sanitize to prevent injection
+  const urlInviteCode = sanitizeInviteCode(searchParams.get('code'))
 
   const [mode, setMode] = useState<Mode>(urlInviteCode ? 'register' : 'login')
   const [inviteCode, setInviteCode] = useState(urlInviteCode)
@@ -47,6 +51,7 @@ export default function Login() {
   const [registerWidgetFailed, setRegisterWidgetFailed] = useState(false)
 
   const isMounted = useRef(true)
+  const timers = useRef<number[]>([])
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -58,7 +63,10 @@ export default function Login() {
   // Cleanup on unmount
   useEffect(() => {
     isMounted.current = true
-    return () => { isMounted.current = false }
+    return () => {
+      isMounted.current = false
+      timers.current.forEach(t => clearTimeout(t))
+    }
   }, [])
 
   // Login handler
@@ -135,17 +143,18 @@ export default function Login() {
     script.async = true
 
     // Detect if widget fails to load (timeout-based since Telegram widget doesn't fire error events reliably)
-    const timeout = setTimeout(() => {
+    const timeout = window.setTimeout(() => {
       // Check if the iframe was actually created
       const iframe = container.querySelector('iframe')
       if (!iframe) {
         onFail()
       }
     }, 5000)
+    timers.current.push(timeout)
 
     script.onload = () => {
       // After script loads, give iframe a moment to appear
-      setTimeout(() => {
+      const checkTimer = window.setTimeout(() => {
         const iframe = container.querySelector('iframe')
         if (!iframe) {
           clearTimeout(timeout)
@@ -154,6 +163,7 @@ export default function Login() {
           clearTimeout(timeout)
         }
       }, 2000)
+      timers.current.push(checkTimer)
     }
 
     script.onerror = () => {
@@ -168,7 +178,7 @@ export default function Login() {
   const loginWidgetRef = useCallback((node: HTMLDivElement | null) => {
     if (node && mode === 'login') {
       // Small delay to ensure DOM is ready
-      setTimeout(() => {
+      const t = window.setTimeout(() => {
         if (node.childNodes.length === 0) {
           setLoginWidgetFailed(false)
           loadWidget(node, 'TelegramLoginAuth', () => {
@@ -176,13 +186,14 @@ export default function Login() {
           })
         }
       }, 100)
+      timers.current.push(t)
     }
   }, [mode, loadWidget])
 
   // Load register widget when invite is validated
   const registerWidgetRef = useCallback((node: HTMLDivElement | null) => {
     if (node && inviteValid) {
-      setTimeout(() => {
+      const t = window.setTimeout(() => {
         if (node.childNodes.length === 0) {
           setRegisterWidgetFailed(false)
           loadWidget(node, 'TelegramRegisterAuth', () => {
@@ -190,6 +201,7 @@ export default function Login() {
           })
         }
       }, 100)
+      timers.current.push(t)
     }
   }, [inviteValid, loadWidget])
 

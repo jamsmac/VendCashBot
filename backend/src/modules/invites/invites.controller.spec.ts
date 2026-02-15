@@ -38,17 +38,18 @@ describe('InvitesController', () => {
   });
 
   describe('findAll', () => {
-    it('should return all invites from service', async () => {
+    it('should return paginated invites from service', async () => {
       const invites = [
         { id: 'inv-1', code: 'ABC123', role: UserRole.OPERATOR },
         { id: 'inv-2', code: 'DEF456', role: UserRole.MANAGER },
       ];
-      invitesService.findAll.mockResolvedValue(invites as any);
+      const paginatedResult = { data: invites, total: 2 };
+      invitesService.findAll.mockResolvedValue(paginatedResult as any);
 
       const result = await controller.findAll();
 
-      expect(result).toEqual(invites);
-      expect(invitesService.findAll).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(paginatedResult);
+      expect(invitesService.findAll).toHaveBeenCalledWith(undefined, 1, 20);
     });
   });
 

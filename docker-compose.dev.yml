@@ -7,7 +7,7 @@ services:
     container_name: vendcash-db-dev
     environment:
       POSTGRES_USER: vendcash
-      POSTGRES_PASSWORD: vendcash123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vendcash123}
       POSTGRES_DB: vendcash
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
@@ -27,9 +27,9 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USERNAME: vendcash
-      DB_PASSWORD: vendcash123
+      DB_PASSWORD: ${DB_PASSWORD:-vendcash123}
       DB_DATABASE: vendcash
-      JWT_SECRET: dev-secret-key-change-in-production
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-change-in-production}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       ADMIN_TELEGRAM_ID: ${ADMIN_TELEGRAM_ID}
       FRONTEND_URL: http://localhost:5173

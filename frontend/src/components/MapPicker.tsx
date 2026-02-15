@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-lea
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { MapPin, Navigation, Search } from 'lucide-react'
+import * as Sentry from '@sentry/react'
 
 // Fix for default marker icon (Leaflet/Webpack compatibility)
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl
@@ -65,6 +66,7 @@ export default function MapPicker({
   const [isSearching, setIsSearching] = useState(false)
   const [isLocating, setIsLocating] = useState(false)
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // Update parent when position changes
   // Note: onLocationSelect is intentionally excluded from deps to prevent infinite loops
@@ -78,9 +80,14 @@ export default function MapPicker({
 
   // Reverse geocoding to get address from coordinates
   const reverseGeocode = useCallback(async (lat: number, lng: number) => {
+    // Abort previous in-flight request
+    abortControllerRef.current?.abort()
+    const controller = new AbortController()
+    abortControllerRef.current = controller
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ru`
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ru`,
+        { signal: controller.signal }
       )
       const data = await response.json()
       if (data.display_name) {
@@ -89,7 +96,9 @@ export default function MapPicker({
         onAddressChange?.(address)
       }
     } catch (error) {
-      console.error('Reverse geocoding error:', error)
+      if ((error as Error).name !== 'AbortError') {
+        Sentry.captureException(error, { tags: { component: 'MapPicker' } })
+      }
     }
   }, [onAddressChange])
 
@@ -104,10 +113,14 @@ export default function MapPicker({
   const searchAddress = async (query: string) => {
     if (!query.trim()) return
 
+    abortControllerRef.current?.abort()
+    const controller = new AbortController()
+    abortControllerRef.current = controller
     setIsSearching(true)
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&accept-language=ru`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&accept-language=ru`,
+        { signal: controller.signal }
       )
       const data = await response.json()
       if (data.length > 0) {
@@ -120,7 +133,9 @@ export default function MapPicker({
         onAddressChange?.(display_name)
       }
     } catch (error) {
-      console.error('Geocoding error:', error)
+      if ((error as Error).name !== 'AbortError') {
+        Sentry.captureException(error, { tags: { component: 'MapPicker' } })
+      }
     } finally {
       setIsSearching(false)
     }
@@ -141,12 +156,13 @@ export default function MapPicker({
     }, 1000)
   }
 
-  // Cleanup debounce timer on unmount
+  // Cleanup debounce timer and abort in-flight requests on unmount
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current)
       }
+      abortControllerRef.current?.abort()
     }
   }, [])
 
@@ -165,7 +181,7 @@ export default function MapPicker({
         setIsLocating(false)
       },
       (error) => {
-        console.error('Geolocation error:', error)
+        Sentry.captureException(error, { tags: { component: 'MapPicker' } })
         setIsLocating(false)
         alert('Could not get your location')
       },

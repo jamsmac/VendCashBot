@@ -1,6 +1,9 @@
 import { IsString, IsBoolean, IsOptional, MinLength, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
+// BE-L03: "At least one field" validation is enforced at the controller level
+// because class-validator's @IsOptional() skips validators on undefined fields.
+
 export class UpdateUserDto {
   @ApiProperty({ description: 'User display name', required: false })
   @IsString()

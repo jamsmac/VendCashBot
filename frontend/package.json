@@ -13,6 +13,7 @@
     "test:cov": "vitest run --coverage"
   },
   "dependencies": {
+    "@sentry/react": "^8.0.0",
     "@tanstack/react-query": "^5.17.9",
     "@types/leaflet": "^1.9.21",
     "axios": "^1.6.5",
@@ -25,10 +26,10 @@
     "react-hot-toast": "^2.4.1",
     "react-leaflet": "^4.2.1",
     "react-router-dom": "^6.21.2",
+    "recharts": "^3.7.0",
     "socket.io-client": "^4.8.3",
     "xlsx": "^0.18.5",
-    "zustand": "^4.4.7",
-    "@sentry/react": "^8.0.0"
+    "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

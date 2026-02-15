@@ -85,6 +85,10 @@ export class Collection {
   @Column({ type: 'decimal', precision: 11, scale: 8, nullable: true })
   longitude: number;
 
+  // Distance from operator GPS to machine location (in meters), null if coordinates unavailable
+  @Column({ name: 'distance_from_machine', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  distanceFromMachine: number;
+
   @ManyToOne(() => MachineLocation, { nullable: true })
   @JoinColumn({ name: 'location_id' })
   location: MachineLocation;

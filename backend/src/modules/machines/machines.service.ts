@@ -61,7 +61,7 @@ export class MachinesService {
     return this.machineRepository.save(machine);
   }
 
-  async findAll(activeOnly = true, approvedOnly = true): Promise<Machine[]> {
+  async findAll(activeOnly = true, approvedOnly = true, limit = 500): Promise<Machine[]> {
     const query = this.machineRepository.createQueryBuilder('machine');
 
     if (activeOnly) {
@@ -74,7 +74,7 @@ export class MachinesService {
       });
     }
 
-    return query.orderBy('machine.name', 'ASC').getMany();
+    return query.orderBy('machine.name', 'ASC').take(limit).getMany();
   }
 
   async findAllActive(): Promise<Machine[]> {

@@ -18,6 +18,7 @@ export default function ThemeToggle() {
     <button
       onClick={cycleTheme}
       className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+      aria-label="Переключить тему"
       title={`Текущая тема: ${theme === 'light' ? 'Светлая' : theme === 'dark' ? 'Тёмная' : 'Системная'}`}
     >
       {theme === 'light' ? (

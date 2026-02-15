@@ -7,13 +7,15 @@ import {
   LayoutDashboard,
   ClipboardList,
   BarChart3,
+  ShoppingCart,
   Settings,
+  Sliders,
   Users,
   LogOut,
   Menu,
   X,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 
 export default function Layout() {
   const { user, logout } = useAuthStore()
@@ -28,16 +30,21 @@ export default function Layout() {
     navigate('/login')
   }
 
-  const isAdmin = user?.role === 'admin'
-  const isManager = user?.role === 'manager' || isAdmin
+  const modules = user?.modules || []
+  const has = (m: string) => modules.includes(m)
 
-  const navItems = [
-    ...(isManager ? [{ to: '/dashboard', icon: LayoutDashboard, label: 'Главная' }] : []),
-    { to: '/collections', icon: ClipboardList, label: 'Инкассации' },
-    { to: '/reports', icon: BarChart3, label: 'Отчёты' },
-    ...(isManager ? [{ to: '/machines', icon: Settings, label: 'Автоматы' }] : []),
-    ...(isAdmin ? [{ to: '/users', icon: Users, label: 'Сотрудники' }] : []),
-  ]
+  const navItems = useMemo(() => {
+    const items: { to: string; icon: typeof LayoutDashboard; label: string }[] = []
+    if (has('dashboard')) items.push({ to: '/dashboard', icon: LayoutDashboard, label: 'Главная' })
+    if (has('collections')) items.push({ to: '/collections', icon: ClipboardList, label: 'Инкассации' })
+    if (has('reports')) items.push({ to: '/reports', icon: BarChart3, label: 'Отчёты' })
+    if (has('sales')) items.push({ to: '/sales', icon: ShoppingCart, label: 'Продажи' })
+    if (has('machines')) items.push({ to: '/machines', icon: Settings, label: 'Автоматы' })
+    if (has('users')) items.push({ to: '/users', icon: Users, label: 'Сотрудники' })
+    if (has('settings')) items.push({ to: '/settings', icon: Sliders, label: 'Настройки' })
+    return items
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modules.join(',')])
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">

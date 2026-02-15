@@ -16,6 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { MachinesService } from './machines.service';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole, User } from '../users/entities/user.entity';
 import { CreateMachineDto } from './dto/create-machine.dto';
@@ -29,6 +30,7 @@ import {
 @ApiTags('machines')
 @Controller('machines')
 @ApiBearerAuth()
+@RequireModule('machines')
 export class MachinesController {
   constructor(private readonly machinesService: MachinesService) {}
 

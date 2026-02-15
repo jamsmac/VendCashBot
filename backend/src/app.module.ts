@@ -8,6 +8,8 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { ModulesGuard } from './common/guards/modules.guard';
+import { UserModule } from './modules/users/entities/user-module.entity';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { InvitesModule } from './modules/invites/invites.module';
@@ -20,6 +22,7 @@ import { HealthModule } from './health/health.module';
 import { CacheModule } from './cache/cache.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { SalesModule } from './modules/sales/sales.module';
 import configuration from './config/configuration';
 
 @Module({
@@ -86,6 +89,8 @@ import configuration from './config/configuration';
     CacheModule,
     NotificationsModule,
     FinanceModule,
+    SalesModule,
+    TypeOrmModule.forFeature([UserModule]),
   ],
   providers: [
     {
@@ -99,6 +104,10 @@ import configuration from './config/configuration';
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ModulesGuard,
     },
     {
       provide: APP_INTERCEPTOR,

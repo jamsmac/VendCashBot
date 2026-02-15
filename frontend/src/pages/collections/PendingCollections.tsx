@@ -4,6 +4,7 @@ import { collectionsApi, Collection } from '../../api/collections'
 import { format } from 'date-fns'
 import { Clock } from 'lucide-react'
 import ReceiveModal from '../../components/ReceiveModal'
+import DistanceBadge from '../../components/DistanceBadge'
 import toast from 'react-hot-toast'
 import { getErrorMessage } from '../../utils/getErrorMessage'
 
@@ -44,7 +45,10 @@ export default function PendingCollections() {
                                         <Clock className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
                                     </div>
                                     <div>
-                                        <div className="font-medium text-lg text-gray-900 dark:text-gray-100">{collection.machine.name}</div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-medium text-lg text-gray-900 dark:text-gray-100">{collection.machine.name}</span>
+                                            <DistanceBadge distance={collection.distanceFromMachine} />
+                                        </div>
                                         <div className="text-sm text-gray-500 dark:text-gray-400 space-x-2">
                                             <span>📍 {collection.machine.code}</span>
                                             <span>•</span>

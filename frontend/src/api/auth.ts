@@ -9,6 +9,7 @@ export interface User {
   phone?: string
   role: 'operator' | 'manager' | 'admin'
   isActive: boolean
+  modules?: string[]
   createdAt: string
   updatedAt: string
 }

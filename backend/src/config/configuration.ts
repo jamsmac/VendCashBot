@@ -89,6 +89,7 @@ export default () => {
     telegram: {
       botToken: telegramBotToken,
       welcomeImage: process.env.TELEGRAM_WELCOME_IMAGE || '',
+      archiveChannelId: process.env.TELEGRAM_ARCHIVE_CHANNEL_ID || '',
     },
     admin: {
       telegramId: parseInt(process.env.ADMIN_TELEGRAM_ID || '0', 10),

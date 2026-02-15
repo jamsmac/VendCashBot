@@ -52,18 +52,20 @@ export class InvitesService {
     return invite;
   }
 
-  async findAll(createdById?: string): Promise<Invite[]> {
+  async findAll(createdById?: string, page = 1, limit = 20): Promise<{ data: Invite[]; total: number }> {
     const query = this.inviteRepository.createQueryBuilder('invite')
       .leftJoinAndSelect('invite.createdBy', 'createdBy')
       .leftJoinAndSelect('invite.usedBy', 'usedBy')
       .orderBy('invite.createdAt', 'DESC')
-      .take(500);
+      .skip((page - 1) * limit)
+      .take(limit);
 
     if (createdById) {
       query.andWhere('invite.createdById = :createdById', { createdById });
     }
 
-    return query.getMany();
+    const [data, total] = await query.getManyAndCount();
+    return { data, total };
   }
 
   async findPending(): Promise<Invite[]> {

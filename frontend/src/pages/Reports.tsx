@@ -6,6 +6,8 @@ import toast from 'react-hot-toast'
 
 type Tab = 'machine' | 'date' | 'operator'
 
+const formatAmount = (amount: number) => new Intl.NumberFormat('ru-RU').format(amount)
+
 export default function Reports() {
   const [activeTab, setActiveTab] = useState<Tab>('machine')
   const [query, setQuery] = useState<ReportQuery>({})
@@ -49,8 +51,6 @@ export default function Reports() {
       setExporting(false)
     }
   }
-
-  const formatAmount = (amount: number) => new Intl.NumberFormat('ru-RU').format(amount)
 
   const tabs = [
     { id: 'machine' as Tab, label: 'По автоматам' },

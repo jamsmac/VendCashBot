@@ -61,7 +61,8 @@ jobs:
           fi
 
       - name: Security audit (DO-003)
-        run: npm audit --audit-level=high || true
+        run: npm audit --audit-level=high --production
+        continue-on-error: true
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
@@ -100,7 +101,8 @@ jobs:
         run: npm run lint
 
       - name: Security audit (DO-003)
-        run: npm audit --audit-level=high || true
+        run: npm audit --audit-level=high --production
+        continue-on-error: true
 
       - name: Build
         run: npm run build

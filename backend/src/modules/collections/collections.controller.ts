@@ -11,6 +11,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CollectionsService } from './collections.service';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole, User } from '../users/entities/user.entity';
 import { CreateCollectionDto } from './dto/create-collection.dto';
@@ -24,6 +25,7 @@ import { BulkCancelCollectionDto } from './dto/bulk-cancel-collection.dto';
 @ApiTags('collections')
 @Controller('collections')
 @ApiBearerAuth()
+@RequireModule('collections')
 export class CollectionsController {
   constructor(private readonly collectionsService: CollectionsService) {}
 

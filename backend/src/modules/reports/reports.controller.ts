@@ -4,6 +4,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import * as ExcelJS from 'exceljs';
 import { ReportsService } from './reports.service';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { ReportQueryDto } from './dto/report-query.dto';
 
@@ -26,6 +27,7 @@ function sanitizeForExcel(value: unknown): string {
 @ApiTags('reports')
 @Controller('reports')
 @ApiBearerAuth()
+@RequireModule('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
@@ -37,6 +39,7 @@ export class ReportsController {
   }
 
   @Get('dashboard')
+  @RequireModule('dashboard')
   @Roles(UserRole.MANAGER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Get dashboard summary' })
   async getDashboard() {

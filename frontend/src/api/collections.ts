@@ -18,8 +18,14 @@ export interface Collection {
   status: 'collected' | 'received' | 'cancelled'
   source: 'realtime' | 'manual_history' | 'excel_import'
   notes?: string
+  latitude?: number
+  longitude?: number
+  distanceFromMachine?: number
   createdAt: string
 }
+
+/** Distance threshold in meters — beyond this, collection is flagged */
+export const DISTANCE_WARNING_THRESHOLD = 50
 
 export interface CollectionQuery {
   status?: string
@@ -32,6 +38,17 @@ export interface CollectionQuery {
   sortOrder?: 'ASC' | 'DESC'
   page?: number
   limit?: number
+}
+
+export interface CollectionHistory {
+  id: string
+  action: string
+  field?: string
+  oldValue?: string
+  newValue?: string
+  reason?: string
+  performedBy: { id: string; name: string }
+  createdAt: string
 }
 
 export interface BulkCancelResult {
@@ -101,7 +118,7 @@ export const collectionsApi = {
     return response.data
   },
 
-  getHistory: async (id: string, signal?: AbortSignal) => {
+  getHistory: async (id: string, signal?: AbortSignal): Promise<CollectionHistory[]> => {
     const response = await apiClient.get(`/collections/${id}/history`, { signal })
     return response.data
   },

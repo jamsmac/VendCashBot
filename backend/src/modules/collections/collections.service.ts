@@ -23,10 +23,35 @@ import { BulkCreateCollectionDto } from './dto/bulk-create-collection.dto';
 import { BulkCancelCollectionDto } from './dto/bulk-cancel-collection.dto';
 import { CollectionQueryDto } from './dto/collection-query.dto';
 
+// Distance threshold in meters — collections beyond this are flagged as suspicious
+const DISTANCE_WARNING_THRESHOLD = 50;
+
 @Injectable()
 export class CollectionsService {
   private readonly logger = new Logger(CollectionsService.name);
   private readonly duplicateCheckMinutes: number;
+
+  /**
+   * Calculate distance between two GPS coordinates using Haversine formula
+   * @returns distance in meters
+   */
+  private calculateDistanceMeters(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
+    const R = 6371000; // Earth's radius in meters
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
 
   constructor(
     @InjectRepository(Collection)
@@ -59,7 +84,7 @@ export class CollectionsService {
 
   async create(dto: CreateCollectionDto, operatorId: string): Promise<Collection> {
     // Verify machine exists
-    await this.machinesService.findByIdOrFail(dto.machineId);
+    const machine = await this.machinesService.findByIdOrFail(dto.machineId);
 
     // Ensure collectedAt is a Date object
     const collectedAt = dto.collectedAt instanceof Date ? dto.collectedAt : new Date(dto.collectedAt);
@@ -85,12 +110,33 @@ export class CollectionsService {
       });
     }
 
+    // Calculate distance between operator's GPS and machine location
+    let distanceFromMachine: number | undefined;
+    if (
+      dto.latitude != null && dto.longitude != null &&
+      machine.latitude != null && machine.longitude != null
+    ) {
+      distanceFromMachine = Math.round(
+        this.calculateDistanceMeters(
+          dto.latitude, dto.longitude,
+          Number(machine.latitude), Number(machine.longitude),
+        ) * 100,
+      ) / 100; // round to 2 decimal places
+
+      if (distanceFromMachine > DISTANCE_WARNING_THRESHOLD) {
+        this.logger.warn(
+          `Collection distance warning: operator ${operatorId} is ${distanceFromMachine}m from machine ${dto.machineId} (threshold: ${DISTANCE_WARNING_THRESHOLD}m)`,
+        );
+      }
+    }
+
     const collection = this.collectionRepository.create({
       machineId: dto.machineId,
       operatorId,
       collectedAt,
       latitude: dto.latitude,
       longitude: dto.longitude,
+      distanceFromMachine,
       source: dto.source || CollectionSource.REALTIME,
       notes: dto.notes,
     });
@@ -99,7 +145,7 @@ export class CollectionsService {
     await this.invalidateReportsCache();
 
     // Notify managers about new collection (async, don't block)
-    this.notifyManagersAsync(saved.id).catch((err) => {
+    this.notifyManagersAsync(saved.id, distanceFromMachine).catch((err) => {
       this.logger.warn(`Failed to notify managers: ${err.message}`);
     });
 
@@ -109,13 +155,14 @@ export class CollectionsService {
   /**
    * Notify managers about a new collection asynchronously
    */
-  private async notifyManagersAsync(collectionId: string): Promise<void> {
+  private async notifyManagersAsync(collectionId: string, distanceFromMachine?: number): Promise<void> {
     const collection = await this.findByIdOrFail(collectionId);
     if (collection.machine && collection.operator) {
       await this.telegramService.notifyManagersAboutNewCollection(
         collection.machine.name,
         collection.operator.name,
         collection.collectedAt,
+        distanceFromMachine,
       );
     }
   }

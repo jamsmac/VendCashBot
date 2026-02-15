@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './contexts/AuthContext'
 import Layout from './components/Layout'
+import ModuleRoute from './components/ModuleRoute'
 import Login from './pages/Login'
 
 // Lazy-loaded pages (FE-004: code splitting)
@@ -15,6 +16,8 @@ const ExcelImport = lazy(() => import('./pages/ExcelImport'))
 const Reports = lazy(() => import('./pages/Reports'))
 const Machines = lazy(() => import('./pages/Machines'))
 const Users = lazy(() => import('./pages/Users'))
+const Sales = lazy(() => import('./pages/Sales'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const TelegramMapPicker = lazy(() => import('./pages/TelegramMapPicker'))
 
 function PageLoader() {
@@ -29,8 +32,9 @@ function SuspenseWrapper({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>
 }
 
-function getDefaultRoute(role?: string): string {
-  if (role === 'admin' || role === 'manager') return '/dashboard'
+function getDefaultRoute(modules?: string[]): string {
+  if (modules?.includes('dashboard')) return '/dashboard'
+  if (modules?.includes('collections')) return '/collections'
   return '/collections'
 }
 
@@ -52,45 +56,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuthStore()
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
-      </div>
-    )
-  }
-
-  if (user?.role !== 'admin') {
-    return <Navigate to={getDefaultRoute(user?.role)} replace />
-  }
-
-  return <>{children}</>
-}
-
-function ManagerRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuthStore()
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
-      </div>
-    )
-  }
-
-  if (user?.role !== 'admin' && user?.role !== 'manager') {
-    return <Navigate to={getDefaultRoute(user?.role)} replace />
-  }
-
-  return <>{children}</>
-}
-
 function DefaultRedirect() {
   const { user } = useAuthStore()
-  return <Navigate to={getDefaultRoute(user?.role)} replace />
+  return <Navigate to={getDefaultRoute(user?.modules)} replace />
 }
 
 export default function App() {
@@ -111,32 +79,41 @@ export default function App() {
         <Route
           path="dashboard"
           element={
-            <ManagerRoute>
+            <ModuleRoute module="dashboard">
               <SuspenseWrapper><Dashboard /></SuspenseWrapper>
-            </ManagerRoute>
+            </ModuleRoute>
           }
         />
-        <Route path="collections" element={<SuspenseWrapper><Collections /></SuspenseWrapper>} />
-        <Route path="collections/pending" element={<SuspenseWrapper><CollectionsPending /></SuspenseWrapper>} />
-        <Route path="collections/history" element={<SuspenseWrapper><HistoryEntry /></SuspenseWrapper>} />
-        <Route path="collections/history/by-machine" element={<SuspenseWrapper><HistoryByMachine /></SuspenseWrapper>} />
-        <Route path="collections/history/by-date" element={<SuspenseWrapper><HistoryByDate /></SuspenseWrapper>} />
-        <Route path="collections/history/excel-import" element={<ManagerRoute><SuspenseWrapper><ExcelImport /></SuspenseWrapper></ManagerRoute>} />
-        <Route path="reports" element={<ManagerRoute><SuspenseWrapper><Reports /></SuspenseWrapper></ManagerRoute>} />
+        <Route path="collections" element={<ModuleRoute module="collections"><SuspenseWrapper><Collections /></SuspenseWrapper></ModuleRoute>} />
+        <Route path="collections/pending" element={<ModuleRoute module="collections"><SuspenseWrapper><CollectionsPending /></SuspenseWrapper></ModuleRoute>} />
+        <Route path="collections/history" element={<ModuleRoute module="collections"><SuspenseWrapper><HistoryEntry /></SuspenseWrapper></ModuleRoute>} />
+        <Route path="collections/history/by-machine" element={<ModuleRoute module="collections"><SuspenseWrapper><HistoryByMachine /></SuspenseWrapper></ModuleRoute>} />
+        <Route path="collections/history/by-date" element={<ModuleRoute module="collections"><SuspenseWrapper><HistoryByDate /></SuspenseWrapper></ModuleRoute>} />
+        <Route path="collections/history/excel-import" element={<ModuleRoute module="collections"><SuspenseWrapper><ExcelImport /></SuspenseWrapper></ModuleRoute>} />
+        <Route path="reports" element={<ModuleRoute module="reports"><SuspenseWrapper><Reports /></SuspenseWrapper></ModuleRoute>} />
+        <Route path="sales" element={<ModuleRoute module="sales"><SuspenseWrapper><Sales /></SuspenseWrapper></ModuleRoute>} />
         <Route
           path="machines"
           element={
-            <ManagerRoute>
+            <ModuleRoute module="machines">
               <SuspenseWrapper><Machines /></SuspenseWrapper>
-            </ManagerRoute>
+            </ModuleRoute>
           }
         />
         <Route
           path="users"
           element={
-            <AdminRoute>
+            <ModuleRoute module="users">
               <SuspenseWrapper><Users /></SuspenseWrapper>
-            </AdminRoute>
+            </ModuleRoute>
+          }
+        />
+        <Route
+          path="settings"
+          element={
+            <ModuleRoute module="settings">
+              <SuspenseWrapper><SettingsPage /></SuspenseWrapper>
+            </ModuleRoute>
           }
         />
       </Route>

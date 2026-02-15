@@ -42,12 +42,27 @@ export const usersApi = {
     const response = await apiClient.get('/users/operators', { signal })
     return response.data
   },
+
+  getUserModules: async (id: string, signal?: AbortSignal): Promise<{
+    modules: string[]
+    customModules: string[]
+    allModules: string[]
+  }> => {
+    const response = await apiClient.get(`/users/${id}/modules`, { signal })
+    return response.data
+  },
+
+  setUserModules: async (id: string, modules: string[]): Promise<{ modules: string[] }> => {
+    const response = await apiClient.put(`/users/${id}/modules`, { modules })
+    return response.data
+  },
 }
 
 export const invitesApi = {
   getAll: async (signal?: AbortSignal): Promise<Invite[]> => {
     const response = await apiClient.get('/invites', { signal })
-    return response.data
+    // Backend returns { data: Invite[], total: number } with pagination
+    return response.data.data ?? response.data
   },
 
   getPending: async (signal?: AbortSignal): Promise<Invite[]> => {

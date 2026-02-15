@@ -3,6 +3,7 @@ import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { AuthService, TelegramAuthData } from './auth.service';
 import { InvitesService } from '../invites/invites.service';
+import { UsersService } from '../users/users.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
 import { RegisterByInviteDto } from './dto/register-by-invite.dto';
@@ -12,6 +13,7 @@ describe('AuthController', () => {
   let controller: AuthController;
   let authService: jest.Mocked<AuthService>;
   let invitesService: jest.Mocked<InvitesService>;
+  let usersService: jest.Mocked<UsersService>;
 
   const mockUser: User = {
     id: 'user-123',
@@ -66,12 +68,19 @@ describe('AuthController', () => {
             validateInvite: jest.fn(),
           },
         },
+        {
+          provide: UsersService,
+          useValue: {
+            getUserModules: jest.fn().mockResolvedValue(['collections']),
+          },
+        },
       ],
     }).compile();
 
     controller = module.get<AuthController>(AuthController);
     authService = module.get(AuthService);
     invitesService = module.get(InvitesService);
+    usersService = module.get(UsersService);
 
     // Reset mocks
     jest.clearAllMocks();
@@ -156,19 +165,25 @@ describe('AuthController', () => {
   });
 
   describe('me', () => {
-    it('should return the current user', async () => {
+    it('should return the current user with modules', async () => {
+      usersService.getUserModules.mockResolvedValue(['collections']);
+
       const result = await controller.me(mockUser);
 
-      expect(result).toEqual(mockUser);
+      expect(usersService.getUserModules).toHaveBeenCalledWith(mockUser.id);
+      expect(result).toEqual({ ...mockUser, modules: ['collections'] });
     });
 
-    it('should return user with all properties', async () => {
+    it('should return user with all properties and modules', async () => {
+      usersService.getUserModules.mockResolvedValue(['dashboard', 'collections', 'reports']);
+
       const result = await controller.me(mockUser);
 
       expect(result.id).toBe(mockUser.id);
       expect(result.telegramId).toBe(mockUser.telegramId);
       expect(result.role).toBe(mockUser.role);
       expect(result.isActive).toBe(mockUser.isActive);
+      expect(result.modules).toEqual(['dashboard', 'collections', 'reports']);
     });
   });
 

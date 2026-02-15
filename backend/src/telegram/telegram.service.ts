@@ -219,20 +219,93 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Send a document (file) to a chat and return file_id + message_id.
+   */
+  async sendDocument(
+    chatId: number | string,
+    fileBuffer: Buffer,
+    filename: string,
+    caption?: string,
+  ): Promise<{ fileId: string; messageId: number } | null> {
+    if (!this.bot) {
+      this.logger.warn('Cannot send document: bot not initialized');
+      return null;
+    }
+
+    try {
+      const { InputFile } = await import('grammy');
+      const inputFile = new InputFile(fileBuffer, filename);
+      const msg = await this.bot.api.sendDocument(chatId, inputFile, {
+        caption: caption || undefined,
+        parse_mode: 'HTML',
+      });
+      const fileId = msg.document?.file_id;
+      if (!fileId) {
+        this.logger.warn('sendDocument succeeded but no file_id in response');
+        return null;
+      }
+      return { fileId, messageId: msg.message_id };
+    } catch (error) {
+      this.logger.error(`Failed to send document to ${chatId}: ${getErrorMessage(error)}`);
+      return null;
+    }
+  }
+
+  /**
+   * Get a temporary download URL for a Telegram file by file_id.
+   * The URL is valid for ~1 hour.
+   */
+  async getFileUrl(fileId: string): Promise<string | null> {
+    if (!this.bot) {
+      this.logger.warn('Cannot get file: bot not initialized');
+      return null;
+    }
+
+    try {
+      const file = await this.bot.api.getFile(fileId);
+      if (!file.file_path) return null;
+      const token = this.configService.get('telegram.botToken');
+      return `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+    } catch (error) {
+      this.logger.error(`Failed to get file URL: ${getErrorMessage(error)}`);
+      return null;
+    }
+  }
+
+  /**
+   * Get the archive channel ID from config.
+   */
+  getArchiveChannelId(): string {
+    return this.configService.get('telegram.archiveChannelId') || '';
+  }
+
+  /**
    * Notify managers about a new collection
    */
   async notifyManagersAboutNewCollection(
     machineName: string,
     operatorName: string,
     collectedAt: Date,
+    distanceFromMachine?: number,
   ): Promise<void> {
     const managers = await this.usersService.findAllActive([UserRole.MANAGER, UserRole.ADMIN]);
+
+    // Format distance info
+    let distanceLine = '';
+    if (distanceFromMachine != null) {
+      if (distanceFromMachine > 50) {
+        distanceLine = `\n⚠️ <b>Расстояние: ${Math.round(distanceFromMachine)} м</b> (далеко от автомата!)`;
+      } else {
+        distanceLine = `\n📏 Расстояние: ${Math.round(distanceFromMachine)} м ✅`;
+      }
+    }
 
     const message =
       `🆕 <b>Новая инкассация!</b>\n\n` +
       `📍 Автомат: <b>${this.escapeHtml(machineName)}</b>\n` +
       `👤 Оператор: ${this.escapeHtml(operatorName)}\n` +
-      `🕐 Время: ${collectedAt.toLocaleString('ru-RU', { timeZone: 'Asia/Tashkent' })}\n\n` +
+      `🕐 Время: ${collectedAt.toLocaleString('ru-RU', { timeZone: 'Asia/Tashkent' })}` +
+      `${distanceLine}\n\n` +
       `<i>Ожидает приёма в системе.</i>`;
 
     for (const manager of managers) {
@@ -240,6 +313,56 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         await this.sendMessage(manager.telegramId, message);
       }
     }
+  }
+
+  /**
+   * Notify managers about significant reconciliation shortages (>10%)
+   */
+  async notifyReconciliationShortages(
+    shortages: Array<{
+      machineName: string;
+      machineCode: string;
+      periodStart: string;
+      periodEnd: string;
+      expectedAmount: number;
+      actualAmount: number;
+      difference: number;
+      percentDeviation: number;
+    }>,
+  ): Promise<void> {
+    if (shortages.length === 0) return;
+
+    const managers = await this.usersService.findAllActive([UserRole.MANAGER, UserRole.ADMIN]);
+    if (managers.length === 0) return;
+
+    const formatNum = (n: number) => new Intl.NumberFormat('ru-RU').format(Math.round(n));
+
+    const lines = shortages.slice(0, 5).map((s) => {
+      const start = new Date(s.periodStart).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tashkent' });
+      const end = new Date(s.periodEnd).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tashkent' });
+      return (
+        `  • <b>${this.escapeHtml(s.machineName)}</b> (${this.escapeHtml(s.machineCode)})\n` +
+        `    ${start} → ${end}\n` +
+        `    Ожидалось: ${formatNum(s.expectedAmount)}, Факт: ${formatNum(s.actualAmount)}\n` +
+        `    Разница: <b>${formatNum(Math.abs(s.difference))} сум</b> (${Math.abs(s.percentDeviation).toFixed(1)}%)`
+      );
+    });
+
+    const more = shortages.length > 5 ? `\n\n... и ещё ${shortages.length - 5} недостач` : '';
+
+    const message =
+      `⚠️ <b>Обнаружены недостачи!</b>\n\n` +
+      `Найдено <b>${shortages.length}</b> расхождений более 10%:\n\n` +
+      `${lines.join('\n\n')}${more}\n\n` +
+      `<i>Откройте раздел «Продажи → Сверка» для деталей.</i>`;
+
+    for (const manager of managers) {
+      if (manager.telegramId) {
+        await this.sendMessage(manager.telegramId, message);
+      }
+    }
+
+    this.logger.log(`Reconciliation shortage alerts sent to ${managers.filter((m) => m.telegramId).length} managers`);
   }
 
   private setupHandlers() {
@@ -2410,7 +2533,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await ctx.answerCallbackQuery();
 
       // Count active invites
-      const invites = await this.invitesService.findAll();
+      const { data: invites } = await this.invitesService.findAll();
       const activeInvites = invites.filter(i => !i.isUsed && !i.isExpired);
 
       await ctx.editMessageText(
@@ -2620,7 +2743,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      const invites = await this.invitesService.findAll();
+      const { data: invites } = await this.invitesService.findAll();
       const invite = invites.find(i => i.id === inviteId);
 
       if (!invite) {

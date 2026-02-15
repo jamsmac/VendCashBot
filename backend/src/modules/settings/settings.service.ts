@@ -12,7 +12,26 @@ export const SETTING_KEYS = {
   HELP_MANAGER: 'help_manager',
   HELP_ADMIN: 'help_admin',
   COLLECTION_SUCCESS: 'collection_success',
+  // App configuration
+  RECONCILIATION_TOLERANCE: 'reconciliation_tolerance',
+  SHORTAGE_ALERT_THRESHOLD: 'shortage_alert_threshold',
+  COLLECTION_DISTANCE_METERS: 'collection_distance_meters',
+  DEFAULT_PAGE_SIZE: 'default_page_size',
 } as const;
+
+export const APP_DEFAULTS = {
+  [SETTING_KEYS.RECONCILIATION_TOLERANCE]: '5',
+  [SETTING_KEYS.SHORTAGE_ALERT_THRESHOLD]: '10',
+  [SETTING_KEYS.COLLECTION_DISTANCE_METERS]: '50',
+  [SETTING_KEYS.DEFAULT_PAGE_SIZE]: '50',
+} as const;
+
+export interface AppSettingsDto {
+  reconciliationTolerance: number;
+  shortageAlertThreshold: number;
+  collectionDistanceMeters: number;
+  defaultPageSize: number;
+}
 
 @Injectable()
 export class SettingsService {
@@ -110,5 +129,65 @@ export class SettingsService {
 
   async setCollectionSuccess(text: string): Promise<Setting> {
     return this.set(SETTING_KEYS.COLLECTION_SUCCESS, text, 'Collection success message');
+  }
+
+  // ========= App Settings (reconciliation, collections) =========
+
+  async getAppSettings(): Promise<AppSettingsDto> {
+    const keys = [
+      SETTING_KEYS.RECONCILIATION_TOLERANCE,
+      SETTING_KEYS.SHORTAGE_ALERT_THRESHOLD,
+      SETTING_KEYS.COLLECTION_DISTANCE_METERS,
+      SETTING_KEYS.DEFAULT_PAGE_SIZE,
+    ];
+
+    const settings = await this.settingsRepository.find({
+      where: keys.map((key) => ({ key })),
+    });
+
+    const map = new Map(settings.map((s) => [s.key, s.value]));
+
+    return {
+      reconciliationTolerance: Number(
+        map.get(SETTING_KEYS.RECONCILIATION_TOLERANCE) ??
+          APP_DEFAULTS[SETTING_KEYS.RECONCILIATION_TOLERANCE],
+      ),
+      shortageAlertThreshold: Number(
+        map.get(SETTING_KEYS.SHORTAGE_ALERT_THRESHOLD) ??
+          APP_DEFAULTS[SETTING_KEYS.SHORTAGE_ALERT_THRESHOLD],
+      ),
+      collectionDistanceMeters: Number(
+        map.get(SETTING_KEYS.COLLECTION_DISTANCE_METERS) ??
+          APP_DEFAULTS[SETTING_KEYS.COLLECTION_DISTANCE_METERS],
+      ),
+      defaultPageSize: Number(
+        map.get(SETTING_KEYS.DEFAULT_PAGE_SIZE) ??
+          APP_DEFAULTS[SETTING_KEYS.DEFAULT_PAGE_SIZE],
+      ),
+    };
+  }
+
+  async updateAppSettings(dto: Partial<AppSettingsDto>): Promise<AppSettingsDto> {
+    const mapping: Array<[keyof AppSettingsDto, string, string]> = [
+      ['reconciliationTolerance', SETTING_KEYS.RECONCILIATION_TOLERANCE, 'Reconciliation tolerance (%)'],
+      ['shortageAlertThreshold', SETTING_KEYS.SHORTAGE_ALERT_THRESHOLD, 'Shortage alert threshold (%)'],
+      ['collectionDistanceMeters', SETTING_KEYS.COLLECTION_DISTANCE_METERS, 'Collection distance (meters)'],
+      ['defaultPageSize', SETTING_KEYS.DEFAULT_PAGE_SIZE, 'Default page size'],
+    ];
+
+    for (const [field, key, description] of mapping) {
+      if (dto[field] !== undefined) {
+        await this.set(key, String(dto[field]), description);
+      }
+    }
+
+    return this.getAppSettings();
+  }
+
+  async getNumericSetting(key: string, defaultValue: number): Promise<number> {
+    const value = await this.get(key);
+    if (value === null) return defaultValue;
+    const num = Number(value);
+    return isNaN(num) ? defaultValue : num;
   }
 }

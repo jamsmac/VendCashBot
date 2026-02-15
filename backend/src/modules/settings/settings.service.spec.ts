@@ -280,6 +280,65 @@ describe('SettingsService', () => {
     });
   });
 
+  describe('App Settings', () => {
+    it('getAppSettings should return defaults when no settings exist', async () => {
+      repository.find.mockResolvedValue([]);
+
+      const result = await service.getAppSettings();
+
+      expect(result.reconciliationTolerance).toBe(5);
+      expect(result.shortageAlertThreshold).toBe(10);
+      expect(result.collectionDistanceMeters).toBe(50);
+      expect(result.defaultPageSize).toBe(50);
+    });
+
+    it('getAppSettings should return stored values', async () => {
+      repository.find.mockResolvedValue([
+        { key: SETTING_KEYS.RECONCILIATION_TOLERANCE, value: '8' } as any,
+        { key: SETTING_KEYS.SHORTAGE_ALERT_THRESHOLD, value: '15' } as any,
+      ]);
+
+      const result = await service.getAppSettings();
+
+      expect(result.reconciliationTolerance).toBe(8);
+      expect(result.shortageAlertThreshold).toBe(15);
+      expect(result.collectionDistanceMeters).toBe(50); // default
+      expect(result.defaultPageSize).toBe(50); // default
+    });
+
+    it('getNumericSetting should return default when setting does not exist', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      const result = await service.getNumericSetting('missing_key', 42);
+
+      expect(result).toBe(42);
+    });
+
+    it('getNumericSetting should return parsed number', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockSetting,
+        key: 'some_key',
+        value: '99',
+      });
+
+      const result = await service.getNumericSetting('some_key', 0);
+
+      expect(result).toBe(99);
+    });
+
+    it('getNumericSetting should return default for non-numeric values', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockSetting,
+        key: 'bad_key',
+        value: 'not_a_number',
+      });
+
+      const result = await service.getNumericSetting('bad_key', 42);
+
+      expect(result).toBe(42);
+    });
+  });
+
   describe('Other convenience methods', () => {
     it('getCollectionSuccess should get collection_success setting', async () => {
       repository.findOne.mockResolvedValue({

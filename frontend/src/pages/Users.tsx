@@ -1,20 +1,38 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { usersApi, invitesApi } from '../api/users'
 import { User } from '../api/auth'
-import { Plus, Edit, X, Check, XCircle, Copy, Trash2 } from 'lucide-react'
+import { Plus, Edit, X, Check, XCircle, Copy, Trash2, KeyRound } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getErrorMessage } from '../utils/getErrorMessage'
 import { format } from 'date-fns'
+import { BOT_USERNAME } from '../constants/telegram'
 
-const BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'vendhubcashbot'
+const MODULE_LABELS: Record<string, string> = {
+  dashboard: 'Главная',
+  collections: 'Инкассации',
+  reports: 'Отчёты',
+  sales: 'Продажи',
+  machines: 'Автоматы',
+  settings: 'Настройки',
+  users: 'Сотрудники',
+}
+
+const ROLE_DEFAULTS: Record<string, string[]> = {
+  admin: ['dashboard', 'collections', 'reports', 'sales', 'machines', 'settings', 'users'],
+  manager: ['dashboard', 'collections', 'reports'],
+  operator: ['collections'],
+}
 
 export default function Users() {
   const queryClient = useQueryClient()
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showModulesModal, setShowModulesModal] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [modulesUser, setModulesUser] = useState<User | null>(null)
+  const [selectedModules, setSelectedModules] = useState<string[]>([])
   const [inviteLink, setInviteLink] = useState('')
   const [showInactive, setShowInactive] = useState(false)
 
@@ -27,6 +45,19 @@ export default function Users() {
     queryKey: ['pending-invites'],
     queryFn: ({ signal }) => invitesApi.getPending(signal),
   })
+
+  const { data: userModulesData, isLoading: modulesLoading } = useQuery({
+    queryKey: ['user-modules', modulesUser?.id],
+    queryFn: ({ signal }) => usersApi.getUserModules(modulesUser!.id, signal),
+    enabled: !!modulesUser,
+  })
+
+  // Sync selected modules when data loads
+  useEffect(() => {
+    if (userModulesData) {
+      setSelectedModules(userModulesData.modules)
+    }
+  }, [userModulesData])
 
   const { register, handleSubmit, reset } = useForm<{ name: string; phone: string }>()
 
@@ -66,6 +97,20 @@ export default function Users() {
     },
   })
 
+  const setModulesMutation = useMutation({
+    mutationFn: ({ id, modules }: { id: string; modules: string[] }) =>
+      usersApi.setUserModules(id, modules),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-modules'] })
+      toast.success('Права обновлены')
+      setShowModulesModal(false)
+      setModulesUser(null)
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, 'Ошибка обновления прав'))
+    },
+  })
+
   const toggleActiveMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       isActive ? usersApi.activate(id) : usersApi.deactivate(id),
@@ -90,10 +135,32 @@ export default function Users() {
     reset()
   }
 
+  const openModulesModal = (user: User) => {
+    setModulesUser(user)
+    setSelectedModules([])
+    setShowModulesModal(true)
+  }
+
   const onSubmit = (data: { name: string; phone: string }) => {
     if (editingUser) {
       updateUserMutation.mutate({ id: editingUser.id, data })
     }
+  }
+
+  const toggleModule = (module: string) => {
+    if (!modulesUser) return
+    const roleDefaults = ROLE_DEFAULTS[modulesUser.role] || []
+    // Can't toggle role defaults
+    if (roleDefaults.includes(module)) return
+
+    setSelectedModules((prev) =>
+      prev.includes(module) ? prev.filter((m) => m !== module) : [...prev, module],
+    )
+  }
+
+  const saveModules = () => {
+    if (!modulesUser) return
+    setModulesMutation.mutate({ id: modulesUser.id, modules: selectedModules })
   }
 
   const copyInviteLink = () => {
@@ -179,9 +246,19 @@ export default function Users() {
                       <button
                         onClick={() => openEditModal(user)}
                         className="p-2 text-gray-500 dark:text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg"
+                        title="Редактировать"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
+                      {user.role !== 'admin' && (
+                        <button
+                          onClick={() => openModulesModal(user)}
+                          className="p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg"
+                          title="Управление правами"
+                        >
+                          <KeyRound className="w-4 h-4" />
+                        </button>
+                      )}
                       {user.role !== 'admin' && (
                         <button
                           onClick={() =>
@@ -376,6 +453,105 @@ export default function Users() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modules Management Modal */}
+      {showModulesModal && modulesUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="font-semibold text-lg">🔑 Права доступа</h2>
+              <button
+                onClick={() => {
+                  setShowModulesModal(false)
+                  setModulesUser(null)
+                }}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                <span className="font-medium text-gray-900 dark:text-gray-100">{modulesUser.name}</span>
+                {' — '}
+                {getRoleBadge(modulesUser.role)}
+              </div>
+
+              <div className="text-xs text-gray-400 dark:text-gray-500">
+                Серые чекбоксы — дефолт роли (нельзя изменить). Остальные можно включить/выключить.
+              </div>
+
+              {modulesLoading ? (
+                <div className="py-4 text-center text-gray-500">Загрузка...</div>
+              ) : (
+                <div className="space-y-2">
+                  {(userModulesData?.allModules || Object.keys(MODULE_LABELS)).map((mod) => {
+                    const roleDefaults = ROLE_DEFAULTS[modulesUser.role] || []
+                    const isDefault = roleDefaults.includes(mod)
+                    const isChecked = selectedModules.includes(mod)
+                    const isCustom = !isDefault && isChecked
+
+                    return (
+                      <label
+                        key={mod}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                          isDefault
+                            ? 'bg-gray-50 dark:bg-gray-700/30 cursor-not-allowed'
+                            : isCustom
+                              ? 'bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30'
+                              : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          disabled={isDefault}
+                          onChange={() => toggleModule(mod)}
+                          className={`rounded border-gray-300 focus:ring-primary-500 ${
+                            isDefault
+                              ? 'text-gray-400 cursor-not-allowed'
+                              : 'text-amber-500'
+                          }`}
+                        />
+                        <span className={`text-sm ${isDefault ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}>
+                          {MODULE_LABELS[mod] || mod}
+                        </span>
+                        {isDefault && (
+                          <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">по роли</span>
+                        )}
+                        {isCustom && (
+                          <span className="text-xs text-amber-500 ml-auto">доп. доступ</span>
+                        )}
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModulesModal(false)
+                    setModulesUser(null)
+                  }}
+                  className="btn btn-secondary flex-1"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={saveModules}
+                  disabled={setModulesMutation.isPending || modulesLoading}
+                  className="btn btn-primary flex-1"
+                >
+                  {setModulesMutation.isPending ? 'Сохранение...' : '💾 Сохранить'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

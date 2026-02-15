@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { User, UserRole } from './entities/user.entity';
+import { UserModule } from './entities/user-module.entity';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -40,6 +41,15 @@ describe('UsersService', () => {
             create: jest.fn(),
             save: jest.fn(),
             createQueryBuilder: jest.fn().mockReturnValue(mockQueryBuilder),
+          },
+        },
+        {
+          provide: getRepositoryToken(UserModule),
+          useValue: {
+            find: jest.fn().mockResolvedValue([]),
+            create: jest.fn(),
+            save: jest.fn(),
+            delete: jest.fn(),
           },
         },
       ],
@@ -326,6 +336,149 @@ describe('UsersService', () => {
       await service.deleteById('user-123');
 
       expect(repository.delete).toHaveBeenCalledWith('user-123');
+    });
+  });
+
+  describe('getUserModules', () => {
+    let userModuleRepo: jest.Mocked<any>;
+
+    beforeEach(() => {
+      userModuleRepo = (service as any).userModuleRepository;
+    });
+
+    it('should return all modules for admin', async () => {
+      const adminUser = { ...mockUser, role: UserRole.ADMIN };
+      repository.findOne.mockResolvedValue(adminUser);
+      userModuleRepo.find.mockResolvedValue([]);
+
+      const result = await service.getUserModules('user-123');
+
+      // Admin gets all 7 modules by default
+      expect(result).toEqual(expect.arrayContaining([
+        'dashboard', 'collections', 'reports', 'sales', 'machines', 'settings', 'users',
+      ]));
+      expect(result.length).toBe(7);
+    });
+
+    it('should return default modules for manager', async () => {
+      const managerUser = { ...mockUser, role: UserRole.MANAGER };
+      repository.findOne.mockResolvedValue(managerUser);
+      userModuleRepo.find.mockResolvedValue([]);
+
+      const result = await service.getUserModules('user-123');
+
+      expect(result).toEqual(expect.arrayContaining(['dashboard', 'collections', 'reports']));
+      expect(result.length).toBe(3);
+    });
+
+    it('should return default modules for operator', async () => {
+      repository.findOne.mockResolvedValue(mockUser); // operator
+      userModuleRepo.find.mockResolvedValue([]);
+
+      const result = await service.getUserModules('user-123');
+
+      expect(result).toEqual(['collections']);
+    });
+
+    it('should combine role defaults with custom grants', async () => {
+      const managerUser = { ...mockUser, role: UserRole.MANAGER };
+      repository.findOne.mockResolvedValue(managerUser);
+      userModuleRepo.find.mockResolvedValue([{ module: 'sales' }, { module: 'machines' }]);
+
+      const result = await service.getUserModules('user-123');
+
+      expect(result).toEqual(expect.arrayContaining([
+        'dashboard', 'collections', 'reports', 'sales', 'machines',
+      ]));
+      expect(result.length).toBe(5);
+    });
+
+    it('should deduplicate when custom grant overlaps with role default', async () => {
+      const managerUser = { ...mockUser, role: UserRole.MANAGER };
+      repository.findOne.mockResolvedValue(managerUser);
+      // 'dashboard' is already a manager default
+      userModuleRepo.find.mockResolvedValue([{ module: 'dashboard' }, { module: 'sales' }]);
+
+      const result = await service.getUserModules('user-123');
+
+      expect(result.length).toBe(4); // dashboard, collections, reports, sales (no duplicate)
+    });
+
+    it('should throw NotFoundException for non-existent user', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      await expect(service.getUserModules('non-existent')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getCustomModules', () => {
+    let userModuleRepo: jest.Mocked<any>;
+
+    beforeEach(() => {
+      userModuleRepo = (service as any).userModuleRepository;
+    });
+
+    it('should return empty array when no custom grants', async () => {
+      userModuleRepo.find.mockResolvedValue([]);
+
+      const result = await service.getCustomModules('user-123');
+
+      expect(result).toEqual([]);
+    });
+
+    it('should return custom grant modules', async () => {
+      userModuleRepo.find.mockResolvedValue([{ module: 'sales' }, { module: 'machines' }]);
+
+      const result = await service.getCustomModules('user-123');
+
+      expect(result).toEqual(['sales', 'machines']);
+    });
+  });
+
+  describe('setUserModules', () => {
+    let userModuleRepo: jest.Mocked<any>;
+
+    beforeEach(() => {
+      userModuleRepo = (service as any).userModuleRepository;
+    });
+
+    it('should store only non-default modules for operator', async () => {
+      repository.findOne.mockResolvedValue(mockUser); // operator, default: collections
+      userModuleRepo.delete.mockResolvedValue({ affected: 0 });
+      userModuleRepo.create.mockImplementation((data: Record<string, unknown>) => data);
+      userModuleRepo.save.mockResolvedValue([]);
+      userModuleRepo.find.mockResolvedValue([{ module: 'sales' }]);
+
+      const result = await service.setUserModules('user-123', ['collections', 'sales'], 'admin-1');
+
+      // 'collections' is operator default, should only save 'sales'
+      expect(userModuleRepo.delete).toHaveBeenCalledWith({ userId: 'user-123' });
+      expect(userModuleRepo.create).toHaveBeenCalledWith({
+        userId: 'user-123',
+        module: 'sales',
+        grantedBy: 'admin-1',
+      });
+      expect(userModuleRepo.save).toHaveBeenCalled();
+    });
+
+    it('should delete all custom grants when only defaults provided', async () => {
+      const managerUser = { ...mockUser, role: UserRole.MANAGER };
+      repository.findOne.mockResolvedValue(managerUser);
+      userModuleRepo.delete.mockResolvedValue({ affected: 2 });
+      userModuleRepo.find.mockResolvedValue([]);
+
+      // Only provide manager defaults — no custom modules needed
+      const result = await service.setUserModules('user-123', ['dashboard', 'collections', 'reports'], 'admin-1');
+
+      expect(userModuleRepo.delete).toHaveBeenCalledWith({ userId: 'user-123' });
+      // save should not be called with empty array
+      expect(userModuleRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException for non-existent user', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      await expect(service.setUserModules('non-existent', ['sales'], 'admin-1')).rejects.toThrow(NotFoundException);
     });
   });
 });
