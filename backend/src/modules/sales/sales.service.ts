@@ -49,6 +49,103 @@ function parseDate(value: unknown): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * Column mapping detected from header row.
+ * Maps semantic field names to 1-based column indices.
+ */
+interface ColumnMap {
+  orderNumber: number;
+  product: number;
+  flavor: number;
+  paymentResource: number;
+  paymentStatus: number;
+  machineCode: number;
+  address: number;
+  price: number;
+  orderDate: number;
+}
+
+/** Default column positions matching the 2026-format files */
+const DEFAULT_COLUMNS: ColumnMap = {
+  orderNumber: 1,   // A
+  product: 3,       // C
+  flavor: 4,        // D
+  paymentResource: 5, // E
+  paymentStatus: 7,  // G
+  machineCode: 9,   // I
+  address: 10,      // J
+  price: 11,        // K
+  orderDate: 13,    // M
+};
+
+/**
+ * Header patterns for auto-detecting column positions.
+ * Each key has an array of possible header substrings (lowercase).
+ */
+const HEADER_PATTERNS: Record<keyof ColumnMap, string[]> = {
+  orderNumber: ['номер заказ', '№ заказ', 'order number', 'order_number', 'номер', 'заказ №'],
+  product: ['продукт', 'товар', 'product', 'напиток', 'наименование'],
+  flavor: ['вкус', 'flavor', 'добавка'],
+  paymentResource: ['ресурс оплат', 'оплат', 'payment resource', 'способ оплат', 'метод оплат', 'тип оплат'],
+  paymentStatus: ['статус оплат', 'payment status', 'статус платеж'],
+  machineCode: ['код автомат', 'код аппарат', 'machine code', 'машин', 'автомат', 'аппарат', 'код устройства'],
+  address: ['адрес', 'address', 'расположение', 'локация'],
+  price: ['цена', 'сумма', 'стоимость', 'price', 'amount'],
+  orderDate: ['дата заказ', 'дата продаж', 'order date', 'дата', 'date'],
+};
+
+/**
+ * Detect column mapping from the header row.
+ * Falls back to DEFAULT_COLUMNS if headers can't be detected.
+ */
+function detectColumns(headerRow: ExcelJS.Row, logger: Logger): ColumnMap {
+  const cols: Partial<ColumnMap> = {};
+  const headerValues: Record<number, string> = {};
+
+  // Read all header cell values
+  headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+    const val = String(cell.value || '').trim().toLowerCase();
+    if (val) headerValues[colNumber] = val;
+  });
+
+  // For each field, find the best matching column
+  for (const [field, patterns] of Object.entries(HEADER_PATTERNS)) {
+    for (const [colNum, headerVal] of Object.entries(headerValues)) {
+      for (const pattern of patterns) {
+        if (headerVal.includes(pattern)) {
+          cols[field as keyof ColumnMap] = parseInt(colNum);
+          break;
+        }
+      }
+      if (cols[field as keyof ColumnMap]) break;
+    }
+  }
+
+  // Check if we found the critical columns
+  const critical: (keyof ColumnMap)[] = ['paymentResource', 'machineCode', 'price', 'orderDate'];
+  const missing = critical.filter((f) => !cols[f]);
+
+  if (missing.length > 0) {
+    logger.warn(
+      `Column auto-detection: missing critical columns [${missing.join(', ')}]. ` +
+      `Detected: ${JSON.stringify(cols)}. Headers: ${JSON.stringify(headerValues)}. ` +
+      `Falling back to default column positions.`,
+    );
+    return DEFAULT_COLUMNS;
+  }
+
+  // Fill non-critical missing fields from defaults
+  const result: ColumnMap = { ...DEFAULT_COLUMNS };
+  for (const [key, value] of Object.entries(cols)) {
+    if (value !== undefined) {
+      result[key as keyof ColumnMap] = value;
+    }
+  }
+
+  logger.log(`Column auto-detection successful: ${JSON.stringify(result)}`);
+  return result;
+}
+
 export interface ReconciliationItem {
   machineCode: string;
   machineName: string;
@@ -110,6 +207,18 @@ export class SalesService {
       throw new BadRequestException('Excel файл не содержит листов');
     }
 
+    // Detect column mapping from header row
+    const headerRow = worksheet.getRow(1);
+    const cols = detectColumns(headerRow, this.logger);
+
+    // Log first few header values for debugging
+    const headerPreview: Record<number, string> = {};
+    headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+      headerPreview[colNumber] = String(cell.value || '').trim();
+    });
+    this.logger.log(`Import file: "${originalName}", headers: ${JSON.stringify(headerPreview)}`);
+    this.logger.log(`Using column map: ${JSON.stringify(cols)}`);
+
     // Build machine code → id lookup
     const machines = await this.machineRepository.find();
     const machineMap = new Map<string, string>();
@@ -121,6 +230,8 @@ export class SalesService {
     const orders: Partial<SalesOrder>[] = [];
     const errors: string[] = [];
     let skipped = 0;
+    let skippedPayment = 0;
+    let skippedMachineCode = 0;
     const machineCodesNotFound = new Set<string>();
     const machineCodesFound = new Set<string>();
 
@@ -129,21 +240,34 @@ export class SalesService {
       if (rowNumber === 1) return; // Skip header
 
       try {
-        const paymentResource = String(row.getCell(5).value || '').trim(); // Column E
+        const paymentResource = String(row.getCell(cols.paymentResource).value || '').trim();
         const paymentMethod = parsePaymentMethod(paymentResource);
         if (!paymentMethod) {
           skipped++;
+          skippedPayment++;
+          // Log first few skips for debugging
+          if (skippedPayment <= 3) {
+            this.logger.debug(
+              `Row ${rowNumber} skipped: paymentResource="${paymentResource}" (col ${cols.paymentResource}) not recognized`,
+            );
+          }
           return; // Skip non-cash/card (send, vip, test)
         }
 
-        const machineCode = String(row.getCell(9).value || '').trim(); // Column I
+        const machineCode = String(row.getCell(cols.machineCode).value || '').trim();
         if (!machineCode) {
           skipped++;
+          skippedMachineCode++;
+          if (skippedMachineCode <= 3) {
+            this.logger.debug(
+              `Row ${rowNumber} skipped: empty machineCode (col ${cols.machineCode})`,
+            );
+          }
           return;
         }
 
-        const price = parsePrice(row.getCell(11).value); // Column K
-        const orderDate = parseDate(row.getCell(13).value); // Column M
+        const price = parsePrice(row.getCell(cols.price).value);
+        const orderDate = parseDate(row.getCell(cols.orderDate).value);
         if (!orderDate) {
           errors.push(`Строка ${rowNumber}: невозможно распознать дату`);
           return;
@@ -157,14 +281,14 @@ export class SalesService {
         }
 
         orders.push({
-          orderNumber: String(row.getCell(1).value || '').trim() || undefined, // Column A
-          productName: String(row.getCell(3).value || '').trim() || undefined, // Column C
-          flavor: String(row.getCell(4).value || '').trim() || undefined, // Column D
+          orderNumber: String(row.getCell(cols.orderNumber).value || '').trim() || undefined,
+          productName: String(row.getCell(cols.product).value || '').trim() || undefined,
+          flavor: String(row.getCell(cols.flavor).value || '').trim() || undefined,
           paymentMethod,
-          paymentStatus: parsePaymentStatus(String(row.getCell(7).value || '')), // Column G
+          paymentStatus: parsePaymentStatus(String(row.getCell(cols.paymentStatus).value || '')),
           machineCode,
           machineId: machineId || undefined,
-          address: String(row.getCell(10).value || '').trim() || undefined, // Column J
+          address: String(row.getCell(cols.address).value || '').trim() || undefined,
           price,
           orderDate,
           importBatchId: batchId,
@@ -195,7 +319,9 @@ export class SalesService {
     }
 
     this.logger.log(
-      `Sales import complete: ${imported} imported, ${duplicates} duplicates, ${skipped} skipped, ${errors.length} errors, batch=${batchId}`,
+      `Sales import complete: ${imported} imported, ${duplicates} duplicates, ${skipped} skipped ` +
+      `(payment: ${skippedPayment}, machineCode: ${skippedMachineCode}), ` +
+      `${errors.length} errors, batch=${batchId}`,
     );
 
     // Log parsing errors server-side for audit trail
@@ -208,12 +334,20 @@ export class SalesService {
       }
     }
 
-    // Archive original file to Telegram channel (non-blocking)
-    if (imported > 0) {
-      this.archiveFileToTelegram(fileBuffer, batchId, originalName || 'import.xlsx', imported).catch(
-        (err) => this.logger.warn(`Failed to archive file for batch ${batchId}: ${err}`),
+    // Warn if all rows were skipped — likely wrong column layout
+    if (skipped > 0 && imported === 0 && orders.length === 0) {
+      this.logger.warn(
+        `Sales import batch=${batchId}: ALL ${skipped} rows skipped! ` +
+        `This likely means the Excel column layout doesn't match. ` +
+        `Headers: ${JSON.stringify(headerPreview)}`,
       );
     }
+
+    // Archive original file to Telegram channel (non-blocking)
+    // Always archive the file for audit trail, even if 0 imported
+    this.archiveFileToTelegram(fileBuffer, batchId, originalName || 'import.xlsx', imported).catch(
+      (err) => this.logger.warn(`Failed to archive file for batch ${batchId}: ${err}`),
+    );
 
     // Truncate errors to 50 for client response
     const errorsTruncated = errors.length > 50;
@@ -247,7 +381,8 @@ export class SalesService {
       return;
     }
 
-    const caption = `📁 <b>Импорт продаж</b>\nBatch: <code>${batchId}</code>\nФайл: ${originalName}\nИмпортировано: ${importedCount} заказов\nДата: ${new Date().toLocaleString('ru-RU', { timeZone: 'Asia/Tashkent' })}`;
+    const statusText = importedCount > 0 ? `Импортировано: ${importedCount} заказов` : '⚠️ 0 импортировано (проверьте формат файла)';
+    const caption = `📁 <b>Импорт продаж</b>\nBatch: <code>${batchId}</code>\nФайл: ${originalName}\n${statusText}\nДата: ${new Date().toLocaleString('ru-RU', { timeZone: 'Asia/Tashkent' })}`;
 
     const result = await this.telegramService.sendDocument(channelId, fileBuffer, originalName, caption);
     if (!result) {
