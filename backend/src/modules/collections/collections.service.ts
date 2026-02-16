@@ -22,6 +22,10 @@ import { EditCollectionDto } from './dto/edit-collection.dto';
 import { BulkCreateCollectionDto } from './dto/bulk-create-collection.dto';
 import { BulkCancelCollectionDto } from './dto/bulk-cancel-collection.dto';
 import { CollectionQueryDto } from './dto/collection-query.dto';
+import {
+  startOfDayTashkent,
+  endOfDayTashkent,
+} from '../../common/utils/timezone';
 
 // Distance threshold in meters — collections beyond this are flagged as suspicious
 const DISTANCE_WARNING_THRESHOLD = 50;
@@ -294,11 +298,11 @@ export class CollectionsService {
     }
 
     if (query.from) {
-      qb.andWhere('collection.collectedAt >= :from', { from: query.from });
+      qb.andWhere('collection.collectedAt >= :from', { from: startOfDayTashkent(query.from) });
     }
 
     if (query.to) {
-      qb.andWhere('collection.collectedAt <= :to', { to: query.to });
+      qb.andWhere('collection.collectedAt <= :to', { to: endOfDayTashkent(query.to) });
     }
 
     // Sorting - whitelist allowed fields to prevent SQL injection
@@ -592,10 +596,10 @@ export class CollectionsService {
           qb.andWhere('collection.source = :source', { source: dto.source });
         }
         if (dto.from) {
-          qb.andWhere('collection.collectedAt >= :from', { from: dto.from });
+          qb.andWhere('collection.collectedAt >= :from', { from: startOfDayTashkent(dto.from) });
         }
         if (dto.to) {
-          qb.andWhere('collection.collectedAt <= :to', { to: dto.to });
+          qb.andWhere('collection.collectedAt <= :to', { to: endOfDayTashkent(dto.to) });
         }
 
         const rows = await qb.getRawMany();
@@ -726,14 +730,14 @@ export class CollectionsService {
       .where('collection.operatorId = :operatorId', { operatorId });
 
     if (date) {
-      const startOfDay = new Date(date);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(date);
-      endOfDay.setHours(23, 59, 59, 999);
+      // Convert date to Tashkent day boundaries in UTC
+      const dateStr = date.toISOString().split('T')[0];
+      const start = startOfDayTashkent(dateStr);
+      const end = endOfDayTashkent(dateStr);
 
       query.andWhere('collection.collectedAt BETWEEN :start AND :end', {
-        start: startOfDay,
-        end: endOfDay,
+        start,
+        end,
       });
     }
 

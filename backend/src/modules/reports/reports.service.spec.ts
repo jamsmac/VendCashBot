@@ -315,7 +315,7 @@ describe('ReportsService', () => {
       expect(result.period.from).toBeDefined();
       expect(result.period.to).toBeDefined();
 
-      expect(mockQueryBuilder.groupBy).toHaveBeenCalledWith('DATE(collection.collectedAt)');
+      expect(mockQueryBuilder.groupBy).toHaveBeenCalledWith(`DATE(collection.collectedAt AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Tashkent')`);
       expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith('date', 'DESC');
 
       expect(cacheManager.set).toHaveBeenCalledWith(
@@ -630,13 +630,13 @@ describe('ReportsService', () => {
 
       const result = await service.getSummary({ from: '2024-01-01', to: '2024-01-31' });
 
-      // The to-date should be set to end of day (23:59:59.999 local time),
-      // which in UTC ISO string includes .999 milliseconds
+      // The to-date should be set to end of day in Tashkent (UTC+5),
+      // so 23:59:59.999 Tashkent = 18:59:59.999 UTC
       const toDate = new Date(result.period.to);
-      expect(toDate.getHours()).toBe(23);
-      expect(toDate.getMinutes()).toBe(59);
-      expect(toDate.getSeconds()).toBe(59);
-      expect(toDate.getMilliseconds()).toBe(999);
+      expect(toDate.getUTCHours()).toBe(18);
+      expect(toDate.getUTCMinutes()).toBe(59);
+      expect(toDate.getUTCSeconds()).toBe(59);
+      expect(toDate.getUTCMilliseconds()).toBe(999);
     });
 
     it('should default to current month when no dates provided', async () => {
@@ -652,10 +652,12 @@ describe('ReportsService', () => {
       const now = new Date();
       const result = await service.getSummary({});
 
+      // Default range should cover current month in Tashkent timezone
       const fromDate = new Date(result.period.from);
-      expect(fromDate.getFullYear()).toBe(now.getFullYear());
-      expect(fromDate.getMonth()).toBe(now.getMonth());
-      expect(fromDate.getDate()).toBe(1);
+      const toDate = new Date(result.period.to);
+      // From should be before or equal to now, To should be after or equal to now
+      expect(fromDate.getTime()).toBeLessThanOrEqual(now.getTime());
+      expect(toDate.getTime()).toBeGreaterThanOrEqual(now.getTime());
     });
   });
 

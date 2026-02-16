@@ -6,6 +6,15 @@ import { Cache } from 'cache-manager';
 import { Collection, CollectionStatus } from '../collections/entities/collection.entity';
 import { MachineStatus } from '../machines/entities/machine.entity';
 import { ReportQueryDto } from './dto/report-query.dto';
+import {
+  startOfDayTashkent,
+  endOfDayTashkent,
+  startOfTodayTashkent,
+  endOfTodayTashkent,
+  startOfMonthTashkent,
+  endOfMonthTashkent,
+  PG_TASHKENT_TZ,
+} from '../../common/utils/timezone';
 
 export interface SummaryReport {
   period: { from: string; to: string };
@@ -68,18 +77,16 @@ export class ReportsService {
   ) {}
 
   private getDateRange(query: ReportQueryDto): { from: Date; to: Date } {
-    const now = new Date();
     let from: Date;
     let to: Date;
 
     if (query.from && query.to) {
-      from = new Date(query.from);
-      to = new Date(query.to);
-      to.setHours(23, 59, 59, 999);
+      from = startOfDayTashkent(query.from);
+      to = endOfDayTashkent(query.to);
     } else {
-      // Default to current month
-      from = new Date(now.getFullYear(), now.getMonth(), 1);
-      to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      // Default to current month in Tashkent timezone
+      from = startOfMonthTashkent();
+      to = endOfMonthTashkent();
     }
 
     return { from, to };
@@ -215,14 +222,14 @@ export class ReportsService {
       .createQueryBuilder('collection')
       .leftJoin('collection.machine', 'machine')
       .select([
-        'DATE(collection.collectedAt) as date',
+        `DATE(collection.collectedAt AT TIME ZONE 'UTC' AT TIME ZONE '${PG_TASHKENT_TZ}') as date`,
         'COUNT(*) as "collectionsCount"',
         'COALESCE(SUM(collection.amount), 0) as "totalAmount"',
       ])
       .where('collection.collectedAt BETWEEN :from AND :to', { from, to })
       .andWhere('collection.status = :status', { status: CollectionStatus.RECEIVED })
       .andWhere('machine.status = :machineStatus', { machineStatus: MachineStatus.APPROVED })
-      .groupBy('DATE(collection.collectedAt)')
+      .groupBy(`DATE(collection.collectedAt AT TIME ZONE 'UTC' AT TIME ZONE '${PG_TASHKENT_TZ}')`)
       .orderBy('date', 'DESC')
       .getRawMany();
 
@@ -320,14 +327,10 @@ export class ReportsService {
     const cached = await this.cacheManager.get<{ pending: number; todayAmount: number; monthAmount: number }>(cacheKey);
     if (cached) return cached;
 
-    const now = new Date();
-    const startOfDay = new Date(now);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(now);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const startOfDay = startOfTodayTashkent();
+    const endOfDay = endOfTodayTashkent();
+    const startOfMonth = startOfMonthTashkent();
+    const endOfMonth = endOfMonthTashkent();
 
     // Pending count - only for approved machines
     const pending = await this.collectionRepository

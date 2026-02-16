@@ -4,13 +4,16 @@ import { useForm } from 'react-hook-form'
 import {
   machinesApi,
   Machine,
+  MachineLocation,
   CreateMachineData,
   UpdateMachineData,
   CreateMachineLocationData,
+  UpdateMachineLocationData,
 } from '../api/machines'
 import {
   Plus,
   Edit,
+  Pencil,
   X,
   Check,
   XCircle,
@@ -54,6 +57,7 @@ export default function Machines() {
     null
   )
   const [showAddLocationForm, setShowAddLocationForm] = useState(false)
+  const [editingLocation, setEditingLocation] = useState<MachineLocation | null>(null)
   const [locationCoords, setLocationCoords] = useState<{ lat?: number; lng?: number }>({})
   const [showLocationMap, setShowLocationMap] = useState(false)
 
@@ -148,6 +152,27 @@ export default function Machines() {
     },
   })
 
+  const updateLocationMutation = useMutation({
+    mutationFn: ({
+      locationId,
+      data,
+    }: {
+      locationId: string
+      data: UpdateMachineLocationData
+    }) => machinesApi.updateLocation(locationId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['machine-locations'] })
+      toast.success('Адрес обновлён')
+      setEditingLocation(null)
+      resetLocation()
+      setLocationCoords({})
+      setShowLocationMap(false)
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error))
+    },
+  })
+
   const deleteLocationMutation = useMutation({
     mutationFn: (locationId: string) => machinesApi.deleteLocation(locationId),
     onSuccess: () => {
@@ -212,6 +237,30 @@ export default function Machines() {
     setShowLocationsModal(false)
     setSelectedMachineForLocations(null)
     setShowAddLocationForm(false)
+    setEditingLocation(null)
+    resetLocation()
+    setLocationCoords({})
+    setShowLocationMap(false)
+  }
+
+  const startEditLocation = (loc: MachineLocation) => {
+    setEditingLocation(loc)
+    setShowAddLocationForm(false)
+    resetLocation({
+      address: loc.address,
+      validFrom: loc.validFrom?.split('T')[0] || '',
+      validTo: loc.validTo?.split('T')[0] || '',
+      isCurrent: loc.isCurrent,
+    })
+    setLocationCoords({
+      lat: loc.latitude != null ? Number(loc.latitude) : undefined,
+      lng: loc.longitude != null ? Number(loc.longitude) : undefined,
+    })
+    setShowLocationMap(!!(loc.latitude && loc.longitude))
+  }
+
+  const cancelEditLocation = () => {
+    setEditingLocation(null)
     resetLocation()
     setLocationCoords({})
     setShowLocationMap(false)
@@ -276,19 +325,32 @@ export default function Machines() {
   }
 
   const onSubmitLocation = (data: LocationForm) => {
-    if (!selectedMachineForLocations) return
-
-    addLocationMutation.mutate({
-      machineId: selectedMachineForLocations.id,
-      data: {
-        address: data.address,
-        latitude: locationCoords.lat,
-        longitude: locationCoords.lng,
-        validFrom: data.validFrom,
-        validTo: data.validTo || undefined,
-        isCurrent: data.isCurrent,
-      },
-    })
+    if (editingLocation) {
+      updateLocationMutation.mutate({
+        locationId: editingLocation.id,
+        data: {
+          address: data.address,
+          latitude: locationCoords.lat,
+          longitude: locationCoords.lng,
+          validFrom: data.validFrom,
+          validTo: data.validTo || undefined,
+          isCurrent: data.isCurrent,
+        },
+      })
+    } else {
+      if (!selectedMachineForLocations) return
+      addLocationMutation.mutate({
+        machineId: selectedMachineForLocations.id,
+        data: {
+          address: data.address,
+          latitude: locationCoords.lat,
+          longitude: locationCoords.lng,
+          validFrom: data.validFrom,
+          validTo: data.validTo || undefined,
+          isCurrent: data.isCurrent,
+        },
+      })
+    }
   }
 
   const formatDate = (dateStr: string) => {
@@ -571,10 +633,12 @@ export default function Machines() {
             </div>
 
             <div className="p-4">
-              {/* Add location form */}
-              {showAddLocationForm ? (
+              {/* Add/Edit location form */}
+              {(showAddLocationForm || editingLocation) ? (
                 <div className="mb-6 p-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50">
-                  <h3 className="font-medium mb-3 text-gray-900 dark:text-gray-100">Добавить адрес</h3>
+                  <h3 className="font-medium mb-3 text-gray-900 dark:text-gray-100">
+                    {editingLocation ? 'Редактировать адрес' : 'Добавить адрес'}
+                  </h3>
                   <form onSubmit={handleSubmitLocation(onSubmitLocation)} className="space-y-4">
                     <div>
                       <div className="flex items-center justify-between mb-1">
@@ -645,10 +709,14 @@ export default function Machines() {
                       <button
                         type="button"
                         onClick={() => {
-                          setShowAddLocationForm(false)
-                          resetLocation()
-                          setLocationCoords({})
-                          setShowLocationMap(false)
+                          if (editingLocation) {
+                            cancelEditLocation()
+                          } else {
+                            setShowAddLocationForm(false)
+                            resetLocation()
+                            setLocationCoords({})
+                            setShowLocationMap(false)
+                          }
                         }}
                         className="btn btn-secondary flex-1"
                       >
@@ -656,15 +724,17 @@ export default function Machines() {
                       </button>
                       <button
                         type="submit"
-                        disabled={addLocationMutation.isPending}
+                        disabled={addLocationMutation.isPending || updateLocationMutation.isPending}
                         className="btn btn-primary flex-1"
                       >
-                        {addLocationMutation.isPending ? 'Сохранение...' : 'Добавить'}
+                        {(addLocationMutation.isPending || updateLocationMutation.isPending)
+                          ? 'Сохранение...'
+                          : editingLocation ? 'Сохранить' : 'Добавить'}
                       </button>
                     </div>
                   </form>
                 </div>
-              ) : (
+              ) : !editingLocation ? (
                 <button
                   onClick={() => setShowAddLocationForm(true)}
                   className="mb-4 btn btn-primary flex items-center gap-2"
@@ -672,7 +742,7 @@ export default function Machines() {
                   <Plus className="w-4 h-4" />
                   Добавить адрес
                 </button>
-              )}
+              ) : null}
 
               {/* Locations list */}
               {isLoadingLocations ? (
@@ -707,6 +777,13 @@ export default function Machines() {
                           )}
                         </div>
                         <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => startEditLocation(loc)}
+                            className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
+                            title="Редактировать"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
                           {!loc.isCurrent && (
                             <button
                               onClick={() => setCurrentLocationMutation.mutate(loc.id)}

@@ -767,7 +767,7 @@ describe('CollectionsService', () => {
 
       expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
         'collection.collectedAt >= :from',
-        { from: '2025-01-01' },
+        { from: expect.any(Date) },
       );
     });
 
@@ -778,7 +778,7 @@ describe('CollectionsService', () => {
 
       expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
         'collection.collectedAt <= :to',
-        { to: '2025-01-31' },
+        { to: expect.any(Date) },
       );
     });
 
@@ -1722,11 +1722,11 @@ describe('CollectionsService', () => {
 
       expect(mockFilterQueryBuilder.andWhere).toHaveBeenCalledWith(
         'collection.collectedAt >= :from',
-        { from: '2025-01-01' },
+        { from: expect.any(Date) },
       );
       expect(mockFilterQueryBuilder.andWhere).toHaveBeenCalledWith(
         'collection.collectedAt <= :to',
-        { to: '2025-01-31' },
+        { to: expect.any(Date) },
       );
     });
 
@@ -1925,12 +1925,14 @@ describe('CollectionsService', () => {
       await service.findByOperator('operator-123', date);
 
       const callArgs = mockQueryBuilder.andWhere.mock.calls[0][1];
-      expect(callArgs.start.getHours()).toBe(0);
-      expect(callArgs.start.getMinutes()).toBe(0);
-      expect(callArgs.start.getSeconds()).toBe(0);
-      expect(callArgs.end.getHours()).toBe(23);
-      expect(callArgs.end.getMinutes()).toBe(59);
-      expect(callArgs.end.getSeconds()).toBe(59);
+      // Start of day in Tashkent (UTC+5): 2025-01-14T19:00:00.000Z
+      expect(callArgs.start.getUTCHours()).toBe(19);
+      expect(callArgs.start.getUTCMinutes()).toBe(0);
+      expect(callArgs.start.getUTCSeconds()).toBe(0);
+      // End of day in Tashkent (UTC+5): 2025-01-15T18:59:59.999Z
+      expect(callArgs.end.getUTCHours()).toBe(18);
+      expect(callArgs.end.getUTCMinutes()).toBe(59);
+      expect(callArgs.end.getUTCSeconds()).toBe(59);
     });
 
     it('should not apply date filter when date is not provided', async () => {

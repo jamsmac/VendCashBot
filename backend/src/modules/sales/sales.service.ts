@@ -10,6 +10,11 @@ import { SalesQueryDto, ReconciliationQueryDto } from './dto/sales-query.dto';
 import { ImportSalesResultDto } from './dto/import-sales.dto';
 import { TelegramService } from '../../telegram/telegram.service';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  startOfDayTashkent,
+  endOfDayTashkent,
+  PG_TASHKENT_TZ,
+} from '../../common/utils/timezone';
 
 /** Map Excel payment resource text to our enum */
 function parsePaymentMethod(value: string): PaymentMethod | null {
@@ -301,12 +306,10 @@ export class SalesService {
     }
 
     if (query.from) {
-      qb.andWhere('so.orderDate >= :from', { from: new Date(query.from) });
+      qb.andWhere('so.orderDate >= :from', { from: startOfDayTashkent(query.from) });
     }
     if (query.to) {
-      const toDate = new Date(query.to);
-      toDate.setHours(23, 59, 59, 999);
-      qb.andWhere('so.orderDate <= :to', { to: toDate });
+      qb.andWhere('so.orderDate <= :to', { to: endOfDayTashkent(query.to) });
     }
 
     const page = query.page || 1;
@@ -367,12 +370,10 @@ export class SalesService {
       .orderBy('"cashTotal"', 'DESC');
 
     if (query.from) {
-      qb.andWhere('so.orderDate >= :from', { from: new Date(query.from) });
+      qb.andWhere('so.orderDate >= :from', { from: startOfDayTashkent(query.from) });
     }
     if (query.to) {
-      const toDate = new Date(query.to);
-      toDate.setHours(23, 59, 59, 999);
-      qb.andWhere('so.orderDate <= :to', { to: toDate });
+      qb.andWhere('so.orderDate <= :to', { to: endOfDayTashkent(query.to) });
     }
 
     const results = await qb.getRawMany();
@@ -424,13 +425,11 @@ export class SalesService {
     const collectionFilters: string[] = ['c.status = :receivedStatus'];
     if (query.from) {
       collectionFilters.push('c.collected_at >= :cfrom');
-      params.cfrom = new Date(query.from);
+      params.cfrom = startOfDayTashkent(query.from);
     }
     if (query.to) {
-      const toDate = new Date(query.to);
-      toDate.setHours(23, 59, 59, 999);
       collectionFilters.push('c.collected_at <= :cto');
-      params.cto = toDate;
+      params.cto = endOfDayTashkent(query.to);
     }
 
     // Optional machine filter
@@ -666,7 +665,7 @@ export class SalesService {
     const qb = this.salesOrderRepository
       .createQueryBuilder('so')
       .select([
-        `TO_CHAR(so.orderDate, 'YYYY-MM-DD') AS "date"`,
+        `TO_CHAR(so.orderDate AT TIME ZONE 'UTC' AT TIME ZONE '${PG_TASHKENT_TZ}', 'YYYY-MM-DD') AS "date"`,
         `COALESCE(SUM(CASE WHEN so.paymentMethod = :cash AND so.paymentStatus = :paid THEN so.price ELSE 0 END), 0) AS "cashTotal"`,
         `COUNT(CASE WHEN so.paymentMethod = :cash AND so.paymentStatus = :paid THEN 1 END) AS "cashCount"`,
         `COALESCE(SUM(CASE WHEN so.paymentMethod = :card AND so.paymentStatus = :paid THEN so.price ELSE 0 END), 0) AS "cardTotal"`,
@@ -677,16 +676,14 @@ export class SalesService {
         card: PaymentMethod.CARD,
         paid: PaymentStatus.PAID,
       })
-      .groupBy(`TO_CHAR(so.orderDate, 'YYYY-MM-DD')`)
+      .groupBy(`TO_CHAR(so.orderDate AT TIME ZONE 'UTC' AT TIME ZONE '${PG_TASHKENT_TZ}', 'YYYY-MM-DD')`)
       .orderBy('"date"', 'ASC');
 
     if (query.from) {
-      qb.andWhere('so.orderDate >= :from', { from: new Date(query.from) });
+      qb.andWhere('so.orderDate >= :from', { from: startOfDayTashkent(query.from) });
     }
     if (query.to) {
-      const toDate = new Date(query.to);
-      toDate.setHours(23, 59, 59, 999);
-      qb.andWhere('so.orderDate <= :to', { to: toDate });
+      qb.andWhere('so.orderDate <= :to', { to: endOfDayTashkent(query.to) });
     }
 
     const results = await qb.getRawMany();
@@ -724,12 +721,10 @@ export class SalesService {
       .limit(query.limit || 10);
 
     if (query.from) {
-      qb.andWhere('so.orderDate >= :from', { from: new Date(query.from) });
+      qb.andWhere('so.orderDate >= :from', { from: startOfDayTashkent(query.from) });
     }
     if (query.to) {
-      const toDate = new Date(query.to);
-      toDate.setHours(23, 59, 59, 999);
-      qb.andWhere('so.orderDate <= :to', { to: toDate });
+      qb.andWhere('so.orderDate <= :to', { to: endOfDayTashkent(query.to) });
     }
 
     const results = await qb.getRawMany();
