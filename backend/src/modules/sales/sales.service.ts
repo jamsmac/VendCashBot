@@ -451,12 +451,16 @@ export class SalesService {
     }
 
     if (query.from) {
-      const fromDate = isFullTimestamp(query.from) ? new Date(query.from) : startOfDayTashkent(query.from);
+      const isExact = isFullTimestamp(query.from);
+      const fromDate = isExact ? new Date(query.from) : startOfDayTashkent(query.from);
       qb.andWhere('so.orderDate >= :from', { from: fromDate });
+      this.logger.debug(`getOrders from: "${query.from}" → isExact=${isExact} → ${fromDate.toISOString()}`);
     }
     if (query.to) {
-      const toDate = isFullTimestamp(query.to) ? new Date(query.to) : endOfDayTashkent(query.to);
+      const isExact = isFullTimestamp(query.to);
+      const toDate = isExact ? new Date(query.to) : endOfDayTashkent(query.to);
       qb.andWhere('so.orderDate <= :to', { to: toDate });
+      this.logger.debug(`getOrders to: "${query.to}" → isExact=${isExact} → ${toDate.toISOString()}`);
     }
 
     const page = query.page || 1;
@@ -467,6 +471,7 @@ export class SalesService {
       .take(limit);
 
     const [data, total] = await qb.getManyAndCount();
+    this.logger.debug(`getOrders result: ${total} total, returning ${data.length}`);
     return { data, total };
   }
 
@@ -650,6 +655,17 @@ export class SalesService {
       expectedAmount: string;
       cashOrdersCount: string;
     }> = await this.salesOrderRepository.manager.query(positionalSql, positionalValues);
+
+    // Debug: log first 3 rows to verify timestamp comparison
+    if (rows.length > 0) {
+      this.logger.debug(
+        `Reconciliation: ${rows.length} rows. First 3: ` +
+        rows.slice(0, 3).map((r) =>
+          `${r.machineCode}: period=${new Date(r.periodStart).toISOString()}..${new Date(r.periodEnd).toISOString()}, ` +
+          `expected=${r.expectedAmount}, actual=${r.actualAmount}, orders=${r.cashOrdersCount}`,
+        ).join(' | '),
+      );
+    }
 
     const items: ReconciliationItem[] = rows.map((r) => {
       const expectedAmount = Math.round(Number(r.expectedAmount) * 100) / 100;
