@@ -50,13 +50,25 @@ function isFullTimestamp(dateStr: string): boolean {
   return dateStr.includes('T') || /\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(dateStr);
 }
 
+/**
+ * Asia/Tashkent offset in milliseconds (UTC+5, no DST).
+ * ExcelJS parses Excel dates treating local time as UTC.
+ * We subtract this offset to convert to real UTC.
+ */
+const TASHKENT_OFFSET_MS = 5 * 60 * 60 * 1000;
+
 function parseDate(value: unknown): Date | null {
   if (!value) return null;
-  if (value instanceof Date) return value;
+  if (value instanceof Date) {
+    // ExcelJS Date — time component is Tashkent local time stored as UTC.
+    // Convert to real UTC by subtracting 5 hours.
+    return new Date(value.getTime() - TASHKENT_OFFSET_MS);
+  }
   const str = String(value).trim();
-  // Format: "2025-09-11 23:06:09"
+  // Format: "2025-09-11 23:06:09" — also Tashkent local time
   const d = new Date(str);
-  return isNaN(d.getTime()) ? null : d;
+  if (isNaN(d.getTime())) return null;
+  return new Date(d.getTime() - TASHKENT_OFFSET_MS);
 }
 
 /**
@@ -656,9 +668,9 @@ export class SalesService {
       cashOrdersCount: string;
     }> = await this.salesOrderRepository.manager.query(positionalSql, positionalValues);
 
-    // Debug: log first 3 rows to verify timestamp comparison
+    // Log first 3 rows to verify timestamp comparison (using .log so it's visible in production)
     if (rows.length > 0) {
-      this.logger.debug(
+      this.logger.log(
         `Reconciliation: ${rows.length} rows. First 3: ` +
         rows.slice(0, 3).map((r) =>
           `${r.machineCode}: period=${new Date(r.periodStart).toISOString()}..${new Date(r.periodEnd).toISOString()}, ` +
