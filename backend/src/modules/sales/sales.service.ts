@@ -40,6 +40,16 @@ function parsePrice(value: unknown): number {
   return isNaN(num) ? 0 : Math.round(num * 100) / 100;
 }
 
+/**
+ * Check if a date string contains time information (is a full timestamp).
+ * "2025-01-30" → false (date only)
+ * "2025-01-30T13:40:00.000Z" → true (full timestamp)
+ * "2025-01-30 13:40:00" → true (full timestamp)
+ */
+function isFullTimestamp(dateStr: string): boolean {
+  return dateStr.includes('T') || /\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(dateStr);
+}
+
 function parseDate(value: unknown): Date | null {
   if (!value) return null;
   if (value instanceof Date) return value;
@@ -441,10 +451,12 @@ export class SalesService {
     }
 
     if (query.from) {
-      qb.andWhere('so.orderDate >= :from', { from: startOfDayTashkent(query.from) });
+      const fromDate = isFullTimestamp(query.from) ? new Date(query.from) : startOfDayTashkent(query.from);
+      qb.andWhere('so.orderDate >= :from', { from: fromDate });
     }
     if (query.to) {
-      qb.andWhere('so.orderDate <= :to', { to: endOfDayTashkent(query.to) });
+      const toDate = isFullTimestamp(query.to) ? new Date(query.to) : endOfDayTashkent(query.to);
+      qb.andWhere('so.orderDate <= :to', { to: toDate });
     }
 
     const page = query.page || 1;
@@ -505,10 +517,12 @@ export class SalesService {
       .orderBy('"cashTotal"', 'DESC');
 
     if (query.from) {
-      qb.andWhere('so.orderDate >= :from', { from: startOfDayTashkent(query.from) });
+      const fromDate = isFullTimestamp(query.from) ? new Date(query.from) : startOfDayTashkent(query.from);
+      qb.andWhere('so.orderDate >= :from', { from: fromDate });
     }
     if (query.to) {
-      qb.andWhere('so.orderDate <= :to', { to: endOfDayTashkent(query.to) });
+      const toDate = isFullTimestamp(query.to) ? new Date(query.to) : endOfDayTashkent(query.to);
+      qb.andWhere('so.orderDate <= :to', { to: toDate });
     }
 
     const results = await qb.getRawMany();
@@ -815,10 +829,12 @@ export class SalesService {
       .orderBy('"date"', 'ASC');
 
     if (query.from) {
-      qb.andWhere('so.orderDate >= :from', { from: startOfDayTashkent(query.from) });
+      const fromDate = isFullTimestamp(query.from) ? new Date(query.from) : startOfDayTashkent(query.from);
+      qb.andWhere('so.orderDate >= :from', { from: fromDate });
     }
     if (query.to) {
-      qb.andWhere('so.orderDate <= :to', { to: endOfDayTashkent(query.to) });
+      const toDate = isFullTimestamp(query.to) ? new Date(query.to) : endOfDayTashkent(query.to);
+      qb.andWhere('so.orderDate <= :to', { to: toDate });
     }
 
     const results = await qb.getRawMany();
@@ -856,10 +872,12 @@ export class SalesService {
       .limit(query.limit || 10);
 
     if (query.from) {
-      qb.andWhere('so.orderDate >= :from', { from: startOfDayTashkent(query.from) });
+      const fromDate = isFullTimestamp(query.from) ? new Date(query.from) : startOfDayTashkent(query.from);
+      qb.andWhere('so.orderDate >= :from', { from: fromDate });
     }
     if (query.to) {
-      qb.andWhere('so.orderDate <= :to', { to: endOfDayTashkent(query.to) });
+      const toDate = isFullTimestamp(query.to) ? new Date(query.to) : endOfDayTashkent(query.to);
+      qb.andWhere('so.orderDate <= :to', { to: toDate });
     }
 
     const results = await qb.getRawMany();
