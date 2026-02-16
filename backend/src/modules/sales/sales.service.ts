@@ -660,9 +660,9 @@ export class SalesService {
         : 0;
 
       let status: ReconciliationItem['status'];
-      if (expectedAmount === 0) {
+      if (expectedAmount === 0 && actualAmount === 0) {
         status = 'no_sales';
-      } else if (Math.abs(percentDeviation) <= 5) {
+      } else if (difference === 0) {
         status = 'matched';
       } else if (actualAmount < expectedAmount) {
         status = 'shortage';

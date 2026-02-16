@@ -84,7 +84,7 @@ export default function ReconciliationTable({ items }: ReconciliationTableProps)
                     {item.difference > 0 ? '+' : ''}{formatAmount(item.difference)}
                   </td>
                   <td className={`px-3 py-2 text-right text-xs whitespace-nowrap ${
-                    Math.abs(item.percentDeviation) <= 5
+                    item.difference === 0
                       ? 'text-green-600 dark:text-green-400'
                       : 'text-red-600 dark:text-red-400'
                   }`}>
