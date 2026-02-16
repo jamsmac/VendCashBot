@@ -7,12 +7,13 @@ import ModalOverlay from './ui/ModalOverlay'
 interface EditCollectionModalProps {
   collection: Collection
   onClose: () => void
-  onSubmit: (amount: number, reason: string) => Promise<void>
+  onSubmit: (amount: number, reason: string, notes?: string) => Promise<void>
 }
 
 interface EditFormData {
   amount: number
   reason: string
+  notes: string
 }
 
 export default function EditCollectionModal({ collection, onClose, onSubmit }: EditCollectionModalProps) {
@@ -20,6 +21,7 @@ export default function EditCollectionModal({ collection, onClose, onSubmit }: E
   const { register, handleSubmit, watch, formState: { errors } } = useForm<EditFormData>({
     defaultValues: {
       amount: Number(collection.amount) || 0,
+      notes: collection.notes || '',
     },
   })
 
@@ -28,7 +30,7 @@ export default function EditCollectionModal({ collection, onClose, onSubmit }: E
   const handleFormSubmit = async (data: EditFormData) => {
     setIsSubmitting(true)
     try {
-      await onSubmit(data.amount, data.reason)
+      await onSubmit(data.amount, data.reason, data.notes || undefined)
     } finally {
       setIsSubmitting(false)
     }
@@ -47,16 +49,16 @@ export default function EditCollectionModal({ collection, onClose, onSubmit }: E
         <form onSubmit={handleSubmit(handleFormSubmit)} className="p-4 space-y-4">
           <div className="space-y-2 text-sm">
             <div className="flex items-center gap-2">
-              <span className="text-gray-500">🏧 Автомат:</span>
+              <span className="text-gray-500">Автомат:</span>
               <span className="font-medium">{collection.machine.code}</span>
             </div>
-            <div className="text-gray-700">{collection.machine.name}</div>
+            <div className="text-gray-700 dark:text-gray-300">{collection.machine.name}</div>
             <div className="flex items-center gap-2">
-              <span className="text-gray-500">👷 Оператор:</span>
+              <span className="text-gray-500">Оператор:</span>
               <span>{collection.operator.name}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-gray-500">💰 Текущая сумма:</span>
+              <span className="text-gray-500">Текущая сумма:</span>
               <span className="font-medium">
                 {Number(collection.amount).toLocaleString('ru-RU')} сум
               </span>
@@ -91,12 +93,26 @@ export default function EditCollectionModal({ collection, onClose, onSubmit }: E
           </div>
 
           <div>
+            <label className="block text-sm font-medium mb-1">Примечания</label>
+            <textarea
+              className="input min-h-[60px] resize-none"
+              placeholder="Добавить примечание..."
+              {...register('notes', {
+                maxLength: { value: 1000, message: 'Максимум 1000 символов' },
+              })}
+            />
+            {errors.notes && (
+              <p className="text-red-500 text-sm mt-1">{errors.notes.message}</p>
+            )}
+          </div>
+
+          <div>
             <label className="block text-sm font-medium mb-1">
               Причина изменения <span className="text-red-500">*</span>
             </label>
             <textarea
               className="input min-h-[80px] resize-none"
-              placeholder="Укажите причину изменения суммы"
+              placeholder="Укажите причину изменения"
               {...register('reason', {
                 required: 'Укажите причину',
                 maxLength: { value: 500, message: 'Максимум 500 символов' },

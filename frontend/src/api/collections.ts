@@ -79,8 +79,13 @@ export const collectionsApi = {
     return response.data
   },
 
-  edit: async (id: string, data: { amount: number; reason: string }): Promise<Collection> => {
+  edit: async (id: string, data: { amount?: number; reason: string; notes?: string }): Promise<Collection> => {
     const response = await apiClient.patch(`/collections/${id}/edit`, data)
+    return response.data
+  },
+
+  remove: async (id: string): Promise<{ success: boolean }> => {
+    const response = await apiClient.delete(`/collections/${id}`)
     return response.data
   },
 

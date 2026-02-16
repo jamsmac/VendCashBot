@@ -458,6 +458,20 @@ export class CollectionsService {
         collection.amount = dto.amount;
       }
 
+      // Update notes if provided
+      if (dto.notes !== undefined && dto.notes !== collection.notes) {
+        const notesHistory = queryRunner.manager.create(CollectionHistory, {
+          collectionId: id,
+          changedById: userId,
+          fieldName: 'notes',
+          oldValue: collection.notes || '',
+          newValue: dto.notes,
+          reason: dto.reason,
+        });
+        await queryRunner.manager.save(notesHistory);
+        collection.notes = dto.notes;
+      }
+
       const saved = await queryRunner.manager.save(collection);
       await queryRunner.commitTransaction();
       await this.invalidateReportsCache();
@@ -650,6 +664,47 @@ export class CollectionsService {
     }
 
     return results;
+  }
+
+  async remove(id: string, userId: string): Promise<{ success: boolean }> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const collection = await queryRunner.manager.findOne(Collection, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!collection) {
+        throw new NotFoundException('Collection not found');
+      }
+
+      // Log deletion in history before removing
+      const history = queryRunner.manager.create(CollectionHistory, {
+        collectionId: id,
+        changedById: userId,
+        fieldName: 'status',
+        oldValue: collection.status,
+        newValue: 'deleted',
+        reason: 'Deleted by admin',
+      });
+      await queryRunner.manager.save(history);
+
+      // Delete history records first (FK constraint), then collection
+      await queryRunner.manager.delete(CollectionHistory, { collectionId: id });
+      await queryRunner.manager.remove(collection);
+
+      await queryRunner.commitTransaction();
+      await this.invalidateReportsCache();
+      return { success: true };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async getHistory(id: string): Promise<CollectionHistory[]> {

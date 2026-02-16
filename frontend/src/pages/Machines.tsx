@@ -18,6 +18,9 @@ import {
   History,
   Trash2,
   Star,
+  Clock,
+  CheckCircle,
+  Ban,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getErrorMessage } from '../utils/getErrorMessage'
@@ -323,20 +326,21 @@ export default function Machines() {
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Код</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Название</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Адрес</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Статус</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Активность</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Модерация</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Действия</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
             {isLoading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                   Загрузка...
                 </td>
               </tr>
             ) : machines?.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                   Нет автоматов
                 </td>
               </tr>
@@ -358,6 +362,24 @@ export default function Machines() {
                       <span className="badge badge-success">Активен</span>
                     ) : (
                       <span className="badge badge-danger">Неактивен</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {machine.status === 'pending' ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                        <Clock className="w-3 h-3" />
+                        На модерации
+                      </span>
+                    ) : machine.status === 'rejected' ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                        <Ban className="w-3 h-3" />
+                        Отклонён
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                        <CheckCircle className="w-3 h-3" />
+                        Одобрен
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-3">

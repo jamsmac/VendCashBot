@@ -8,6 +8,7 @@ export interface Machine {
   latitude?: number
   longitude?: number
   isActive: boolean
+  status?: 'pending' | 'approved' | 'rejected'
   createdAt: string
   updatedAt: string
 }
@@ -60,8 +61,11 @@ export interface UpdateMachineLocationData {
 }
 
 export const machinesApi = {
-  getAll: async (activeOnly = true, signal?: AbortSignal): Promise<Machine[]> => {
-    const response = await apiClient.get('/machines', { params: { active: activeOnly }, signal })
+  getAll: async (activeOnly = true, signal?: AbortSignal, approvedOnly = false): Promise<Machine[]> => {
+    const response = await apiClient.get('/machines', {
+      params: { active: activeOnly, approved: approvedOnly },
+      signal,
+    })
     return response.data
   },
 

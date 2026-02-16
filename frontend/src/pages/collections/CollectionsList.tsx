@@ -46,12 +46,23 @@ export default function CollectionsList() {
         }
     }
 
-    const handleEdit = async (amount: number, reason: string) => {
+    const handleEdit = async (amount: number, reason: string, notes?: string) => {
         if (!editCollection) return
         try {
-            await collectionsApi.edit(editCollection.id, { amount, reason })
-            toast.success('Сумма инкассации изменена!')
+            await collectionsApi.edit(editCollection.id, { amount, reason, notes })
+            toast.success('Инкассация обновлена!')
             setEditCollection(null)
+            refetch()
+        } catch (error: unknown) {
+            toast.error(getErrorMessage(error))
+        }
+    }
+
+    const handleDelete = async (collection: Collection) => {
+        if (!confirm(`Удалить инкассацию ${collection.machine.name}?\nЭто действие необратимо!`)) return
+        try {
+            await collectionsApi.remove(collection.id)
+            toast.success('Инкассация удалена')
             refetch()
         } catch (error: unknown) {
             toast.error(getErrorMessage(error))
@@ -360,7 +371,7 @@ export default function CollectionsList() {
                                                         <button
                                                             onClick={() => setEditCollection(collection)}
                                                             className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
-                                                            title="Редактировать сумму"
+                                                            title="Редактировать"
                                                         >
                                                             <Edit className="w-4 h-4" />
                                                         </button>
@@ -372,6 +383,15 @@ export default function CollectionsList() {
                                                             <Trash2 className="w-4 h-4" />
                                                         </button>
                                                     </>
+                                                )}
+                                                {user?.role === 'admin' && collection.status !== 'cancelled' && (
+                                                    <button
+                                                        onClick={() => handleDelete(collection)}
+                                                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
+                                                        title="Удалить навсегда"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
                                                 )}
                                             </div>
                                         </td>

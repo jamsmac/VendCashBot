@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -128,5 +129,15 @@ export class CollectionsController {
     @CurrentUser() user: User,
   ) {
     return this.collectionsService.cancel(id, user.id, dto.reason);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Delete collection (admin only)' })
+  async remove(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.collectionsService.remove(id, user.id);
   }
 }
